@@ -1,0 +1,204 @@
+import Foundation
+import OSLog
+
+/// A manager responsible for handling network requests with caching, authorization, and retry capabilities.
+public actor NetworkManager {
+    // MARK: - Dependencies
+    private let urlSession: URLSessionProtocol
+    private let responseHandler: ResponseHandler
+    private let cacheManager: CacheManager
+    private let authHandler: AuthorizationHandler
+    private let retryHandler: RetryHandler
+    
+    public init(
+        authorizationManager: AuthorizationManagerProtocol,
+        urlSession: URLSessionProtocol = NetworkConfiguration.default,
+        responseHandler: ResponseHandler = ResponseHandler(),
+        cacheManager: CacheManager = CacheManager(),
+        rateLimiter: RateLimiter = RateLimiter(),
+        retryPolicy: RetryPolicy = DefaultRetryPolicy()
+    ) {
+        self.urlSession = urlSession
+        self.responseHandler = responseHandler
+        self.cacheManager = cacheManager
+        self.authHandler = AuthorizationHandler(
+            authorizationManager: authorizationManager,
+            urlSession: urlSession
+        )
+        self.retryHandler = RetryHandler(retryPolicy: retryPolicy, rateLimiter: rateLimiter)
+    }
+
+    public func performRequest(with request: URLRequest, requiresAuthorization: Bool) async throws -> (Data, HTTPURLResponse) {
+        try await performRequestWithRetry(
+            request: request,
+            requiresAuthorization: requiresAuthorization,
+            attempt: 0
+        )
+    }
+}
+
+// MARK: - Request Execution
+private extension NetworkManager {
+    func performRequestWithRetry(
+        request: URLRequest, 
+        requiresAuthorization: Bool, 
+        attempt: Int,
+        isRefreshAttempt: Bool = false
+    ) async throws -> (Data, HTTPURLResponse) {
+        do {
+            var requestToSend = requiresAuthorization 
+                ? try await authHandler.authorizeRequest(request)
+                : request
+                
+            // Add cache control based on HTTP method
+            switch request.httpMethod {
+            case "GET":
+                // Always validate with server
+                requestToSend.cachePolicy = .reloadRevalidatingCacheData
+                requestToSend.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+            case "POST", "PUT", "DELETE":
+                // Never use cache for mutations
+                requestToSend.cachePolicy = .reloadIgnoringLocalCacheData
+            default:
+                break
+            }
+            
+            let (data, response) = try await urlSession.data(for: requestToSend)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NetworkError.invalidResponse(description: "Invalid response")
+            }
+            
+            return try await handleResponse(request, data: data, response: httpResponse, isRefreshAttempt: isRefreshAttempt)
+            
+        } catch {
+            // First check if we should retry
+            let shouldRetry = await retryHandler.shouldRetry(error: error, attempt: attempt)
+            
+            if !isRefreshAttempt && shouldRetry {
+                try await retryHandler.handleRetry(attempt: attempt)
+                return try await performRequestWithRetry(
+                    request: request,
+                    requiresAuthorization: requiresAuthorization,
+                    attempt: attempt + 1,
+                    isRefreshAttempt: isRefreshAttempt
+                )
+            }
+            throw error
+        }
+    }
+    
+    func handleResponse(
+        _ request: URLRequest,
+        data: Data,
+        response: URLResponse,
+        isRefreshAttempt: Bool
+    ) async throws -> (Data, HTTPURLResponse) {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.invalidResponse(description: "Invalid response")
+        }
+        
+        Logger.logResponse(httpResponse, data: data)
+        let responseDescription = HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
+        
+        switch httpResponse.statusCode {
+        case 200...299:
+            return try await handleSuccessResponse(request, data: data, response: httpResponse)
+        case 304:
+            return try await cacheManager.handleNotModifiedResponse(for: request)
+        case 400...499:
+            return try await handleClientError(
+                request,
+                data: data,
+                response: httpResponse,
+                description: responseDescription,
+                isRefreshAttempt: isRefreshAttempt
+            )
+        case 500...599:
+            return try await handleServerError(data: data, httpResponse: httpResponse, responseDescription: responseDescription)
+        default:
+            throw NetworkError.unknownError(statusCode: httpResponse.statusCode, description: "Unknown Error: \(responseDescription)")
+        }
+    }
+    
+    func handleClientError(
+        _ request: URLRequest,
+        data: Data,
+        response: HTTPURLResponse,
+        description: String,
+        isRefreshAttempt: Bool
+    ) async throws -> (Data, HTTPURLResponse) {
+        switch response.statusCode {
+        case 400:
+            throw NetworkError.badRequest(description: "Bad Request: \(description)")
+        case 401, 403:
+            if isRefreshAttempt {
+                // If we get 401/403 during a refresh attempt, let the AuthHandler handle the invalidation
+                return try await authHandler.handleTokenRefresh(for: request)
+            }
+            // Try refresh once
+            return try await performRequestWithRetry(
+                request: request,
+                requiresAuthorization: true,
+                attempt: 0,
+                isRefreshAttempt: true
+            )
+        case 404:
+            throw NetworkError.notFound(description: "Not Found: \(description)")
+        case 408:
+            throw NetworkError.timeout(description: "Request Timeout: \(description)")
+        case 429:
+            throw NetworkError.clientError(statusCode: response.statusCode, description: "Too Many Requests: \(description)")
+        default:
+            throw NetworkError.clientError(statusCode: response.statusCode, description: "Client Error: \(description)")
+        }
+    }
+}
+
+// MARK: - Response Handling
+private extension NetworkManager {
+    func handleSuccessResponse(_ request: URLRequest, data: Data, response: HTTPURLResponse) async throws -> (Data, HTTPURLResponse) {
+        if request.httpMethod == HTTPMethod.get.method, let url = request.url {
+            await cacheManager.cacheResponse(data, for: url, response: response)
+        }
+        return (data, response)
+    }
+    
+    func handleServerError(data: Data, httpResponse: HTTPURLResponse, responseDescription: String) async throws -> (Data, HTTPURLResponse) {
+        let errorType = ServerErrorType(statusCode: httpResponse.statusCode)
+        let serverError = await responseHandler.decodeServerError(
+            from: data,
+            statusCode: httpResponse.statusCode,
+            defaultMessage: errorType.message
+        )
+        
+        throw NetworkError.serverError(serverError)
+    }
+}
+
+// MARK: - Error Handling
+private extension NetworkManager {
+    enum ServerErrorType {
+        case badGateway
+        case serviceUnavailable
+        case gatewayTimeout
+        case unknown
+        
+        init(statusCode: Int) {
+            switch statusCode {
+            case 502: self = .badGateway
+            case 503: self = .serviceUnavailable
+            case 504: self = .gatewayTimeout
+            default: self = .unknown
+            }
+        }
+        
+        var message: String {
+            switch self {
+            case .badGateway: "Bad Gateway"
+            case .serviceUnavailable: "Service Unavailable"
+            case .gatewayTimeout: "Gateway Timeout"
+            case .unknown: "Server Error"
+            }
+        }
+    }
+}
