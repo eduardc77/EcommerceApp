@@ -55,7 +55,10 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
         try await fluent.migrate()
     }
 
-    let jwtAuthenticator = JWTAuthenticator(fluent: fluent)
+    // Initialize token store
+    let tokenStore = TokenStore()
+
+    let jwtAuthenticator = JWTAuthenticator(fluent: fluent, tokenStore: tokenStore)
     let jwtLocalSignerKid = JWKIdentifier("hb_local")
 
     // Validate and get JWT secret
@@ -75,7 +78,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     )
 
     // Create regular JWT authenticator for user routes
-    let userJWTAuthenticator = JWTAuthenticator(fluent: fluent)
+    let userJWTAuthenticator = JWTAuthenticator(fluent: fluent, tokenStore: tokenStore)
     await userJWTAuthenticator.useSigner(
         hmac: HMACKey(key: SymmetricKey(data: secretData)),
         digestAlgorithm: .sha256,
@@ -121,7 +124,8 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     let userController = UserController(
         jwtKeyCollection: userJWTAuthenticator.jwtKeyCollection,
         kid: jwtLocalSignerKid,
-        fluent: fluent
+        fluent: fluent,
+        tokenStore: tokenStore
     )
     
     // Add user routes - split into public and protected
@@ -140,14 +144,16 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     AuthController(
         jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
         kid: jwtLocalSignerKid,
-        fluent: fluent
+        fluent: fluent,
+        tokenStore: tokenStore
     ).addProtectedRoutes(to: protectedAuthGroup)
     
     // Add public auth routes (login, register) to a separate group
     AuthController(
         jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
         kid: jwtLocalSignerKid,
-        fluent: fluent
+        fluent: fluent,
+        tokenStore: tokenStore
     ).addPublicRoutes(to: api.group("auth"))
 
     var app = Application(

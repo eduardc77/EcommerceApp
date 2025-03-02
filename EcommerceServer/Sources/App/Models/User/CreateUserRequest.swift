@@ -33,13 +33,47 @@ struct CreateUserRequest: Decodable, Sendable {
         
         // Decode and validate all fields
         do {
-            self.username = try container.decode(String.self, forKey: .username)
-            guard !username.isEmpty else {
+            let rawUsername = try container.decode(String.self, forKey: .username)
+            guard !rawUsername.isEmpty else {
                 throw HTTPError(.badRequest, message: "Missing required field: username")
             }
-            guard username.count >= 3 else {
-                throw HTTPError(.badRequest, message: "Invalid username: Must be at least 3 characters long")
+            
+            // Sanitize and validate username
+            let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !username.isEmpty else {
+                throw HTTPError(.init(code: 422), message: "Invalid username format: Username cannot be empty")
             }
+            guard username.count >= 3 && username.count <= 30 else {
+                throw HTTPError(.init(code: 422), message: "Invalid username format: Username must be between 3 and 30 characters")
+            }
+            
+            // Check for valid characters
+            let allowedCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+            guard username.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) else {
+                throw HTTPError(.init(code: 422), message: "Invalid username format: Username can only contain letters, numbers, hyphens and underscores")
+            }
+            
+            // Additional validation rules
+            guard !username.hasPrefix("-") && !username.hasSuffix("-") else {
+                throw HTTPError(.init(code: 422), message: "Invalid username format: Username cannot start or end with a hyphen")
+            }
+            
+            guard !username.hasPrefix("_") && !username.hasSuffix("_") else {
+                throw HTTPError(.init(code: 422), message: "Invalid username format: Username cannot start or end with an underscore")
+            }
+            
+            // Check if username is not just numbers
+            guard !username.allSatisfy({ $0.isNumber }) else {
+                throw HTTPError(.init(code: 422), message: "Invalid username format: Username cannot contain only numbers")
+            }
+            
+            // Check for common patterns to avoid
+            let commonPatterns = ["admin", "root", "system", "support", "test"]
+            guard !commonPatterns.contains(username.lowercased()) else {
+                throw HTTPError(.init(code: 422), message: "Invalid username format: This username is not allowed")
+            }
+            
+            self.username = username
         } catch DecodingError.keyNotFound {
             throw HTTPError(.badRequest, message: "Missing required field: username")
         } catch let error as HTTPError {
@@ -49,25 +83,51 @@ struct CreateUserRequest: Decodable, Sendable {
         }
         
         do {
-            self.displayName = try container.decode(String.self, forKey: .displayName)
+            let rawDisplayName = try container.decode(String.self, forKey: .displayName)
+            let displayName = rawDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !displayName.isEmpty else {
-                throw HTTPError(.badRequest, message: "Missing required field: displayName")
+                throw HTTPError(.badRequest, message: "Display name cannot be empty or only whitespace")
             }
+            guard displayName.count <= 100 else {
+                throw HTTPError(.badRequest, message: "Display name must not exceed 100 characters")
+            }
+            self.displayName = displayName
         } catch DecodingError.keyNotFound {
             throw HTTPError(.badRequest, message: "Missing required field: displayName")
+        } catch let error as HTTPError {
+            throw error
         } catch {
             throw HTTPError(.badRequest, message: "Invalid displayName format")
         }
         
         do {
-            self.email = try container.decode(String.self, forKey: .email)
+            let rawEmail = try container.decode(String.self, forKey: .email)
+            let email = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !email.isEmpty else {
                 throw HTTPError(.badRequest, message: "Missing required field: email")
             }
-            // Basic email format validation
-            guard email.contains("@") && email.contains(".") else {
-                throw HTTPError(.badRequest, message: "Invalid email format: expected valid email address")
+            
+            // Comprehensive email validation
+            let emailRegex = "^[a-zA-Z0-9][a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]*[a-zA-Z0-9]@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
+            let emailPredicate = NSPredicate(format:"SELF MATCHES %@", emailRegex)
+            
+            guard emailPredicate.evaluate(with: email),
+                  !email.hasPrefix("."),
+                  !email.hasSuffix("."),
+                  !email.contains(".."),
+                  !email.contains(" "),
+                  email.components(separatedBy: "@").count == 2,
+                  email.components(separatedBy: "@")[0].count > 0,
+                  email.components(separatedBy: "@")[1].count > 0,
+                  email.components(separatedBy: "@")[1].contains(".") else {
+                throw HTTPError(.init(code: 422), message: "Invalid email format")
             }
+            
+            guard email.count <= 254 else { // RFC 5321
+                throw HTTPError(.init(code: 422), message: "Email address is too long")
+            }
+            
+            self.email = email.lowercased() // Store emails in lowercase
         } catch DecodingError.keyNotFound {
             throw HTTPError(.badRequest, message: "Missing required field: email")
         } catch let error as HTTPError {

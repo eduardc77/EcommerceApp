@@ -51,19 +51,18 @@ struct AuthController {
     // Token store for blacklisting
     private let tokenStore: TokenStoreProtocol
 
-    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent) {
+    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent, tokenStore: TokenStoreProtocol) {
         self.jwtKeyCollection = jwtKeyCollection
         self.kid = kid
         self.fluent = fluent
+        self.tokenStore = tokenStore
+        
         // Load configuration with graceful fallback
         self.jwtConfig = JWTConfiguration.load()
 
         // Update rate limiting configuration from loaded config
         self.maxLoginAttempts = jwtConfig.maxFailedAttempts
         self.loginLockoutDuration = jwtConfig.lockoutDuration
-
-        // Initialize token store
-        self.tokenStore = TokenStore.shared
     }
 
     /// Add public routes for auth controller (login, refresh)
@@ -97,7 +96,7 @@ struct AuthController {
             .post("login", use: self.login)
 
         // Add JWT authentication middleware for protected routes
-        group.add(middleware: JWTAuthenticator(fluent: fluent))
+        group.add(middleware: JWTAuthenticator(fluent: fluent, tokenStore: tokenStore))
             .post("logout", use: self.logout)
             .get("me", use: self.getMe)
 
@@ -192,6 +191,11 @@ struct AuthController {
         }
         let refreshRequest = try await request.decode(as: RefreshRequest.self, context: context)
 
+        // Check if token is blacklisted
+        if await tokenStore.isBlacklisted(refreshRequest.refreshToken) {
+            throw HTTPError(.unauthorized, message: "Token has been revoked")
+        }
+
         // Verify and decode refresh token
         let refreshPayload = try await self.jwtKeyCollection.verify(refreshRequest.refreshToken, as: JWTPayloadData.self)
         
@@ -200,67 +204,72 @@ struct AuthController {
             throw HTTPError(.unauthorized, message: "Invalid token type")
         }
         
-        // Get user from database
-        guard let user = try await User.find(UUID(uuidString: refreshPayload.subject.value), on: fluent.db()) else {
-            throw HTTPError(.unauthorized, message: "User not found")
-        }
-        
-        // Verify token version
-        guard let tokenVersion = refreshPayload.tokenVersion,
-              tokenVersion == user.tokenVersion else {
-            throw HTTPError(.unauthorized, message: "Invalid token version")
-        }
+        // Get user from database and perform atomic update
+        return try await fluent.db().transaction { db in
+            guard let user = try await User.find(UUID(uuidString: refreshPayload.subject.value), on: db) else {
+                throw HTTPError(.unauthorized, message: "User not found")
+            }
+            
+            // Verify token version
+            guard let tokenVersion = refreshPayload.tokenVersion,
+                  tokenVersion == user.tokenVersion else {
+                throw HTTPError(.unauthorized, message: "Invalid token version")
+            }
 
-        // Increment token version to invalidate all previous tokens
-        user.tokenVersion += 1
-        try await user.save(on: fluent.db())
+            // Blacklist the used refresh token immediately
+            await tokenStore.blacklist(refreshRequest.refreshToken, expiresAt: refreshPayload.expiration.value, reason: .tokenVersionChange)
 
-        // Generate new access token with new version
-        let expiresIn = Int(jwtConfig.accessTokenExpiration)
-        let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
-        let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
-        let issuedAt = Date()
+            // Increment token version to invalidate all previous tokens
+            user.tokenVersion += 1
+            try await user.save(on: db)
 
-        // Create access token
-        let accessPayload = JWTPayloadData(
-            subject: SubjectClaim(value: refreshPayload.subject.value),
-            expiration: ExpirationClaim(value: accessExpirationDate),
-            type: "access",
-            issuer: jwtConfig.issuer,
-            audience: jwtConfig.audience,
-            issuedAt: issuedAt,
-            id: UUID().uuidString,
-            role: user.role.rawValue,
-            tokenVersion: user.tokenVersion
-        )
+            // Generate new access token with new version
+            let expiresIn = Int(jwtConfig.accessTokenExpiration)
+            let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
+            let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
+            let issuedAt = Date()
 
-        // Create refresh token with same version
-        let newRefreshPayload = JWTPayloadData(
-            subject: SubjectClaim(value: refreshPayload.subject.value),
-            expiration: ExpirationClaim(value: refreshExpirationDate),
-            type: "refresh",
-            issuer: jwtConfig.issuer,
-            audience: jwtConfig.audience,
-            issuedAt: issuedAt,
-            id: UUID().uuidString,
-            role: user.role.rawValue,
-            tokenVersion: user.tokenVersion
-        )
-
-        let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
-        let newRefreshToken = try await self.jwtKeyCollection.sign(newRefreshPayload, kid: self.kid)
-
-        let dateFormatter = ISO8601DateFormatter()
-        return .init(
-            status: .created,
-            response: AuthResponse(
-                accessToken: accessToken,
-                refreshToken: newRefreshToken,
-                expiresIn: UInt(expiresIn),
-                expiresAt: dateFormatter.string(from: accessExpirationDate),
-                user: UserResponse(from: user)
+            // Create access token
+            let accessPayload = JWTPayloadData(
+                subject: SubjectClaim(value: refreshPayload.subject.value),
+                expiration: ExpirationClaim(value: accessExpirationDate),
+                type: "access",
+                issuer: jwtConfig.issuer,
+                audience: jwtConfig.audience,
+                issuedAt: issuedAt,
+                id: UUID().uuidString,
+                role: user.role.rawValue,
+                tokenVersion: user.tokenVersion
             )
-        )
+
+            // Create refresh token with same version
+            let newRefreshPayload = JWTPayloadData(
+                subject: SubjectClaim(value: refreshPayload.subject.value),
+                expiration: ExpirationClaim(value: refreshExpirationDate),
+                type: "refresh",
+                issuer: jwtConfig.issuer,
+                audience: jwtConfig.audience,
+                issuedAt: issuedAt,
+                id: UUID().uuidString,
+                role: user.role.rawValue,
+                tokenVersion: user.tokenVersion
+            )
+
+            let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
+            let newRefreshToken = try await self.jwtKeyCollection.sign(newRefreshPayload, kid: self.kid)
+
+            let dateFormatter = ISO8601DateFormatter()
+            return EditedResponse(
+                status: HTTPResponse.Status.created,
+                response: AuthResponse(
+                    accessToken: accessToken,
+                    refreshToken: newRefreshToken,
+                    expiresIn: UInt(expiresIn),
+                    expiresAt: dateFormatter.string(from: accessExpirationDate),
+                    user: UserResponse(from: user)
+                )
+            )
+        }
     }
 
     /// Logout user by invalidating their refresh tokens and blacklisting current access token
@@ -294,13 +303,6 @@ struct AuthController {
         return Response(status: .noContent)
     }
 
-    /// Check if a token is blacklisted
-    /// - Parameter token: The token to check
-    /// - Returns: True if the token is blacklisted
-    static func isTokenBlacklisted(_ token: String) async -> Bool {
-        await TokenStore.shared.isBlacklisted(token)
-    }
-
     /// Get authenticated user information
     /// - Parameters:
     ///   - request: The incoming HTTP request
@@ -325,12 +327,51 @@ struct SecurityHeadersMiddleware: MiddlewareProtocol {
 
         // Add security headers
         response.headers.append(HTTPField(name: HTTPField.Name("X-Content-Type-Options")!, value: "nosniff"))
-        response.headers.append(HTTPField(name: HTTPField.Name("X-Frame-Options")!, value: "DENY"))
+        response.headers.append(HTTPField(name: HTTPField.Name("X-Frame-Options")!, value: "DENY"))  // Stricter option
         response.headers.append(HTTPField(name: HTTPField.Name("X-XSS-Protection")!, value: "1; mode=block"))
-        response.headers.append(HTTPField(name: HTTPField.Name("Strict-Transport-Security")!, value: "max-age=31536000; includeSubDomains"))
-        response.headers.append(HTTPField(name: HTTPField.Name("Content-Security-Policy")!, value: "default-src 'self'"))
+        response.headers.append(HTTPField(name: HTTPField.Name("Strict-Transport-Security")!, value: "max-age=63072000; includeSubDomains; preload"))  // 2 years
+        
+        // Secure CSP configuration
+        let csp = [
+            "default-src 'self'",
+            "img-src 'self' https:",  // Allow HTTPS images
+            "script-src 'self'",      // Only allow scripts from same origin
+            "style-src 'self'",       // Only allow styles from same origin
+            "connect-src 'self'",     // Only allow connections to same origin
+            "font-src 'self'",        // Only allow fonts from same origin
+            "object-src 'none'",      // Block <object>, <embed>, and <applet>
+            "base-uri 'self'",        // Restrict base URI
+            "form-action 'self'",     // Restrict form submissions
+            "frame-ancestors 'none'",  // Equivalent to X-Frame-Options: DENY
+            "upgrade-insecure-requests"
+        ].joined(separator: "; ")
+        
+        response.headers.append(HTTPField(name: HTTPField.Name("Content-Security-Policy")!, value: csp))
         response.headers.append(HTTPField(name: HTTPField.Name("Referrer-Policy")!, value: "strict-origin-when-cross-origin"))
-        response.headers.append(HTTPField(name: HTTPField.Name("Permissions-Policy")!, value: "geolocation=(), microphone=(), camera=()"))
+        
+        // Permissions Policy with essential restrictions
+        let permissionsPolicy = [
+            "accelerometer=()",
+            "ambient-light-sensor=()",
+            "autoplay=()",
+            "battery=()",
+            "camera=()",
+            "display-capture=()",
+            "document-domain=()",
+            "encrypted-media=()",
+            "fullscreen=(self)",
+            "geolocation=()",
+            "gyroscope=()",
+            "magnetometer=()",
+            "microphone=()",
+            "midi=()",
+            "payment=()",
+            "picture-in-picture=()",
+            "usb=()",
+            "xr-spatial-tracking=()"
+        ].joined(separator: ", ")
+        
+        response.headers.append(HTTPField(name: HTTPField.Name("Permissions-Policy")!, value: permissionsPolicy))
 
         return response
     }

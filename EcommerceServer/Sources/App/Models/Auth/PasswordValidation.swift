@@ -12,6 +12,7 @@ enum PasswordValidationError: Error, Equatable, CustomStringConvertible {
     case containsKeyboardPattern
     case invalidUnicode
     case insufficientEntropy(current: Double, required: Double)
+    case missingRequiredCharacter(type: String)
     
     var description: String {
         switch self {
@@ -33,6 +34,8 @@ enum PasswordValidationError: Error, Equatable, CustomStringConvertible {
             return "Password contains invalid Unicode characters"
         case .insufficientEntropy(let current, let required):
             return "Password is not complex enough (entropy: \(String(format: "%.1f", current)) bits, required: \(String(format: "%.1f", required)) bits)"
+        case .missingRequiredCharacter(let type):
+            return "Password is missing a required \(type)"
         }
     }
 }
@@ -156,6 +159,20 @@ struct PasswordValidator {
         if normalizedPassword.count > config.maximumPasswordLength {
             print("DEBUG: Password too long. Max allowed: \(config.maximumPasswordLength)")  // Debug log
             errors.append(.tooLong(maximum: config.maximumPasswordLength))
+        }
+
+        // Add strict character type requirements
+        if !normalizedPassword.contains(where: { $0.isUppercase }) {
+            errors.append(.missingRequiredCharacter(type: "uppercase letter"))
+            suggestions.append("Add at least one uppercase letter")
+        }
+        if !normalizedPassword.contains(where: { $0.isNumber }) {
+            errors.append(.missingRequiredCharacter(type: "number"))
+            suggestions.append("Add at least one number")
+        }
+        if !normalizedPassword.contains(where: { "!@#$%^&*()_+-=[]{}|;:,.<>?".contains($0) }) {
+            errors.append(.missingRequiredCharacter(type: "special character"))
+            suggestions.append("Add at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)")
         }
         
         let lowercasePassword = normalizedPassword.lowercased()

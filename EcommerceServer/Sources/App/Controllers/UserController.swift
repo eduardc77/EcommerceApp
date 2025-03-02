@@ -13,11 +13,11 @@ struct UserController {
     let fluent: Fluent
     private let tokenStore: TokenStoreProtocol
     
-    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent) {
+    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent, tokenStore: TokenStoreProtocol) {
         self.jwtKeyCollection = jwtKeyCollection
         self.kid = kid
         self.fluent = fluent
-        self.tokenStore = TokenStore.shared
+        self.tokenStore = tokenStore
     }
     
     /// Add public routes (registration, availability)

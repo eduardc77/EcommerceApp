@@ -10,22 +10,26 @@ struct JWTAuthenticator: AuthenticatorMiddleware, @unchecked Sendable {
     typealias Context = AppRequestContext
     let jwtKeyCollection: JWTKeyCollection
     let fluent: Fluent
+    private let tokenStore: TokenStoreProtocol
     
-    init(fluent: Fluent) {
+    init(fluent: Fluent, tokenStore: TokenStoreProtocol) {
         self.jwtKeyCollection = JWTKeyCollection()
         self.fluent = fluent
+        self.tokenStore = tokenStore
     }
     
-    init(keyCollection: JWTKeyCollection, fluent: Fluent) {
+    init(keyCollection: JWTKeyCollection, fluent: Fluent, tokenStore: TokenStoreProtocol) {
         self.jwtKeyCollection = keyCollection
         self.fluent = fluent
+        self.tokenStore = tokenStore
     }
     
-    init(jwksData: ByteBuffer, fluent: Fluent) async throws {
+    init(jwksData: ByteBuffer, fluent: Fluent, tokenStore: TokenStoreProtocol) async throws {
         let jwks = try JSONDecoder().decode(JWKS.self, from: jwksData)
         self.jwtKeyCollection = JWTKeyCollection()
         try await self.jwtKeyCollection.add(jwks: jwks)
         self.fluent = fluent
+        self.tokenStore = tokenStore
     }
     
     func useSigner(hmac: HMACKey, digestAlgorithm: DigestAlgorithm, kid: JWKIdentifier? = nil) async {
@@ -36,10 +40,9 @@ struct JWTAuthenticator: AuthenticatorMiddleware, @unchecked Sendable {
         // get JWT from bearer authorization
         guard let jwtToken = request.headers.bearer?.token else { throw HTTPError(.unauthorized) }
         
-        // Check if token is blacklisted first (fastest check)
-        if await TokenStore.shared.isBlacklisted(jwtToken) {
-            context.logger.debug("token is blacklisted")
-            throw HTTPError(.unauthorized, message: "Token has been invalidated")
+        // Check if token is blacklisted
+        if await tokenStore.isBlacklisted(jwtToken) {
+            throw HTTPError(.unauthorized, message: "Token has been revoked")
         }
         
         let payload: JWTPayloadData
@@ -77,7 +80,7 @@ struct JWTAuthenticator: AuthenticatorMiddleware, @unchecked Sendable {
             guard tokenVersion == existingUser.tokenVersion else {
                 context.logger.debug("token version mismatch: token=\(tokenVersion) user=\(existingUser.tokenVersion)")
                 // Blacklist this token since it's using an old version
-                await TokenStore.shared.blacklist(jwtToken, expiresAt: payload.expiration.value, reason: .tokenVersionChange)
+                await tokenStore.blacklist(jwtToken, expiresAt: payload.expiration.value, reason: .tokenVersionChange)
                 throw HTTPError(.unauthorized, message: "Token has been invalidated due to security changes")
             }
             

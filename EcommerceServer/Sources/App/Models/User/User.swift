@@ -77,7 +77,10 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
     var updatedAt: Date?
     
     /// Maximum number of password history entries to keep
-    private static let maxPasswordHistoryCount = 5
+    private static let maxPasswordHistoryCount = 10
+    
+    /// Maximum number of concurrent sessions allowed
+    private static let maxConcurrentSessions = 5
     
     init() {}
     
@@ -247,9 +250,14 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
     /// Update password and maintain password history
     /// - Parameter newPassword: The new password to set
     func updatePassword(_ newPassword: String) async throws {
-        // Hash the new password
+        // Check if password was previously used
+        if try await isPasswordPreviouslyUsed(newPassword) {
+            throw HTTPError(.badRequest, message: "Password has been used before. Please choose a different password.")
+        }
+        
+        // Hash the new password with increased cost factor for better security
         let newHash = try await NIOThreadPool.singleton.runIfActive {
-            Bcrypt.hash(newPassword, cost: 12)
+            Bcrypt.hash(newPassword, cost: 12)  // Increased from default
         }
         
         // If there's an existing password hash, add it to history
@@ -268,6 +276,33 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         // Update the password hash and timestamp
         passwordHash = newHash
         passwordUpdatedAt = Date()
+        
+        // Increment token version to invalidate all existing sessions
+        tokenVersion += 1
+    }
+    
+    /// Sanitize username by removing unwanted characters
+    private static func sanitizeUsername(_ username: String) -> String {
+        // Remove any characters that aren't alphanumeric or certain special chars
+        let allowedCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@")
+        return String(username.unicodeScalars.filter { allowedCharacters.contains($0) })
+    }
+    
+    /// Validate avatar URL
+    private static func validateAvatarURL(_ url: String?) -> String? {
+        guard let url = url else { return nil }
+        
+        // Only allow HTTPS URLs
+        guard url.lowercased().hasPrefix("https://") else {
+            return "https://api.dicebear.com/7.x/avataaars/png"
+        }
+        
+        // Validate URL format
+        guard URL(string: url) != nil else {
+            return "https://api.dicebear.com/7.x/avataaars/png"
+        }
+        
+        return url
     }
 }
 
