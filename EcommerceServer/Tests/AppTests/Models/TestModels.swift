@@ -31,6 +31,11 @@ struct RefreshTokenRequest: Codable {
     let refreshToken: String
 }
 
+struct ChangePasswordRequest: Codable {
+    let currentPassword: String
+    let newPassword: String
+}
+
 // Shared response models for testing
 struct ErrorResponse: Codable {
     struct ErrorDetail: Codable {
@@ -56,4 +61,9 @@ struct UserResponse: Decodable {
     let role: String
     let createdAt: String
     let updatedAt: String
+}
+
+struct MessageResponse: Codable {
+    let message: String
+    let success: Bool
 } 

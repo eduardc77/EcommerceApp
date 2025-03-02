@@ -77,7 +77,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
     var updatedAt: Date?
     
     /// Maximum number of password history entries to keep
-    private static let maxPasswordHistoryCount = 10
+    internal static let maxPasswordHistoryCount = 10
     
     /// Maximum number of concurrent sessions allowed
     private static let maxConcurrentSessions = 5

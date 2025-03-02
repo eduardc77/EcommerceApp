@@ -84,6 +84,7 @@ struct AuthController {
 
         group.post("logout", use: self.logout)
         group.get("me", use: self.getMe)
+        group.post("change-password", use: self.changePassword)
     }
 
     @available(*, deprecated, message: "Use addPublicRoutes and addProtectedRoutes instead")
@@ -312,9 +313,153 @@ struct AuthController {
         context: Context
     ) async throws -> EditedResponse<UserResponse> {
         guard let user = context.identity else {
-            throw HTTPError(.unauthorized, message: "User not authenticated")
+            throw HTTPError(.unauthorized, message: "Authentication required")
         }
+        
         return .init(status: .ok, response: UserResponse(from: user))
+    }
+    
+    /// Change user password
+    /// Requires authentication and current password verification
+    @Sendable func changePassword(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        do {
+            // Ensure user is authenticated
+            guard let user = context.identity else {
+                context.logger.notice("Unauthorized attempt to change password")
+                throw HTTPError(.unauthorized, message: "Authentication required to change password")
+            }
+            
+            context.logger.info("Processing password change request for user: \(user.username) (ID: \(user.id?.uuidString ?? "unknown"))")
+            
+            // Decode the request
+            let changePasswordRequest = try await request.decode(as: ChangePasswordRequest.self, context: context)
+            
+            // Verify current password
+            guard let passwordHash = user.passwordHash else {
+                // User has no password hash - this is a serious issue
+                context.logger.error("User \(user.email) has no password hash")
+                throw HTTPError(.internalServerError, message: "Account configuration error. Please contact support.")
+            }
+            
+            // Perform password verification
+            let passwordValid = try await NIOThreadPool.singleton.runIfActive({
+                Bcrypt.verify(changePasswordRequest.currentPassword, hash: passwordHash)
+            })
+            
+            if !passwordValid {
+                context.logger.notice("Invalid current password provided for password change by user \(user.username)")
+                throw HTTPError(.unauthorized, message: "Current password is incorrect")
+            }
+            
+            // Validate the new password
+            let validator = PasswordValidator()
+            let validationResult = validator.validate(changePasswordRequest.newPassword, userInfo: [
+                "username": user.username,
+                "email": user.email,
+                "displayName": user.displayName
+            ])
+            
+            guard validationResult.isValid else {
+                let errorMessage = validationResult.firstError ?? "Invalid password"
+                context.logger.notice("Password validation failed for user \(user.username): \(errorMessage)")
+                throw HTTPError(.badRequest, message: errorMessage)
+            }
+            
+            // Check if password was previously used
+            if try await user.isPasswordPreviouslyUsed(changePasswordRequest.newPassword) {
+                context.logger.notice("Password reuse attempt by user \(user.username)")
+                return .init(
+                    status: .badRequest,
+                    response: MessageResponse(
+                        message: "Password has been previously used. Please choose a different password.",
+                        success: false
+                    )
+                )
+            }
+            
+            // Store current token for invalidation
+            let currentToken = request.headers.bearer?.token
+            
+            // Update the password
+            do {
+                // We'll update the password directly here since we already checked for reuse
+                // Hash the new password with increased cost factor for better security
+                let newHash = try await NIOThreadPool.singleton.runIfActive {
+                    Bcrypt.hash(changePasswordRequest.newPassword, cost: 12)  // Increased from default
+                }
+                
+                // If there's an existing password hash, add it to history
+                if let currentHash = user.passwordHash {
+                    var history = user.passwordHistory ?? []
+                    history.insert(currentHash, at: 0)
+                    
+                    // Keep only the most recent passwords
+                    if history.count > User.maxPasswordHistoryCount {
+                        history = Array(history.prefix(User.maxPasswordHistoryCount))
+                    }
+                    
+                    user.passwordHistory = history
+                }
+                
+                // Update the password hash and timestamp
+                user.passwordHash = newHash
+                user.passwordUpdatedAt = Date()
+                
+                // Increment token version to invalidate all existing sessions
+                user.tokenVersion += 1
+                
+                try await user.save(on: fluent.db())
+                context.logger.info("Password successfully changed for user \(user.username)")
+            } catch {
+                context.logger.error("Unexpected error updating password for user \(user.username): \(error.localizedDescription)")
+                throw HTTPError(.internalServerError, message: "Failed to update password. Please try again later.")
+            }
+            
+            // Invalidate token immediately
+            if let token = currentToken {
+                do {
+                    // Get token expiration from JWT payload
+                    let payload = try await self.jwtKeyCollection.verify(token, as: JWTPayloadData.self)
+                    
+                    // Blacklist the token
+                    await tokenStore.blacklist(token, expiresAt: payload.expiration.value, reason: .passwordChanged)
+                    context.logger.info("Successfully blacklisted token after password change for user \(user.username)")
+                } catch {
+                    // Log the error but don't fail the request - the token version change will still invalidate it
+                    context.logger.error("Failed to blacklist token after password change: \(error.localizedDescription)")
+                }
+            }
+            
+            return .init(
+                status: .created,
+                response: MessageResponse(
+                    message: "Password changed successfully. Please log in with your new password.",
+                    success: true
+                )
+            )
+        } catch let error as HTTPError {
+            // Format HTTP errors as MessageResponse
+            return .init(
+                status: error.status,
+                response: MessageResponse(
+                    message: error.body ?? "An error occurred",
+                    success: false
+                )
+            )
+        } catch {
+            // Handle unexpected errors
+            context.logger.error("Unexpected error during password change: \(error.localizedDescription)")
+            return .init(
+                status: .internalServerError,
+                response: MessageResponse(
+                    message: "An unexpected error occurred. Please try again later.",
+                    success: false
+                )
+            )
+        }
     }
 }
 
@@ -463,3 +608,17 @@ struct UserAuthenticator<Context: AuthRequestContext>: AuthenticatorMiddleware w
         return user
     }
 }
+
+/// Request structure for changing a password
+struct ChangePasswordRequest: Codable, Sendable {
+    let currentPassword: String
+    let newPassword: String
+}
+
+/// Simple message response structure
+struct MessageResponse: Codable, Sendable {
+    let message: String
+    let success: Bool
+}
+
+extension MessageResponse: ResponseEncodable {}
