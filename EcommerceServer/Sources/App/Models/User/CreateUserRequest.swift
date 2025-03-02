@@ -129,11 +129,11 @@ struct CreateUserRequest: Decodable, Sendable {
             
             self.email = email.lowercased() // Store emails in lowercase
         } catch DecodingError.keyNotFound {
-            throw HTTPError(.badRequest, message: "Missing required field: email")
+            throw HTTPError(.init(code: 422), message: "Missing required field: email")
         } catch let error as HTTPError {
             throw error
         } catch {
-            throw HTTPError(.badRequest, message: "Invalid email format")
+            throw HTTPError(.init(code: 422), message: "Invalid email format")
         }
         
         do {
