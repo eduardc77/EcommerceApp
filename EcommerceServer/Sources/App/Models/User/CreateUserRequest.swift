@@ -1,5 +1,6 @@
 import Foundation
 import Hummingbird
+import Logging
 
 /// Response for password validation feedback
 struct PasswordValidationResponse: Encodable {
@@ -224,7 +225,8 @@ struct CreateUserRequest: Decodable, Sendable {
 
     private static func validatePassword(_ password: String) throws {
         let config = JWTConfiguration.load()
-        print("Validating password: length=\(password.count), minRequired=\(config.minimumPasswordLength)")  // Debug log
+        let logger = Logger(label: "app.user-request")
+        logger.debug("Validating password length requirements")
         
         // Check length
         guard password.count >= config.minimumPasswordLength else {

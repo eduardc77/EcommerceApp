@@ -1,5 +1,6 @@
 import Foundation
 import Hummingbird
+import Logging
 
 /// Protocol defining token storage operations for managing JWT token blacklisting
 protocol TokenStoreProtocol {
@@ -19,11 +20,10 @@ protocol TokenStoreProtocol {
     func cleanup() async
 }
 
-/// Thread-safe in-memory implementation of token blacklisting with persistence
+/// Thread-safe in-memory implementation of token blacklisting
 actor TokenStore: TokenStoreProtocol {
     /// Thread-safe storage for blacklisted tokens
     private var blacklistedTokens: [String: BlacklistedToken] = [:]
-    private var isInitialized = false
     
     /// Maximum number of tokens to store in memory
     private let maxTokens: Int
@@ -32,38 +32,17 @@ actor TokenStore: TokenStoreProtocol {
     private let cleanupInterval: TimeInterval
     private var lastCleanupTime: Date = Date()
     
-    /// File URL for persistence
-    private let persistenceURL: URL?
+    /// Logger for token store operations
+    private let logger: Logger
     
     init(
         maxTokens: Int = 10000,
         cleanupInterval: TimeInterval = 300,
-        persistenceURL: URL? = nil
+        logger: Logger? = nil
     ) {
         self.maxTokens = maxTokens
         self.cleanupInterval = cleanupInterval
-        
-        // Use provided URL or create default
-        if let persistenceURL = persistenceURL {
-            self.persistenceURL = persistenceURL
-        } else {
-            let fileManager = FileManager.default
-            do {
-                let appSupport = try fileManager.url(for: .applicationSupportDirectory, 
-                                                   in: .userDomainMask, 
-                                                   appropriateFor: nil, 
-                                                   create: true)
-                self.persistenceURL = appSupport.appendingPathComponent("blacklisted_tokens.json")
-            } catch {
-                print("⚠️ Failed to create persistence URL, falling back to temporary directory: \(error)")
-                self.persistenceURL = FileManager.default.temporaryDirectory.appendingPathComponent("blacklisted_tokens.json")
-            }
-        }
-        
-        // Initialize asynchronously
-        Task {
-            await initialize()
-        }
+        self.logger = logger ?? Logger(label: "app.token-store")
     }
     
     /// Metadata for a blacklisted token
@@ -83,107 +62,80 @@ actor TokenStore: TokenStoreProtocol {
         case tokenVersionChange
     }
     
-    private func initialize() async {
-        guard !isInitialized else { return }
-        await loadPersistedTokens()
-        isInitialized = true
-    }
-    
-    func isBlacklisted(_ token: String) async -> Bool {
-        // Ensure initialization is complete
-        if !isInitialized {
-            await initialize()
+    /// Check if a token is blacklisted
+    /// - Parameter token: The JWT token to check
+    /// - Returns: True if the token is blacklisted and not expired
+    public func isBlacklisted(_ token: String) async -> Bool {
+        // Perform cleanup if needed
+        if Date().timeIntervalSince(lastCleanupTime) > cleanupInterval {
+            await cleanup()
         }
         
-        await cleanupIfNeeded()
-        
-        guard let blacklistedToken = blacklistedTokens[token] else {
-            return false
-        }
-        
-        if blacklistedToken.isExpired {
-            blacklistedTokens.removeValue(forKey: token)
-            await persistTokens()
-            return false
-        }
-        
-        return true
-    }
-    
-    func blacklist(_ token: String, expiresAt: Date, reason: BlacklistReason) async {
-        // Ensure initialization is complete
-        if !isInitialized {
-            await initialize()
-        }
-        
-        await cleanupIfNeeded()
-        
-        // Only blacklist if expiration is in the future
-        guard expiresAt > Date() else { return }
-        
-        // Check if we need to make room for new tokens
-        if blacklistedTokens.count >= maxTokens {
-            // Remove oldest tokens first
-            let sortedTokens = blacklistedTokens.sorted { $0.value.expiresAt < $1.value.expiresAt }
-            let tokensToRemove = sortedTokens.prefix(max(1, maxTokens / 10))
-            for token in tokensToRemove {
-                blacklistedTokens.removeValue(forKey: token.key)
+        // Check if token is in the blacklist and not expired
+        if let blacklistedToken = blacklistedTokens[token] {
+            if blacklistedToken.expiresAt > Date() {
+                logger.debug("Token found in blacklist and is still valid")
+                return true
+            } else {
+                // Token is expired, remove it from blacklist
+                blacklistedTokens.removeValue(forKey: token)
+                logger.debug("Removed expired token from blacklist")
+                return false
             }
         }
         
+        return false
+    }
+    
+    /// Add a token to the blacklist
+    /// - Parameters:
+    ///   - token: The JWT token to blacklist
+    ///   - expiresAt: When the token expires (typically from JWT exp claim)
+    ///   - reason: The reason for blacklisting the token
+    public func blacklist(_ token: String, expiresAt: Date, reason: BlacklistReason) async {
+        // Don't blacklist already expired tokens
+        if expiresAt < Date() {
+            logger.warning("Attempted to blacklist an already expired token")
+            return
+        }
+        
+        // Check if we need to clean up before adding a new token
+        if blacklistedTokens.count >= maxTokens {
+            logger.notice("Token store reached capacity (\(maxTokens)), cleaning up before adding new token")
+            await cleanup()
+            
+            // If still at capacity after cleanup, log a warning
+            if blacklistedTokens.count >= maxTokens {
+                logger.warning("Token store still at capacity after cleanup, oldest tokens may be removed")
+            }
+        }
+        
+        // Create blacklisted token record
         let blacklistedToken = BlacklistedToken(
             token: token,
             expiresAt: expiresAt,
             reason: reason
         )
         
+        // Add to blacklist
         blacklistedTokens[token] = blacklistedToken
-        await persistTokens()
+        logger.debug("Token blacklisted until \(expiresAt.ISO8601Format()) for reason: \(reason.rawValue)")
     }
     
-    private func cleanupIfNeeded() async {
-        let now = Date()
-        guard now.timeIntervalSince(lastCleanupTime) >= cleanupInterval else {
-            return
-        }
-        
-        await cleanup()
-    }
-    
-    func cleanup() async {
-        // Remove expired tokens
-        blacklistedTokens = blacklistedTokens.filter { !$0.value.isExpired }
-        
-        // Update last cleanup time
+    /// Clean up expired tokens from the store
+    public func cleanup() async {
         lastCleanupTime = Date()
+        let now = Date()
         
-        // Persist changes
-        await persistTokens()
-    }
-    
-    private func persistTokens() async {
-        do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            let data = try encoder.encode(blacklistedTokens)
-            try data.write(to: persistenceURL!, options: .atomicWrite)
-        } catch {
-            print("Failed to persist blacklisted tokens: \(error)")
-        }
-    }
-    
-    private func loadPersistedTokens() async {
-        do {
-            let data = try Data(contentsOf: persistenceURL!)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            blacklistedTokens = try decoder.decode([String: BlacklistedToken].self, from: data)
+        // Find and remove expired tokens
+        let expiredTokens = blacklistedTokens.filter { $0.value.expiresAt < now }
+        
+        if !expiredTokens.isEmpty {
+            for (key, _) in expiredTokens {
+                blacklistedTokens.removeValue(forKey: key)
+            }
             
-            // Cleanup expired tokens immediately after loading
-            await cleanup()
-        } catch {
-            print("No persisted tokens found or failed to load: \(error)")
-            blacklistedTokens = [:]
+            logger.debug("Cleaned up \(expiredTokens.count) expired tokens from blacklist")
         }
     }
     

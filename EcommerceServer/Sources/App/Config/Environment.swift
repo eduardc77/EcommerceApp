@@ -128,6 +128,25 @@ struct AppConfig {
         return whitelist
     }()
     
+    // Trusted Proxies for IP extraction
+    static let trustedProxies: [String] = {
+        let proxies = Environment.getArray("TRUSTED_PROXIES", default: [])
+        if proxies.isEmpty {
+            switch environment {
+            case .production:
+                // In production, you should explicitly set trusted proxies via environment variables
+                return []
+            case .staging:
+                // For staging, you might have known load balancers or proxies
+                return []
+            case .development:
+                // For local development, trust localhost
+                return ["127.0.0.1", "::1"]
+            }
+        }
+        return proxies
+    }()
+    
     // Database Configuration
     static let databasePath: String = {
         let path = Environment.get("DATABASE_PATH", default: "")

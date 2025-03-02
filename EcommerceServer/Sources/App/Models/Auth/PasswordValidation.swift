@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import Logging
 
 /// Represents different types of password validation errors
 enum PasswordValidationError: Error, Equatable, CustomStringConvertible {
@@ -73,6 +74,7 @@ enum PasswordStrength: Int, Comparable {
     }
 }
 
+/// Password validation result
 struct PasswordValidationResult {
     let isValid: Bool
     let errors: [PasswordValidationError]
@@ -92,6 +94,7 @@ struct PasswordValidationResult {
 struct PasswordValidator {
     private let config: JWTConfiguration
     private let minimumEntropy: Double = 40.0 // NIST recommends at least 30-40 bits of entropy
+    private let logger: Logger
     
     // Instead of a static set, use a cryptographic hash of common passwords
     // This prevents the common passwords from being visible in the code
@@ -124,21 +127,22 @@ struct PasswordValidator {
         Array("zxcvbnm")
     ]
     
-    init(config: JWTConfiguration = .load()) {
+    init(config: JWTConfiguration = .load(), logger: Logger? = nil) {
         self.config = config
+        self.logger = logger ?? Logger(label: "app.password-validator")
     }
     
     func validate(_ password: String, userInfo: [String: String] = [:]) -> PasswordValidationResult {
         var errors: [PasswordValidationError] = []
         var suggestions: [String] = []
         
-        print("DEBUG: Starting password validation")  // Debug log
+        logger.debug("Starting password validation")
         
         // Normalize Unicode characters using NFKC normalization
         guard let normalizedData = password.data(using: .utf8),
               let normalizedPassword = String(data: normalizedData, encoding: .utf8)?.precomposedStringWithCompatibilityMapping else {
             errors.append(.invalidUnicode)
-            print("DEBUG: Failed Unicode normalization")  // Debug log
+            logger.debug("Failed Unicode normalization")
             return PasswordValidationResult(
                 isValid: false,
                 errors: errors,
@@ -148,16 +152,16 @@ struct PasswordValidator {
             )
         }
         
-        print("DEBUG: Password length: \(normalizedPassword.count)")  // Debug log
+        logger.debug("Password length: \(normalizedPassword.count)")
         
         // Check length (NIST SP 800-63B guidelines)
         if normalizedPassword.count < config.minimumPasswordLength {
-            print("DEBUG: Password too short. Min required: \(config.minimumPasswordLength)")  // Debug log
+            logger.debug("Password too short. Min required: \(config.minimumPasswordLength)")
             errors.append(.tooShort(minimum: config.minimumPasswordLength))
             suggestions.append("Use a memorable passphrase instead of a single word")
         }
         if normalizedPassword.count > config.maximumPasswordLength {
-            print("DEBUG: Password too long. Max allowed: \(config.maximumPasswordLength)")  // Debug log
+            logger.debug("Password too long. Max allowed: \(config.maximumPasswordLength)")
             errors.append(.tooLong(maximum: config.maximumPasswordLength))
         }
 
@@ -183,7 +187,7 @@ struct PasswordValidator {
             .joined()
         
         if Self.commonPasswordHashes.contains(passwordHash) {
-            print("DEBUG: Password found in common passwords list")  // Debug log
+            logger.debug("Password found in common passwords list")
             errors.append(.containsCommonPassword)
             suggestions.append("Use a unique password that hasn't appeared in data breaches")
         }
@@ -199,11 +203,11 @@ struct PasswordValidator {
         
         // Calculate entropy and strength
         let (strength, entropy) = calculateStrengthAndEntropy(password: normalizedPassword)
-        print("DEBUG: Password entropy: \(entropy) bits")  // Debug log
+        logger.debug("Password entropy: \(entropy) bits")
         
         // Check minimum entropy requirement
         if entropy < minimumEntropy {
-            print("DEBUG: Insufficient entropy. Required: \(minimumEntropy) bits")  // Debug log
+            logger.debug("Insufficient entropy. Required: \(minimumEntropy) bits")
             errors.append(.insufficientEntropy(current: entropy, required: minimumEntropy))
         }
         
@@ -216,10 +220,7 @@ struct PasswordValidator {
             ])
         }
         
-        print("DEBUG: Validation complete. Valid: \(errors.isEmpty && entropy >= minimumEntropy)")  // Debug log
-        if !errors.isEmpty {
-            print("DEBUG: Validation errors: \(errors)")  // Debug log
-        }
+        logger.debug("Validation complete. Valid: \(errors.isEmpty && entropy >= minimumEntropy)")
         
         return PasswordValidationResult(
             isValid: errors.isEmpty && entropy >= minimumEntropy,

@@ -56,7 +56,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     }
 
     // Initialize token store
-    let tokenStore = TokenStore()
+    let tokenStore = TokenStore(logger: logger)
 
     let jwtAuthenticator = JWTAuthenticator(fluent: fluent, tokenStore: tokenStore)
     let jwtLocalSignerKid = JWKIdentifier("hb_local")
@@ -111,14 +111,25 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     let api = router.group("api")
         .add(middleware: CORSMiddleware(
             allowOrigin: .custom(AppConfig.allowedOrigins.joined(separator: ", ")),
-            allowHeaders: [.accept, .authorization, .contentType, .origin],
+            allowHeaders: [.accept, .authorization, .contentType, .origin, .init(AppConfig.csrfHeaderName)!],
             allowMethods: [.get, .post, .put, .delete, .options],
             allowCredentials: true,
             maxAge: .seconds(3600)
         ))
+        // Add CSRF protection middleware if enabled
+        .add(middleware: AppConfig.csrfProtectionEnabled ? CSRFProtectionMiddleware(
+            cookieName: AppConfig.csrfCookieName,
+            headerName: AppConfig.csrfHeaderName,
+            secureCookies: AppConfig.csrfSecureCookies,
+            sameSite: AppConfig.csrfSameSite,
+            exemptPaths: AppConfig.csrfExemptPaths
+        ) : NoopMiddleware())
         .add(middleware: RateLimiterMiddleware<AppRequestContext>(
             requestsPerMinute: AppConfig.requestsPerMinute,
-            whitelist: AppConfig.rateLimitWhitelist
+            whitelist: AppConfig.rateLimitWhitelist,
+            trustedProxies: AppConfig.trustedProxies,
+            useXForwardedFor: AppConfig.environment.isProduction || AppConfig.environment.isStaging,
+            useXRealIP: AppConfig.environment.isProduction || AppConfig.environment.isStaging
         ))
     
     let userController = UserController(

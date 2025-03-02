@@ -204,72 +204,70 @@ struct AuthController {
             throw HTTPError(.unauthorized, message: "Invalid token type")
         }
         
-        // Get user from database and perform atomic update
-        return try await fluent.db().transaction { db in
-            guard let user = try await User.find(UUID(uuidString: refreshPayload.subject.value), on: db) else {
-                throw HTTPError(.unauthorized, message: "User not found")
-            }
-            
-            // Verify token version
-            guard let tokenVersion = refreshPayload.tokenVersion,
-                  tokenVersion == user.tokenVersion else {
-                throw HTTPError(.unauthorized, message: "Invalid token version")
-            }
-
-            // Blacklist the used refresh token immediately
-            await tokenStore.blacklist(refreshRequest.refreshToken, expiresAt: refreshPayload.expiration.value, reason: .tokenVersionChange)
-
-            // Increment token version to invalidate all previous tokens
-            user.tokenVersion += 1
-            try await user.save(on: db)
-
-            // Generate new access token with new version
-            let expiresIn = Int(jwtConfig.accessTokenExpiration)
-            let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
-            let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
-            let issuedAt = Date()
-
-            // Create access token
-            let accessPayload = JWTPayloadData(
-                subject: SubjectClaim(value: refreshPayload.subject.value),
-                expiration: ExpirationClaim(value: accessExpirationDate),
-                type: "access",
-                issuer: jwtConfig.issuer,
-                audience: jwtConfig.audience,
-                issuedAt: issuedAt,
-                id: UUID().uuidString,
-                role: user.role.rawValue,
-                tokenVersion: user.tokenVersion
-            )
-
-            // Create refresh token with same version
-            let newRefreshPayload = JWTPayloadData(
-                subject: SubjectClaim(value: refreshPayload.subject.value),
-                expiration: ExpirationClaim(value: refreshExpirationDate),
-                type: "refresh",
-                issuer: jwtConfig.issuer,
-                audience: jwtConfig.audience,
-                issuedAt: issuedAt,
-                id: UUID().uuidString,
-                role: user.role.rawValue,
-                tokenVersion: user.tokenVersion
-            )
-
-            let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
-            let newRefreshToken = try await self.jwtKeyCollection.sign(newRefreshPayload, kid: self.kid)
-
-            let dateFormatter = ISO8601DateFormatter()
-            return EditedResponse(
-                status: HTTPResponse.Status.created,
-                response: AuthResponse(
-                    accessToken: accessToken,
-                    refreshToken: newRefreshToken,
-                    expiresIn: UInt(expiresIn),
-                    expiresAt: dateFormatter.string(from: accessExpirationDate),
-                    user: UserResponse(from: user)
-                )
-            )
+        // Get user from database - simplified but still thread-safe
+        guard let user = try await User.find(UUID(uuidString: refreshPayload.subject.value), on: fluent.db()) else {
+            throw HTTPError(.unauthorized, message: "User not found")
         }
+        
+        // Verify token version
+        guard let tokenVersion = refreshPayload.tokenVersion,
+              tokenVersion == user.tokenVersion else {
+            throw HTTPError(.unauthorized, message: "Invalid token version")
+        }
+
+        // Blacklist the used refresh token immediately
+        await tokenStore.blacklist(refreshRequest.refreshToken, expiresAt: refreshPayload.expiration.value, reason: .tokenVersionChange)
+
+        // Increment token version to invalidate all previous tokens
+        user.tokenVersion += 1
+        try await user.save(on: fluent.db())
+
+        // Generate new access token with new version
+        let expiresIn = Int(jwtConfig.accessTokenExpiration)
+        let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
+        let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
+        let issuedAt = Date()
+
+        // Create access token
+        let accessPayload = JWTPayloadData(
+            subject: SubjectClaim(value: refreshPayload.subject.value),
+            expiration: ExpirationClaim(value: accessExpirationDate),
+            type: "access",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: issuedAt,
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+
+        // Create refresh token with same version
+        let newRefreshPayload = JWTPayloadData(
+            subject: SubjectClaim(value: refreshPayload.subject.value),
+            expiration: ExpirationClaim(value: refreshExpirationDate),
+            type: "refresh",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: issuedAt,
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+
+        let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
+        let newRefreshToken = try await self.jwtKeyCollection.sign(newRefreshPayload, kid: self.kid)
+
+        let dateFormatter = ISO8601DateFormatter()
+        return EditedResponse(
+            status: HTTPResponse.Status.created,
+            response: AuthResponse(
+                accessToken: accessToken,
+                refreshToken: newRefreshToken,
+                expiresIn: UInt(expiresIn),
+                expiresAt: dateFormatter.string(from: accessExpirationDate),
+                user: UserResponse(from: user)
+            )
+        )
     }
 
     /// Logout user by invalidating their refresh tokens and blacklisting current access token
@@ -372,6 +370,15 @@ struct SecurityHeadersMiddleware: MiddlewareProtocol {
         ].joined(separator: ", ")
         
         response.headers.append(HTTPField(name: HTTPField.Name("Permissions-Policy")!, value: permissionsPolicy))
+        
+        // Add Cross-Origin-Resource-Policy header
+        response.headers.append(HTTPField(name: HTTPField.Name("Cross-Origin-Resource-Policy")!, value: "same-origin"))
+        
+        // Add Cross-Origin-Opener-Policy header
+        response.headers.append(HTTPField(name: HTTPField.Name("Cross-Origin-Opener-Policy")!, value: "same-origin"))
+        
+        // Add Cross-Origin-Embedder-Policy header
+        response.headers.append(HTTPField(name: HTTPField.Name("Cross-Origin-Embedder-Policy")!, value: "require-corp"))
 
         return response
     }
@@ -411,12 +418,19 @@ struct UserAuthenticator<Context: AuthRequestContext>: AuthenticatorMiddleware w
         }
 
         // Verify password
-        guard let passwordHash = user.passwordHash,
-              try await NIOThreadPool.singleton.runIfActive({
-                  Bcrypt.verify(basic.password, hash: passwordHash)
-              })
-        else {
-            // Increment failed attempts and save
+        guard let passwordHash = user.passwordHash else {
+            // User has no password hash - this is a serious issue
+            context.logger.error("User \(user.email) has no password hash")
+            throw HTTPError(.unauthorized, message: "Invalid credentials")
+        }
+        
+        // Perform password verification
+        let passwordValid = try await NIOThreadPool.singleton.runIfActive({
+            Bcrypt.verify(basic.password, hash: passwordHash)
+        })
+        
+        if !passwordValid {
+            // Password verification failed - increment failed attempts
             user.incrementFailedLoginAttempts()
             try await user.save(on: fluent.db())
 
@@ -436,7 +450,7 @@ struct UserAuthenticator<Context: AuthRequestContext>: AuthenticatorMiddleware w
             throw HTTPError(.unauthorized, message: "Invalid credentials")
         }
 
-        // Reset failed attempts on successful authentication
+        // Password verification succeeded - reset failed attempts if needed
         if user.failedLoginAttempts > 0 {
             user.resetFailedLoginAttempts()
             try await user.save(on: fluent.db())

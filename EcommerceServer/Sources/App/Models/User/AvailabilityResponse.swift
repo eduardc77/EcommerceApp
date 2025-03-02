@@ -2,7 +2,7 @@ import Foundation
 import Hummingbird
 
 /// Response for availability check
-struct AvailabilityResponse: Codable {
+struct AvailabilityResponse: Codable, Sendable {
     let available: Bool
     let identifier: String
     let type: String
