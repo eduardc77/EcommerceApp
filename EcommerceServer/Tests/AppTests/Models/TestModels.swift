@@ -50,6 +50,7 @@ struct AuthResponse: Decodable {
     let expiresIn: UInt
     let expiresAt: String
     let user: UserResponse
+    let requiresTOTP: Bool
 }
 
 struct UserResponse: Decodable {
@@ -66,4 +67,17 @@ struct UserResponse: Decodable {
 struct MessageResponse: Codable {
     let message: String
     let success: Bool
+}
+
+struct TOTPSetupResponse: Codable {
+    let secret: String
+    let qrCodeUrl: String
+}
+
+struct TOTPStatusResponse: Codable {
+    let enabled: Bool
+}
+
+struct TOTPVerifyRequest: Codable {
+    let code: String
 } 

@@ -122,8 +122,8 @@ struct AuthController {
 
         // Check if TOTP is enabled
         if user.twoFactorEnabled {
-            // For TOTP-enabled users, we need the code in the Authorization header
-            guard let totpCodeField = request.headers.first(where: { String($0.name) == "X-TOTP-Code" }) else {
+            // For TOTP-enabled users, we need the code in the X-TOTP-Code header
+            guard let totpCodeField = request.headers.first(where: { $0.name.canonicalName == "x-totp-code" }) else {
                 return .init(
                     status: .unauthorized,
                     response: AuthResponse(
