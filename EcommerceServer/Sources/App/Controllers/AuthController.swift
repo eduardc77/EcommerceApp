@@ -111,12 +111,36 @@ struct AuthController {
     ///   - context: The application request context
     /// - Returns: AuthResponse containing tokens and user information
     /// - Throws: HTTPError if authentication fails
-@Sendable func login(
+    @Sendable func login(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<AuthResponse> {
+        // Check user credentials first
         guard let user = context.identity else {
             throw HTTPError(.unauthorized, message: "Invalid credentials")
+        }
+
+        // Check if TOTP is enabled
+        if user.twoFactorEnabled {
+            // For TOTP-enabled users, we need the code in the Authorization header
+            guard let totpCodeField = request.headers.first(where: { String($0.name) == "X-TOTP-Code" }) else {
+                return .init(
+                    status: .unauthorized,
+                    response: AuthResponse(
+                        accessToken: "",
+                        refreshToken: "",
+                        expiresIn: 0,
+                        expiresAt: "",
+                        user: UserResponse(from: user),
+                        requiresTOTP: true
+                    )
+                )
+            }
+            
+            // Verify TOTP code
+            guard try await user.verifyTOTPCode(totpCodeField.value) else {
+                throw HTTPError(.unauthorized, message: "Invalid TOTP code")
+            }
         }
 
         let expiresIn = Int(jwtConfig.accessTokenExpiration)
@@ -171,7 +195,8 @@ struct AuthController {
                 refreshToken: refreshToken,
                 expiresIn: UInt(expiresIn),
                 expiresAt: dateFormatter.string(from: accessExpirationDate),
-                user: UserResponse(from: user)
+                user: UserResponse(from: user),
+                requiresTOTP: false
             )
         )
     }

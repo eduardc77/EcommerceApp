@@ -304,6 +304,17 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         
         return url
     }
+    
+    /// Verify a TOTP code for this user
+    /// - Parameter code: The TOTP code to verify
+    /// - Returns: True if the code is valid, false otherwise
+    func verifyTOTPCode(_ code: String) async throws -> Bool {
+        guard let secret = twoFactorSecret else {
+            throw HTTPError(.internalServerError, message: "2FA is not properly configured")
+        }
+        
+        return TOTPUtils.verifyTOTPCode(code: code, secret: secret)
+    }
 }
 
 extension User {

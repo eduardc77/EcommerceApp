@@ -8,6 +8,16 @@ struct AuthResponse: Codable {
     let expiresIn: UInt
     let expiresAt: String
     let user: UserResponse
+    let requiresTOTP: Bool
+    
+    init(accessToken: String, refreshToken: String, expiresIn: UInt, expiresAt: String, user: UserResponse, requiresTOTP: Bool = false) {
+        self.accessToken = accessToken
+        self.refreshToken = refreshToken
+        self.expiresIn = expiresIn
+        self.expiresAt = expiresAt
+        self.user = user
+        self.requiresTOTP = requiresTOTP
+    }
 }
 
 extension AuthResponse: ResponseEncodable {} 

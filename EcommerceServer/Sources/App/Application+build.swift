@@ -152,20 +152,22 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     let protectedAuthGroup = api.group("auth")
         .add(middleware: jwtAuthenticator)
     
-    AuthController(
+    let authController = AuthController(
         jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
         kid: jwtLocalSignerKid,
         fluent: fluent,
         tokenStore: tokenStore
-    ).addProtectedRoutes(to: protectedAuthGroup)
+    )
+    
+    // Add TOTP routes to protected auth group
+    let totpController = TOTPController(fluent: fluent)
+    totpController.addProtectedRoutes(to: protectedAuthGroup.group("totp"))
+    
+    // Add protected auth routes
+    authController.addProtectedRoutes(to: protectedAuthGroup)
     
     // Add public auth routes (login, register) to a separate group
-    AuthController(
-        jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
-        kid: jwtLocalSignerKid,
-        fluent: fluent,
-        tokenStore: tokenStore
-    ).addPublicRoutes(to: api.group("auth"))
+    authController.addPublicRoutes(to: api.group("auth"))
 
     var app = Application(
         router: router,
