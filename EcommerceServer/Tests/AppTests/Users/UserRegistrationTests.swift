@@ -18,9 +18,11 @@ struct UserRegistrationTests {
                 username: "testuser",
                 displayName: "Test User",
                 email: "testuser@example.com",
-                password: "TestingValid143!@#",
+                password: "TestingV@lid143!#",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
+            
+            // 1. Register user
             try await client.execute(
                 uri: "/api/users/register",
                 method: .post,
@@ -29,6 +31,20 @@ struct UserRegistrationTests {
                 #expect(response.status == .created)
                 let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
                 #expect(userResponse.username == "testuser")
+            }
+            
+            // 2. Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
+            
+            // 3. Verify can now login
+            try await client.execute(
+                uri: "/api/auth/login",
+                method: .post,
+                auth: .basic(username: requestBody.email, password: requestBody.password)
+            ) { response in
+                #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(!authResponse.accessToken.isEmpty)
             }
         }
     }
@@ -43,7 +59,7 @@ struct UserRegistrationTests {
                 username: "firstuser",
                 displayName: "First User",
                 email: "duplicate@example.com",
-                password: "TestingValid143!@#",
+                password: "TestingV@lid143!#Z",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -59,7 +75,7 @@ struct UserRegistrationTests {
                 username: "seconduser",
                 displayName: "Second User",
                 email: "duplicate@example.com",
-                password: "TestingValid143!@#",
+                password: "TestingV@lid143!#Z",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(

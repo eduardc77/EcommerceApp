@@ -12,12 +12,14 @@ struct UserController {
     let kid: JWKIdentifier
     let fluent: Fluent
     private let tokenStore: TokenStoreProtocol
+    private let emailService: EmailService
     
-    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent, tokenStore: TokenStoreProtocol) {
+    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent, tokenStore: TokenStoreProtocol, emailService: EmailService) {
         self.jwtKeyCollection = jwtKeyCollection
         self.kid = kid
         self.fluent = fluent
         self.tokenStore = tokenStore
+        self.emailService = emailService
     }
     
     /// Add public routes (registration, availability)
@@ -76,8 +78,28 @@ struct UserController {
             
             context.logger.info("Creating new user: \(createUser.username)")
             let user = try await User(from: createUser)
-            try await user.save(on: db)
-            context.logger.info("Successfully created user: \(user.username)")
+            
+            // Save both user and verification code in a transaction
+            try await db.transaction { database in
+                // Save user first
+                try await user.save(on: database)
+                
+                // Generate and store verification code
+                let code = EmailVerificationCode.generateCode()
+                let verificationCode = EmailVerificationCode(
+                    userID: try user.requireID(),
+                    code: code,
+                    type: "email_verify",
+                    expiresAt: Date().addingTimeInterval(300) // 5 minutes
+                )
+                
+                try await verificationCode.save(on: database)
+                
+                // Send verification email
+                try await emailService.sendVerificationEmail(to: user.email, code: code)
+            }
+            
+            context.logger.info("Successfully created user and sent verification email: \(user.username)")
             
             return .init(status: .created, response: UserResponse(from: user))
         } catch {
@@ -195,4 +217,5 @@ struct UpdateUserRequest: Codable, Sendable {
     let password: String?
     let avatar: String?
     let role: Role?
-} 
+}
+

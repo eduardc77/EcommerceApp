@@ -43,6 +43,7 @@ struct AuthController {
     let kid: JWKIdentifier
     let fluent: Fluent
     let jwtConfig: JWTConfiguration
+    let emailService: EmailService
 
     // Rate limiting configuration
     private let maxLoginAttempts: Int
@@ -51,11 +52,12 @@ struct AuthController {
     // Token store for blacklisting
     private let tokenStore: TokenStoreProtocol
 
-    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent, tokenStore: TokenStoreProtocol) {
+    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent, tokenStore: TokenStoreProtocol, emailService: EmailService) {
         self.jwtKeyCollection = jwtKeyCollection
         self.kid = kid
         self.fluent = fluent
         self.tokenStore = tokenStore
+        self.emailService = emailService
         
         // Load configuration with graceful fallback
         self.jwtConfig = JWTConfiguration.load()
@@ -70,8 +72,8 @@ struct AuthController {
         // Add security headers middleware
         group.add(middleware: SecurityHeadersMiddleware())
 
-        group.add(middleware: UserAuthenticator(fluent: fluent))
-            .post("login", use: self.login)
+        group.post("login", use: self.login)
+            .post("email-code", use: self.requestEmailCode)
 
         // Refresh token doesn't use JWT middleware since it's validated differently
         group.post("refresh", use: self.refreshToken)
@@ -92,9 +94,8 @@ struct AuthController {
         // Add security headers middleware
         group.add(middleware: SecurityHeadersMiddleware())
 
-        // Add user authentication middleware for login
-        group.add(middleware: UserAuthenticator(fluent: fluent))
-            .post("login", use: self.login)
+        // Add routes directly without redundant middleware
+        group.post("login", use: self.login)
 
         // Add JWT authentication middleware for protected routes
         group.add(middleware: JWTAuthenticator(fluent: fluent, tokenStore: tokenStore))
@@ -105,41 +106,182 @@ struct AuthController {
         group.post("refresh", use: self.refreshToken)
     }
 
-    /// Login user and return JWT
-    /// - Parameters:
-    ///   - request: The incoming HTTP request
-    ///   - context: The application request context
-    /// - Returns: AuthResponse containing tokens and user information
-    /// - Throws: HTTPError if authentication fails
+    /// Login user with credentials
     @Sendable func login(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<AuthResponse> {
         // Check user credentials first
-        guard let user = context.identity else {
+        guard let basic = request.headers.basic else {
             throw HTTPError(.unauthorized, message: "Invalid credentials")
         }
 
-        // Check if TOTP is enabled
-        if user.twoFactorEnabled {
-            // For TOTP-enabled users, we need the code in the X-TOTP-Code header
-            guard let totpCodeField = request.headers.first(where: { $0.name.canonicalName == "x-totp-code" }) else {
-                return .init(
-                    status: .unauthorized,
-                    response: AuthResponse(
-                        accessToken: "",
-                        refreshToken: "",
-                        expiresIn: 0,
-                        expiresAt: "",
-                        user: UserResponse(from: user),
-                        requiresTOTP: true
-                    )
+        // Try to find user by email or username
+        let user = try await User.query(on: fluent.db())
+            .group(.or) { group in
+                group.filter(\.$email == basic.username)
+                group.filter(\.$username == basic.username)
+            }
+            .first()
+
+        guard let user = user else {
+            throw HTTPError(.unauthorized, message: "Invalid credentials")
+        }
+
+        // Check for account lockout
+        if user.isLocked() {
+            if let lockoutUntil = user.lockoutUntil {
+                let retryAfter = Int(ceil(lockoutUntil.timeIntervalSinceNow))
+                var headers = HTTPFields()
+                headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(max(0, retryAfter))"))
+                throw HTTPError(.tooManyRequests,
+                              headers: headers,
+                              message: "Account is temporarily locked. Please try again later."
                 )
             }
+            throw HTTPError(.tooManyRequests, message: "Account is temporarily locked. Please try again later.")
+        }
+
+        // Verify password
+        guard let passwordHash = user.passwordHash else {
+            context.logger.error("User \(user.email) has no password hash")
+            throw HTTPError(.unauthorized, message: "Invalid credentials")
+        }
+
+        // Perform password verification
+        let passwordValid = try await NIOThreadPool.singleton.runIfActive({
+            Bcrypt.verify(basic.password, hash: passwordHash)
+        })
+
+        if !passwordValid {
+            // Password verification failed - increment failed attempts
+            user.incrementFailedLoginAttempts()
+            try await user.save(on: fluent.db())
+
+            // If now locked, throw too many requests
+            if user.isLocked() {
+                if let lockoutUntil = user.lockoutUntil {
+                    let retryAfter = Int(ceil(lockoutUntil.timeIntervalSinceNow))
+                    var headers = HTTPFields()
+                    headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(max(0, retryAfter))"))
+                    throw HTTPError(.tooManyRequests,
+                                  headers: headers,
+                                  message: "Account is temporarily locked. Please try again later."
+                    )
+                }
+                throw HTTPError(.tooManyRequests, message: "Account is temporarily locked. Please try again later.")
+            }
+            throw HTTPError(.unauthorized, message: "Invalid credentials")
+        }
+
+        // Password verification succeeded - reset failed attempts if needed
+        if user.failedLoginAttempts > 0 {
+            user.resetFailedLoginAttempts()
+            try await user.save(on: fluent.db())
+        }
+
+        // Update last login timestamp
+        user.updateLastLogin()
+        try await user.save(on: fluent.db())
+
+        // Check if any 2FA is enabled
+        if user.twoFactorEnabled || user.emailVerificationEnabled {
+            // For TOTP-enabled users, we need the code in the X-TOTP-Code header
+            if user.twoFactorEnabled {
+                guard let totpCodeField = request.headers.first(where: { $0.name.canonicalName == "x-totp-code" }) else {
+                    return .init(
+                        status: .unauthorized,
+                        response: AuthResponse(
+                            accessToken: "",
+                            refreshToken: "",
+                            expiresIn: 0,
+                            expiresAt: "",
+                            user: UserResponse(from: user),
+                            requiresTOTP: true,
+                            requiresEmailVerification: false
+                        )
+                    )
+                }
+                
+                // Verify TOTP code
+                guard try await user.verifyTOTPCode(totpCodeField.value) else {
+                    throw HTTPError(.unauthorized, message: "Invalid TOTP code")
+                }
+            }
             
-            // Verify TOTP code
-            guard try await user.verifyTOTPCode(totpCodeField.value) else {
-                throw HTTPError(.unauthorized, message: "Invalid TOTP code")
+            // For email verification enabled users, we need the code in the X-Email-Code header
+            if user.emailVerificationEnabled {
+                // First check if email is verified
+                if !user.emailVerified {
+                    throw HTTPError(.unauthorized, message: "Email verification required")
+                }
+
+                // Then handle 2FA via email if needed
+                guard let emailCodeField = request.headers.first(where: { $0.name.canonicalName == "x-email-code" }) else {
+                    // Generate and send verification code
+                    let userID = try user.requireID()
+                    try await EmailVerificationCode.query(on: fluent.db())
+                        .filter(\.$user.$id == userID)
+                        .filter(\.$type == "2fa_login")
+                        .delete()
+                    
+                    let code = EmailVerificationCode.generateCode()
+                    let verificationCode = EmailVerificationCode(
+                        userID: userID,
+                        code: code,
+                        type: "2fa_login",
+                        expiresAt: Date().addingTimeInterval(300) // 5 minutes
+                    )
+                    try await verificationCode.save(on: fluent.db())
+                    
+                    // Send verification email
+                    try await emailService.send2FALoginEmail(to: user.email, code: code)
+                    
+                    return .init(
+                        status: .unauthorized,
+                        response: AuthResponse(
+                            accessToken: "",
+                            refreshToken: "",
+                            expiresIn: 0,
+                            expiresAt: "",
+                            user: UserResponse(from: user),
+                            requiresTOTP: false,
+                            requiresEmailVerification: true
+                        )
+                    )
+                }
+                
+                // Find and verify the email code
+                let userID = try user.requireID()
+                guard let verificationCode = try await EmailVerificationCode.query(on: fluent.db())
+                    .filter(\.$user.$id == userID)
+                    .filter(\.$type == "2fa_login")
+                    .sort(\.$createdAt, .descending)
+                    .first() else {
+                    throw HTTPError(.unauthorized, message: "No verification code found")
+                }
+                
+                // Check if code is expired
+                if verificationCode.isExpired {
+                    try await verificationCode.delete(on: fluent.db())
+                    throw HTTPError(.unauthorized, message: "Verification code has expired")
+                }
+                
+                // Check attempts
+                if verificationCode.hasExceededAttempts {
+                    try await verificationCode.delete(on: fluent.db())
+                    throw HTTPError(.tooManyRequests, message: "Too many attempts. Please request a new code.")
+                }
+                
+                // Verify the code
+                if verificationCode.code != emailCodeField.value {
+                    verificationCode.incrementAttempts()
+                    try await verificationCode.save(on: fluent.db())
+                    throw HTTPError(.unauthorized, message: "Invalid verification code")
+                }
+                
+                // Delete the verification code after successful verification
+                try await verificationCode.delete(on: fluent.db())
             }
         }
 
@@ -196,7 +338,8 @@ struct AuthController {
                 expiresIn: UInt(expiresIn),
                 expiresAt: dateFormatter.string(from: accessExpirationDate),
                 user: UserResponse(from: user),
-                requiresTOTP: false
+                requiresTOTP: false,
+                requiresEmailVerification: false
             )
         )
     }
@@ -486,6 +629,50 @@ struct AuthController {
             )
         }
     }
+
+    /// Request an email verification code for login
+    @Sendable func requestEmailCode(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        // Check user credentials first
+        guard let user = context.identity else {
+            throw HTTPError(.unauthorized, message: "Invalid credentials")
+        }
+        
+        // Check if email verification is enabled
+        guard user.emailVerificationEnabled else {
+            throw HTTPError(.badRequest, message: "Email verification is not enabled for this account")
+        }
+        
+        // Delete any existing verification codes for this user
+        let userID = try user.requireID()
+        try await EmailVerificationCode.query(on: fluent.db())
+            .filter(\.$user.$id == userID)
+            .filter(\.$type == "2fa_login")
+            .delete()
+        
+        // Generate and store verification code
+        let code = EmailVerificationCode.generateCode()
+        let verificationCode = EmailVerificationCode(
+            userID: userID,
+            code: code,
+            type: "2fa_login",
+            expiresAt: Date().addingTimeInterval(300) // 5 minutes
+        )
+        try await verificationCode.save(on: fluent.db())
+        
+        // Send verification email
+        try await emailService.send2FALoginEmail(to: user.email, code: code)
+        
+        return .init(
+            status: .ok,
+            response: MessageResponse(
+                message: "Verification code sent to your email",
+                success: true
+            )
+        )
+    }
 }
 
 /// Security Headers Middleware
@@ -551,86 +738,6 @@ struct SecurityHeadersMiddleware: MiddlewareProtocol {
         response.headers.append(HTTPField(name: HTTPField.Name("Cross-Origin-Embedder-Policy")!, value: "require-corp"))
 
         return response
-    }
-}
-
-struct UserAuthenticator<Context: AuthRequestContext>: AuthenticatorMiddleware where Context.Identity == User {
-    let fluent: Fluent
-
-    func authenticate(request: Request, context: Context) async throws -> User? {
-        // Get basic auth credentials from request
-        guard let basic = request.headers.basic else { return nil }
-
-        // Try to find user by email or username
-        let user = try await User.query(on: fluent.db())
-            .group(.or) { group in
-                group.filter(\.$email == basic.username)
-                group.filter(\.$username == basic.username)
-            }
-            .first()
-
-        guard let user = user else {
-            throw HTTPError(.unauthorized, message: "Invalid credentials")
-        }
-
-        // Check for account lockout
-        if user.isLocked() {
-            if let lockoutUntil = user.lockoutUntil {
-                let retryAfter = Int(ceil(lockoutUntil.timeIntervalSinceNow))
-                var headers = HTTPFields()
-                headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(max(0, retryAfter))"))
-                throw HTTPError(.tooManyRequests,
-                                headers: headers,
-                                message: "Account is temporarily locked. Please try again later."
-                )
-            }
-            throw HTTPError(.tooManyRequests, message: "Account is temporarily locked. Please try again later.")
-        }
-
-        // Verify password
-        guard let passwordHash = user.passwordHash else {
-            // User has no password hash - this is a serious issue
-            context.logger.error("User \(user.email) has no password hash")
-            throw HTTPError(.unauthorized, message: "Invalid credentials")
-        }
-        
-        // Perform password verification
-        let passwordValid = try await NIOThreadPool.singleton.runIfActive({
-            Bcrypt.verify(basic.password, hash: passwordHash)
-        })
-        
-        if !passwordValid {
-            // Password verification failed - increment failed attempts
-            user.incrementFailedLoginAttempts()
-            try await user.save(on: fluent.db())
-
-            // If now locked, throw too many requests
-            if user.isLocked() {
-                if let lockoutUntil = user.lockoutUntil {
-                    let retryAfter = Int(ceil(lockoutUntil.timeIntervalSinceNow))
-                    var headers = HTTPFields()
-                    headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(max(0, retryAfter))"))
-                    throw HTTPError(.tooManyRequests,
-                                    headers: headers,
-                                    message: "Account is temporarily locked. Please try again later."
-                    )
-                }
-                throw HTTPError(.tooManyRequests, message: "Account is temporarily locked. Please try again later.")
-            }
-            throw HTTPError(.unauthorized, message: "Invalid credentials")
-        }
-
-        // Password verification succeeded - reset failed attempts if needed
-        if user.failedLoginAttempts > 0 {
-            user.resetFailedLoginAttempts()
-            try await user.save(on: fluent.db())
-        }
-
-        // Update last login timestamp
-        user.updateLastLogin()
-        try await user.save(on: fluent.db())
-
-        return user
     }
 }
 

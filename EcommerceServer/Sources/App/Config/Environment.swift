@@ -4,13 +4,21 @@ enum Environment: String {
     case development = "development"
     case staging = "staging"
     case production = "production"
+    case testing = "testing"
 
     static var current: Environment {
-        guard let environmentString = ProcessInfo.processInfo.environment["APP_ENV"],
-              let environment = Environment(rawValue: environmentString.lowercased()) else {
+        guard let env = ProcessInfo.processInfo.environment["APP_ENV"] else {
             return .development
         }
-        return environment
+        
+        switch env.lowercased() {
+        case "testing":
+            return .testing
+        case "production":
+            return .production
+        default:
+            return .development
+        }
     }
     
     /// Get environment variable with a default value
@@ -44,12 +52,15 @@ enum Environment: String {
             return "https://api-staging.yourdomain.com"
         case .production:
             return "https://api.yourdomain.com"
+        case .testing:
+            return "http://localhost:8080"
         }
     }
     
     var isProduction: Bool { self == .production }
     var isDevelopment: Bool { self == .development }
     var isStaging: Bool { self == .staging }
+    var isTesting: Bool { self == .testing }
 }
 
 /// Application configuration from environment variables
@@ -73,6 +84,8 @@ struct AppConfig {
             return "staging-secret-key-replace-in-production"
         case .development:
             return "default-dev-only-secret"
+        case .testing:
+            return "test-secret-key-for-testing-purposes-only"
         }
     }
     
@@ -93,6 +106,8 @@ struct AppConfig {
             return ["https://staging.yourdomain.com"]
         case .development:
             return ["localhost:8080", "127.0.0.1:8080"]
+        case .testing:
+            return ["localhost:8080", "127.0.0.1:8080"]
         }
     }
     
@@ -107,6 +122,8 @@ struct AppConfig {
                 return 100 // More lenient in staging
             case .development:
                 return 1000 // Very lenient in development
+            case .testing:
+                return 1000 // Very lenient in testing
             }
         }
         return value
@@ -122,6 +139,8 @@ struct AppConfig {
             case .staging:
                 return ["staging-test-ip"]
             case .development:
+                return ["127.0.0.1"]
+            case .testing:
                 return ["127.0.0.1"]
             }
         }
@@ -142,6 +161,9 @@ struct AppConfig {
             case .development:
                 // For local development, trust localhost
                 return ["127.0.0.1", "::1"]
+            case .testing:
+                // For testing, trust localhost
+                return ["127.0.0.1", "::1"]
             }
         }
         return proxies
@@ -160,6 +182,8 @@ struct AppConfig {
             return "staging.sqlite"
         case .development:
             return "dev.sqlite"
+        case .testing:
+            return ":memory:"
         }
     }()
     
@@ -172,7 +196,7 @@ struct AppConfig {
         switch environment {
         case .production:
             return "info"
-        case .staging, .development:
+        case .staging, .development, .testing:
             return "debug"
         }
     }()
@@ -180,4 +204,39 @@ struct AppConfig {
     // Server Configuration
     static let serverPort: Int = Environment.getInt("SERVER_PORT", default: 8080)
     static let serverHost: String = Environment.get("SERVER_HOST", default: "127.0.0.1")
+    
+    // SendGrid Configuration
+    static let sendGridAPIKey: String = {
+        let key = Environment.get("SENDGRID_API_KEY", default: "")
+        if environment.isProduction && key.isEmpty {
+            fatalError("SENDGRID_API_KEY must be set in production environment")
+        }
+        return key
+    }()
+    
+    static let sendGridFromEmail: String = {
+        let email = Environment.get("SENDGRID_FROM_EMAIL", default: "")
+        if email.isEmpty {
+            switch environment {
+            case .production:
+                fatalError("SENDGRID_FROM_EMAIL must be set in production environment")
+            case .staging, .development, .testing:
+                return "noreply@ecommerceapp.dev"
+            }
+        }
+        return email
+    }()
+    
+    static let sendGridFromName: String = {
+        let name = Environment.get("SENDGRID_FROM_NAME", default: "")
+        if name.isEmpty {
+            switch environment {
+            case .production:
+                fatalError("SENDGRID_FROM_NAME must be set in production environment")
+            case .staging, .development, .testing:
+                return "EcommerceApp Dev"
+            }
+        }
+        return name
+    }()
 } 

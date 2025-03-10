@@ -60,7 +60,7 @@ struct InputValidationTests {
                     username: "validmail\(index)",
                     displayName: "Valid Email User",
                     email: validEmail,
-                    password: "TestingValid143!@#",
+                    password: "TestingV@lid143!#Z",
                     avatar: "https://api.dicebear.com/7.x/avataaars/png"
                 )
                 try await client.execute(
@@ -70,6 +70,9 @@ struct InputValidationTests {
                 ) { response in
                     #expect(response.status == .created)
                 }
+                
+                // Complete email verification for valid registrations
+                try await client.completeEmailVerification(email: validEmail)
             }
         }
     }
@@ -116,20 +119,20 @@ struct InputValidationTests {
             
             // Test valid usernames
             let validUsernames = [
-                "johndoe",
-                "john123",
-                "j0hnd0e",
                 "johndoe123",
-                "john_doe",
-                "testuser"
+                "john_doe_123",
+                "j0hnd0e123",
+                "johndoe_123",
+                "jane_doe_123",
+                "testuser123"
             ]
             
-            for validUsername in validUsernames {
+            for (_, validUsername) in validUsernames.enumerated() {
                 let validRequest = TestCreateUserRequest(
                     username: validUsername,
                     displayName: "Username Test User",
                     email: "\(validUsername)@example.com",
-                    password: "TestingValid143!@#",
+                    password: "TestingV@lid143!#Z",
                     avatar: "https://api.dicebear.com/7.x/avataaars/png"
                 )
                 try await client.execute(
@@ -139,6 +142,9 @@ struct InputValidationTests {
                 ) { response in
                     #expect(response.status == .created)
                 }
+                
+                // Complete email verification for valid registrations
+                try await client.completeEmailVerification(email: "\(validUsername)@example.com")
             }
         }
     }
@@ -153,7 +159,7 @@ struct InputValidationTests {
                 username: "testuser1",
                 displayName: "Test User 1",
                 email: "test1@example.com",
-                password: "Short1!",
+                password: "Sh0rt!",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -162,7 +168,6 @@ struct InputValidationTests {
                 body: JSONEncoder().encodeAsByteBuffer(shortPasswordRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .init(code: 422))
-                print("Response body: \(String(buffer: response.body))")
                 let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
                 #expect(error.error.message.contains("Invalid password"))
             }
@@ -172,7 +177,7 @@ struct InputValidationTests {
                 username: "testuser2",
                 displayName: "Test User 2",
                 email: "test2@example.com",
-                password: "nouppercase123!",
+                password: "nouppercase123!@#",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -190,7 +195,7 @@ struct InputValidationTests {
                 username: "testuser3",
                 displayName: "Test User 3",
                 email: "test3@example.com",
-                password: "Password123!",
+                password: "Password123!@#",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -208,7 +213,7 @@ struct InputValidationTests {
                 username: "testuser4",
                 displayName: "Test User 4",
                 email: "test4@example.com",
-                password: "TestAAA123!!!",
+                password: "TestAAA123!!!@#",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -226,7 +231,7 @@ struct InputValidationTests {
                 username: "testuser5",
                 displayName: "Test User 5",
                 email: "test5@example.com",
-                password: "Test12345!@#",
+                password: "Test12345!@#$%",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -244,7 +249,7 @@ struct InputValidationTests {
                 username: "johndoe",
                 displayName: "John Doe",
                 email: "john@example.com",
-                password: "johndoe123!@#A",
+                password: "johndoe123!@#ABC",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -262,7 +267,7 @@ struct InputValidationTests {
                 username: "validuser",
                 displayName: "Valid User",
                 email: "valid@example.com",
-                password: "V3ryStr0ng&Unique!",
+                password: "V3ryStr0ng&Un!que#",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -274,6 +279,9 @@ struct InputValidationTests {
                 let user = try JSONDecoder().decode(UserResponse.self, from: response.body)
                 #expect(user.username == "validuser")
             }
+            
+            // Complete email verification for valid registration
+            try await client.completeEmailVerification(email: validRequest.email)
         }
     }
 }

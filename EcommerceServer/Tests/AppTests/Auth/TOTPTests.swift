@@ -17,9 +17,9 @@ struct TOTPTests {
         try await app.test(.router) { client in
             // Create test user
             let requestBody = TestCreateUserRequest(
-                username: "totptest",
+                username: "totp_test_123",
                 displayName: "TOTP Test User",
-                email: "totp@test.com",
+                email: "totp_test_123@example.com",
                 password: "P@th3r#Bk9$mN",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
@@ -31,11 +31,14 @@ struct TOTPTests {
                 #expect(response.status == .created)
             }
             
+            // Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
+            
             // Login to get access token
             let authResponse = try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "totptest", password: "P@th3r#Bk9$mN")
+                auth: .basic(username: "totp_test_123", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -59,7 +62,7 @@ struct TOTPTests {
                 uri: "/api/auth/totp/enable",
                 method: .post,
                 auth: .bearer(authResponse.accessToken),
-                body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: "123456"), allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: "000000"), allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .unauthorized)
             }
@@ -94,9 +97,9 @@ struct TOTPTests {
         try await app.test(.router) { client in
             // Create and login user
             let requestBody = TestCreateUserRequest(
-                username: "totptest2",
+                username: "totp_test_456",
                 displayName: "TOTP Test User 2",
-                email: "totp2@test.com",
+                email: "totp_test_456@example.com",
                 password: "P@th3r#Bk9$mN",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
@@ -108,10 +111,13 @@ struct TOTPTests {
                 #expect(response.status == .created)
             }
             
+            // Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
+            
             let authResponse = try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "totptest2", password: "P@th3r#Bk9$mN")
+                auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -185,9 +191,9 @@ struct TOTPTests {
         let (secret, _) = try await app.test(.router) { client in
             // Create and login user
             let requestBody = TestCreateUserRequest(
-                username: "totptest3",
+                username: "totp_test_789",
                 displayName: "TOTP Test User 3",
-                email: "totp3@test.com",
+                email: "totp_test_789@example.com",
                 password: "P@th3r#Bk9$mN",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
@@ -199,10 +205,13 @@ struct TOTPTests {
                 #expect(response.status == .created)
             }
             
+            // Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
+            
             let authResponse = try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "totptest3", password: "P@th3r#Bk9$mN")
+                auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -233,7 +242,7 @@ struct TOTPTests {
             try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "totptest3", password: "P@th3r#Bk9$mN")
+                auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .unauthorized)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -251,7 +260,7 @@ struct TOTPTests {
                 uri: "/api/auth/login",
                 method: .post,
                 headers: [HTTPField.Name("x-totp-code")!: loginCode],
-                auth: .basic(username: "totptest3", password: "P@th3r#Bk9$mN")
+                auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -267,10 +276,10 @@ struct TOTPTests {
         let (secret, accessToken) = try await app.test(.router) { client in
             // Create and login user
             let requestBody = TestCreateUserRequest(
-                username: "totptest4",
+                username: "totp_test_456",
                 displayName: "TOTP Test User 4",
-                email: "totp4@test.com",
-                password: "P@th3r#Bk9$mN",
+                email: "totp_test_456@example.com",
+                password: "P@th3r#Bk9$mN!Z",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -281,10 +290,13 @@ struct TOTPTests {
                 #expect(response.status == .created)
             }
             
+            // Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
+            
             let authResponse = try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "totptest4", password: "P@th3r#Bk9$mN")
+                auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN!Z")
             ) { response in
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -332,14 +344,14 @@ struct TOTPTests {
             try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                headers: [HTTPField.Name("x-totp-code")!: "000000"],
-                auth: .basic(username: "totptest4", password: "P@th3r#Bk9$mN")
+                headers: [HTTPField.Name("x-totp-code")!: "001000"],
+                auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN!Z")
             ) { response in
                 #expect(response.status == .unauthorized)
             }
             
             // Try to disable with invalid code
-            let invalidRequest = TOTPVerifyRequest(code: "000000")
+            let invalidRequest = TOTPVerifyRequest(code: "000100")
             try await client.execute(
                 uri: "/api/auth/totp/disable",
                 method: .delete,

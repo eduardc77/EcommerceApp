@@ -37,10 +37,10 @@ struct PasswordChangeTests {
         try await app.test(.router) { client in
             // 1. Create and login user
             let createUserRequest = TestCreateUserRequest(
-                username: "passworduser",
+                username: "password_user_123",
                 displayName: "Password Test User",
                 email: "passwordtest@example.com",
-                password: "OldP@ssw0rd!9K",
+                password: "OldP@ssw0rd!9K#",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
@@ -52,11 +52,14 @@ struct PasswordChangeTests {
                 #expect(response.status == .created)
             }
             
+            // Complete email verification
+            try await client.completeEmailVerification(email: createUserRequest.email)
+            
             // 2. Login to get token
             let authResponse = try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "passwordtest@example.com", password: "OldP@ssw0rd!9K")
+                auth: .basic(username: "passwordtest@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -86,10 +89,10 @@ struct PasswordChangeTests {
         try await app.test(.router) { client in
             // 1. Create and login user
             let createUserRequest = TestCreateUserRequest(
-                username: "passworduser2",
+                username: "password_user_456",
                 displayName: "Password Test User 2",
                 email: "passwordtest2@example.com",
-                password: "OldP@ssw0rd!9K",
+                password: "OldP@ssw0rd!9K#",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
@@ -101,11 +104,14 @@ struct PasswordChangeTests {
                 #expect(response.status == .created)
             }
             
+            // Complete email verification
+            try await client.completeEmailVerification(email: createUserRequest.email)
+            
             // 2. Login to get token
             let authResponse = try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "passwordtest2@example.com", password: "OldP@ssw0rd!9K")
+                auth: .basic(username: "passwordtest2@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -113,7 +119,7 @@ struct PasswordChangeTests {
             
             // 3. Try to change password with weak new password
             let weakPasswordRequest = ChangePasswordRequest(
-                currentPassword: "OldP@ssw0rd!9K",
+                currentPassword: "OldP@ssw0rd!9K#",
                 newPassword: "password"
             )
             
@@ -135,10 +141,10 @@ struct PasswordChangeTests {
         try await app.test(.router) { client in
             // 1. Create and login user
             let createUserRequest = TestCreateUserRequest(
-                username: "passworduser3",
+                username: "password_user_789",
                 displayName: "Password Test User 3",
                 email: "passwordtest3@example.com",
-                password: "OldP@ssw0rd!9K",
+                password: "OldP@ssw0rd!9K#",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
@@ -150,11 +156,14 @@ struct PasswordChangeTests {
                 #expect(response.status == .created)
             }
             
+            // Complete email verification
+            try await client.completeEmailVerification(email: createUserRequest.email)
+            
             // 2. Login to get token
             let authResponse = try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "passwordtest3@example.com", password: "OldP@ssw0rd!9K")
+                auth: .basic(username: "passwordtest3@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -162,8 +171,8 @@ struct PasswordChangeTests {
             
             // 3. Change password with valid inputs
             let validPasswordRequest = ChangePasswordRequest(
-                currentPassword: "OldP@ssw0rd!9K",
-                newPassword: "NewP@ssw0rd!9K"
+                currentPassword: "OldP@ssw0rd!9K#",
+                newPassword: "NewP@ssw0rd!9K#"
             )
             
             try await client.execute(
@@ -191,7 +200,7 @@ struct PasswordChangeTests {
             let _ = try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "passwordtest3@example.com", password: "NewP@ssw0rd!9K")
+                auth: .basic(username: "passwordtest3@example.com", password: "NewP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -201,7 +210,7 @@ struct PasswordChangeTests {
             try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "passwordtest3@example.com", password: "OldP@ssw0rd!9K")
+                auth: .basic(username: "passwordtest3@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .unauthorized)
             }
@@ -215,10 +224,10 @@ struct PasswordChangeTests {
         try await app.test(.router) { client in
             // 1. Create and login user
             let createUserRequest = TestCreateUserRequest(
-                username: "passworduser4",
+                username: "password_user_101",
                 displayName: "Password Test User 4",
                 email: "passwordtest4@example.com",
-                password: "OldP@ssw0rd!9K",
+                password: "OldP@ssw0rd!9K#",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
@@ -230,11 +239,14 @@ struct PasswordChangeTests {
                 #expect(response.status == .created)
             }
             
+            // Complete email verification
+            try await client.completeEmailVerification(email: createUserRequest.email)
+            
             // 2. Login to get token
             let authResponse = try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "passwordtest4@example.com", password: "OldP@ssw0rd!9K")
+                auth: .basic(username: "passwordtest4@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -242,8 +254,8 @@ struct PasswordChangeTests {
             
             // 3. Change password to a new one
             let firstChangeRequest = ChangePasswordRequest(
-                currentPassword: "OldP@ssw0rd!9K",
-                newPassword: "NewP@ssw0rd!9K"
+                currentPassword: "OldP@ssw0rd!9K#",
+                newPassword: "NewP@ssw0rd!9K#"
             )
             
             try await client.execute(
@@ -259,7 +271,7 @@ struct PasswordChangeTests {
             let newAuthResponse = try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "passwordtest4@example.com", password: "NewP@ssw0rd!9K")
+                auth: .basic(username: "passwordtest4@example.com", password: "NewP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -267,8 +279,8 @@ struct PasswordChangeTests {
             
             // 5. Try to change back to the original password
             let revertChangeRequest = ChangePasswordRequest(
-                currentPassword: "NewP@ssw0rd!9K",
-                newPassword: "OldP@ssw0rd!9K"
+                currentPassword: "NewP@ssw0rd!9K#",
+                newPassword: "OldP@ssw0rd!9K#"
             )
             
             try await client.execute(

@@ -16,7 +16,7 @@ struct AuthenticationTests {
         try await app.test(.router) { client in
             // 1. Create user
             let requestBody = TestCreateUserRequest(
-                username: "testuser",
+                username: "test_user_123",
                 displayName: "Test User",
                 email: "testuser@example.com",
                 password: "Testing132!@#",
@@ -30,11 +30,14 @@ struct AuthenticationTests {
                 #expect(response.status == .created)
             }
             
+            // Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
+            
             // 2. Login to get JWT
             let authResponse = try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "testuser", password: "Testing132!@#")
+                auth: .basic(username: "test_user_123", password: "Testing132!@#")
             ) { response in
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -60,7 +63,7 @@ struct AuthenticationTests {
         try await app.test(.router) { client in
             // 1. Create user first
             let requestBody = TestCreateUserRequest(
-                username: "testuser",
+                username: "test_user_123",
                 displayName: "Test User",
                 email: "testuser@example.com",
                 password: "Testing132!@#",
@@ -74,6 +77,9 @@ struct AuthenticationTests {
                 #expect(response.status == .created)
                 return try JSONDecoder().decode(UserResponse.self, from: response.body)
             }
+            
+            // Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
             
             // 2. Create JWT with all required fields
             let jwtConfig = JWTConfiguration.load()
@@ -130,7 +136,7 @@ struct AuthenticationTests {
             try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "nonexistent@example.com", password: "K9#mP2$vL5nQ8*x")
+                auth: .basic(username: "nonexistent@example.com", password: "K9#mP2$vL5nQ8*xZ@")
             ) { response in
                 #expect(response.status == .unauthorized)
                 let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
@@ -139,10 +145,10 @@ struct AuthenticationTests {
             
             // 2. Create user for wrong password test
             let requestBody = TestCreateUserRequest(
-                username: "credentialuser",
+                username: "credential_user_123",
                 displayName: "Credential Test User",
                 email: "credentials@example.com",
-                password: "K9#mP2$vL5nQ8*x",
+                password: "K9#mP2$vL5nQ8*xZ@",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -152,6 +158,9 @@ struct AuthenticationTests {
             ) { response in
                 #expect(response.status == .created)
             }
+            
+            // Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
             
             // 3. Test wrong password
             try await client.execute(
@@ -173,10 +182,10 @@ struct AuthenticationTests {
         try await app.test(.router) { client in
             // 1. Create user
             let requestBody = TestCreateUserRequest(
-                username: "ratelimituser",
+                username: "rate_limit_123",
                 displayName: "Rate Limit Test User",
                 email: "ratelimit@example.com",
-                password: "K9#mP2$vL5nQ8*x",
+                password: "K9#mP2$vL5nQ8*xZ@",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -186,6 +195,9 @@ struct AuthenticationTests {
             ) { response in
                 #expect(response.status == .created)
             }
+            
+            // Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
             
             // 2. Attempt multiple rapid login requests
             for _ in 1...6 {
@@ -212,10 +224,10 @@ struct AuthenticationTests {
         try await app.test(.router) { client in
             // 1. Create user
             let requestBody = TestCreateUserRequest(
-                username: "lockoutuser",
+                username: "lockout_user_123",
                 displayName: "Lockout Test User",
                 email: "lockout@example.com",
-                password: "K9#mP2$vL5nQ8*x",
+                password: "K9#mP2$vL5nQ8*xZ@",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
@@ -225,6 +237,9 @@ struct AuthenticationTests {
             ) { response in
                 #expect(response.status == .created)
             }
+            
+            // Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
             
             // 2. Attempt multiple failed logins
             for _ in 1...4 {
@@ -250,7 +265,7 @@ struct AuthenticationTests {
             try await client.execute(
                 uri: "/api/auth/login",
                 method: .post,
-                auth: .basic(username: "lockout@example.com", password: "K9#mP2$vL5nQ8*x")
+                auth: .basic(username: "lockout@example.com", password: "K9#mP2$vL5nQ8*xZ@")
             ) { response in
                 #expect(response.status == .tooManyRequests)
             }

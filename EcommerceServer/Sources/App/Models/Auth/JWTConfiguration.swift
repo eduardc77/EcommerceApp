@@ -18,15 +18,15 @@ struct JWTConfiguration {
         let environment = Environment.get("ENV", default: "development")
         let isProduction = environment == "production"
         
-        // Default values as TimeInterval
-        let defaultAccessExpiration: TimeInterval = 900  // 15 minutes
-        let defaultRefreshExpiration: TimeInterval = 86400  // 24 hours
-        let defaultLockoutDuration: TimeInterval = 900  // 15 minutes
+        // Default values as TimeInterval - more lenient in development/test
+        let defaultAccessExpiration: TimeInterval = isProduction ? 900 : 3600  // 15 minutes in prod, 1 hour in dev
+        let defaultRefreshExpiration: TimeInterval = isProduction ? 86400 : 604800  // 24 hours in prod, 7 days in dev
+        let defaultLockoutDuration: TimeInterval = isProduction ? 900 : 300  // 15 minutes in prod, 5 minutes in dev
         
         // Get environment variables with defaults
-        let accessExpirationStr = Environment.get("JWT_ACCESS_TOKEN_EXPIRATION", default: "900")
-        let refreshExpirationStr = Environment.get("JWT_REFRESH_TOKEN_EXPIRATION", default: "86400")
-        let lockoutDurationStr = Environment.get("LOCKOUT_DURATION", default: "900")
+        let accessExpirationStr = Environment.get("JWT_ACCESS_TOKEN_EXPIRATION", default: String(defaultAccessExpiration))
+        let refreshExpirationStr = Environment.get("JWT_REFRESH_TOKEN_EXPIRATION", default: String(defaultRefreshExpiration))
+        let lockoutDurationStr = Environment.get("LOCKOUT_DURATION", default: String(defaultLockoutDuration))
         
         // Convert to TimeInterval, falling back to defaults if conversion fails
         let accessExpiration = TimeInterval(accessExpirationStr) ?? defaultAccessExpiration

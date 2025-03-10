@@ -11,27 +11,44 @@ import Crypto
 import NIOCore
 import NIOHTTP1
 import NIOPosix
+import Logging
 
 protocol AppArguments {
     var hostname: String { get }
     var port: Int { get }
     var inMemoryDatabase: Bool { get }
     var migrate: Bool { get }
+    var isTestEnvironment: Bool { get }
+}
+
+extension AppArguments {
+    var isTestEnvironment: Bool {
+        ProcessInfo.processInfo.environment["APP_ENV"] == "testing"
+    }
+    
+    var environment: String {
+        ProcessInfo.processInfo.environment["APP_ENV"] ?? "development"
+    }
 }
 
 typealias AppRequestContext = BasicAuthRequestContext<User>
 
 struct DatabaseService: Service {
     let fluent: Fluent
+    let httpClient: HTTPClient
 
     func run() async throws {
         // Ignore cancellation error
         try? await gracefulShutdown()
         try await self.fluent.shutdown()
+        try await self.httpClient.shutdown()
     }
 }
 
 func buildApplication(_ args: AppArguments) async throws -> some ApplicationProtocol {
+    // Load environment variables from .env file
+    loadEnvironment()
+    
     // Initialize logger
     let logger = {
         var logger = Logger(label: "auth-jwt")
@@ -49,6 +66,8 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
 
     // add migrations
     await fluent.migrations.add(CreateUser())
+    await fluent.migrations.add(AddEmailVerificationEnabled())
+    await fluent.migrations.add(EmailVerificationCode.Migration())
     
     // migrate
     if args.migrate || args.inMemoryDatabase {
@@ -84,6 +103,28 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
         digestAlgorithm: .sha256,
         kid: jwtLocalSignerKid
     )
+
+    // Create HTTP client
+    let httpClient = HTTPClient(eventLoopGroupProvider: .singleton)
+
+    // Create email service
+    let emailService: EmailService
+    if args.isTestEnvironment {
+        emailService = MockEmailService(logger: logger)
+    } else {
+        let apiKey = AppConfig.sendGridAPIKey
+        if apiKey.isEmpty {
+            emailService = MockEmailService(logger: logger)
+        } else {
+            emailService = SendGridEmailService(
+                httpClient: httpClient,
+                apiKey: apiKey,
+                fromEmail: AppConfig.sendGridFromEmail,
+                fromName: AppConfig.sendGridFromName,
+                logger: logger
+            )
+        }
+    }
 
     let router = Router(context: AppRequestContext.self)
     router.add(middleware: LogRequestsMiddleware(.debug))
@@ -136,7 +177,8 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
         jwtKeyCollection: userJWTAuthenticator.jwtKeyCollection,
         kid: jwtLocalSignerKid,
         fluent: fluent,
-        tokenStore: tokenStore
+        tokenStore: tokenStore,
+        emailService: emailService
     )
     
     // Add user routes - split into public and protected
@@ -156,12 +198,18 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
         jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
         kid: jwtLocalSignerKid,
         fluent: fluent,
-        tokenStore: tokenStore
+        tokenStore: tokenStore,
+        emailService: emailService
     )
     
     // Add TOTP routes to protected auth group
     let totpController = TOTPController(fluent: fluent)
     totpController.addProtectedRoutes(to: protectedAuthGroup.group("totp"))
+    
+    // Add email verification routes to protected auth group
+    let emailVerificationController = EmailVerificationController(fluent: fluent, emailService: emailService)
+    emailVerificationController.addProtectedRoutes(to: protectedAuthGroup.group("email"))
+    emailVerificationController.addPublicRoutes(to: api.group("auth/email"))
     
     // Add protected auth routes
     authController.addProtectedRoutes(to: protectedAuthGroup)
@@ -178,7 +226,24 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
         logger: logger
     )
     
-    app.addServices(DatabaseService(fluent: fluent))
+    app.addServices(DatabaseService(fluent: fluent, httpClient: httpClient))
     
     return app
+}
+
+/// Load environment variables from .env file
+private func loadEnvironment() {
+    guard let contents = try? String(contentsOfFile: ".env", encoding: .utf8) else {
+        return
+    }
+    
+    let lines = contents.components(separatedBy: .newlines)
+    for line in lines {
+        let parts = line.components(separatedBy: "=")
+        guard parts.count == 2 else { continue }
+        
+        let key = parts[0].trimmingCharacters(in: .whitespaces)
+        let value = parts[1].trimmingCharacters(in: .whitespaces)
+        setenv(key, value, 1)
+    }
 }

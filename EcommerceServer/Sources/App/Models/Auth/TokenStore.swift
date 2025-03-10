@@ -21,14 +21,19 @@ protocol TokenStoreProtocol {
 }
 
 /// Thread-safe in-memory implementation of token blacklisting
+/// This store maintains a list of invalidated tokens and their expiration dates
+/// to prevent token reuse and enforce security policies.
 actor TokenStore: TokenStoreProtocol {
     /// Thread-safe storage for blacklisted tokens
+    /// Maps token strings to their metadata
     private var blacklistedTokens: [String: BlacklistedToken] = [:]
     
     /// Maximum number of tokens to store in memory
+    /// When this limit is reached, cleanup will be triggered
     private let maxTokens: Int
     
-    /// Interval between cleanup operations (5 minutes)
+    /// Interval between cleanup operations (5 minutes by default)
+    /// Cleanup removes expired tokens from the store
     private let cleanupInterval: TimeInterval
     private var lastCleanupTime: Date = Date()
     

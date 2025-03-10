@@ -64,6 +64,9 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
     @OptionalField(key: "two_factor_secret")
     var twoFactorSecret: String?
     
+    @Field(key: "email_verification_enabled")
+    var emailVerificationEnabled: Bool
+    
     @OptionalField(key: "password_history")
     var passwordHistory: [String]?
     
@@ -101,6 +104,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         requirePasswordChange: Bool = false,
         twoFactorEnabled: Bool = false,
         twoFactorSecret: String? = nil,
+        emailVerificationEnabled: Bool = false,
         passwordUpdatedAt: Date? = nil,
         passwordHistory: [String]? = nil,
         tokenVersion: Int = 0
@@ -121,6 +125,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.requirePasswordChange = requirePasswordChange
         self.twoFactorEnabled = twoFactorEnabled
         self.twoFactorSecret = twoFactorSecret
+        self.emailVerificationEnabled = emailVerificationEnabled
         self.passwordUpdatedAt = passwordUpdatedAt
         self.passwordHistory = passwordHistory
         self.tokenVersion = tokenVersion
@@ -144,6 +149,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.requirePasswordChange = false
         self.twoFactorEnabled = false
         self.twoFactorSecret = nil
+        self.emailVerificationEnabled = false
         self.passwordUpdatedAt = nil
         self.passwordHistory = nil
         self.tokenVersion = 0
@@ -186,6 +192,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.requirePasswordChange = false
         self.twoFactorEnabled = false
         self.twoFactorSecret = nil
+        self.emailVerificationEnabled = false
         self.passwordHash = try await NIOThreadPool.singleton.runIfActive {
             Bcrypt.hash(userRequest.password, cost: 12)
         }
