@@ -51,6 +51,7 @@ struct AuthResponse: Decodable {
     let expiresAt: String
     let user: UserResponse
     let requiresTOTP: Bool
+    let requiresEmailVerification: Bool
 }
 
 struct UserResponse: Decodable {
