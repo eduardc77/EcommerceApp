@@ -41,7 +41,7 @@ final class EmailVerificationCode: Model, @unchecked Sendable {
     /// Generate a random 6-digit code
     static func generateCode() -> String {
         // For test environment, use deterministic code
-        if ProcessInfo.processInfo.environment["APP_ENV"] == "testing" {
+        if Environment.current.isTesting {
             return "123456"  // Test verification code
         }
         

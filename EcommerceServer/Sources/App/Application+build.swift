@@ -109,7 +109,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
 
     // Create email service
     let emailService: EmailService
-    if args.isTestEnvironment {
+    if Environment.current.isTesting {
         emailService = MockEmailService(logger: logger)
     } else {
         let apiKey = AppConfig.sendGridAPIKey

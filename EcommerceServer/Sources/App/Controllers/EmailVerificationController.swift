@@ -45,8 +45,8 @@ struct EmailVerificationController {
             .filter(\.$type, .equal, "2fa_setup")
             .delete()
         
-        // Generate and store verification code - in test environment, always use "123456"
-        let code = Environment.current.isTesting ? "123456" : EmailVerificationCode.generateCode()
+        // Generate and store verification code
+        let code = EmailVerificationCode.generateCode()
         let verificationCode = EmailVerificationCode(
             userID: userID,
             code: code,
@@ -250,14 +250,8 @@ struct EmailVerificationController {
             throw HTTPError(.tooManyRequests, message: "Too many attempts. Please request a new code.")
         }
         
-        // Verify the code - in test environment, always accept "123456"
-        if Environment.current.isTesting {
-            if verifyRequest.code != "123456" {
-                verificationCode.incrementAttempts()
-                try await verificationCode.save(on: fluent.db())
-                throw HTTPError(.unauthorized, message: "Invalid verification code")
-            }
-        } else if verificationCode.code != verifyRequest.code {
+        // Verify the code
+        if verificationCode.code != verifyRequest.code {
             verificationCode.incrementAttempts()
             try await verificationCode.save(on: fluent.db())
             throw HTTPError(.unauthorized, message: "Invalid verification code")
