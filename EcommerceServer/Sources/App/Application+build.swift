@@ -1,17 +1,28 @@
-import AsyncHTTPClient
+// Core imports
 import Foundation
-import FluentKit
-import FluentSQLiteDriver
+import Logging
+
+// Hummingbird imports
 import Hummingbird
 import HummingbirdAuth
 import HummingbirdFluent
-import JWTKit
-import ServiceLifecycle
-import Crypto
+
+// Database imports
+import FluentKit
+import FluentSQLiteDriver
+
+// Networking imports
+import AsyncHTTPClient
 import NIOCore
 import NIOHTTP1
 import NIOPosix
-import Logging
+
+// Security imports
+import Crypto
+import JWTKit
+
+// Service imports
+import ServiceLifecycle
 
 protocol AppArguments {
     var hostname: String { get }

@@ -300,8 +300,8 @@ struct EmailVerificationController {
             .filter(\.$type, .equal, "email_verify")
             .delete()
         
-        // Generate and store new code - in test environment, always use "123456"
-        let code = Environment.current.isTesting ? "123456" : EmailVerificationCode.generateCode()
+        // Generate and store new code
+        let code = EmailVerificationCode.generateCode()
         let verificationCode = EmailVerificationCode(
             userID: userID,
             code: code,

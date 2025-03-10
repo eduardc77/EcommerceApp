@@ -1,17 +1,19 @@
 @testable import App
 import Foundation
-import Hummingbird
-import HummingbirdOTP
-import HummingbirdTesting
 import Testing
 import HTTPTypes
-import Logging
-import JWTKit
-import Crypto
+
+// Hummingbird imports
+import Hummingbird
+import HummingbirdTesting
 import HummingbirdAuth
 import HummingbirdFluent
-import HummingbirdBcrypt
+import HummingbirdOTP
+
+// Security imports
+import Crypto
 import CryptoKit
+import JWTKit
 
 struct TestAppArguments: AppArguments {
     let inMemoryDatabase: Bool = true

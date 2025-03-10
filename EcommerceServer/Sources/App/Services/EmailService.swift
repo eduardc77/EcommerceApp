@@ -1,4 +1,3 @@
-import Foundation
 import AsyncHTTPClient
 import Logging
 import SendGridKit
@@ -125,14 +124,6 @@ struct MockEmailService: EmailService {
     
     func send2FALoginEmail(to email: String, code: String) async throws {
         logger.info("Would send 2FA login code \(code) to \(email)")
-    }
-    
-    func sendPasswordResetEmail(to email: String, code: String) async throws {
-        logger.info("Would send password reset email to \(email) with code \(code)")
-    }
-    
-    func sendTOTPSetupEmail(to email: String, secret: String) async throws {
-        logger.info("Would send TOTP setup email to \(email) with secret \(secret)")
     }
 }
 
