@@ -22,4 +22,21 @@ struct UserResponse: ResponseCodable, Sendable {
         self.createdAt = user.createdAt?.ISO8601Format() ?? ""
         self.updatedAt = user.updatedAt?.ISO8601Format() ?? ""
     }
+}
+
+/// Public user information encoded into HTTP response
+struct PublicUserResponse: ResponseCodable, Sendable {
+    let username: String
+    let displayName: String
+    let role: String
+    let createdAt: String
+    let updatedAt: String
+
+    init(from user: User) {
+        self.username = user.username
+        self.displayName = user.displayName
+        self.role = user.role.rawValue
+        self.createdAt = user.createdAt?.ISO8601Format() ?? ""
+        self.updatedAt = user.updatedAt?.ISO8601Format() ?? ""
+    }
 } 

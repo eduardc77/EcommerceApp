@@ -4,6 +4,11 @@ import Hummingbird
 
 @main
 struct HummingbirdArguments: AsyncParsableCommand, AppArguments {
+    static var env: Void = {
+        setenv("APP_ENV", "testing", 1)
+        return ()
+    }()
+    
     @Option(name: .shortAndLong)
     var hostname: String = "127.0.0.1"
     

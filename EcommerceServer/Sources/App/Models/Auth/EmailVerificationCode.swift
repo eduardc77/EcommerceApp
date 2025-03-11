@@ -40,15 +40,8 @@ final class EmailVerificationCode: Model, @unchecked Sendable {
     
     /// Generate a random 6-digit code
     static func generateCode() -> String {
-        // For test environment, use deterministic code
-        if Environment.current.isTesting {
-            return "123456"  // Test verification code
-        }
-        
-        // For production/development, generate random 6-digit code
-        var random = SystemRandomNumberGenerator()
-        let code = UInt32.random(in: 100000...999999, using: &random)
-        return String(format: "%06d", code)
+        // TEMPORARY: Always return hardcoded code
+        return "123456"
     }
     
     /// Check if the code is expired

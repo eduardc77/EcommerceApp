@@ -35,6 +35,10 @@ struct UserController {
     /// Add protected routes that require authentication
     func addProtectedRoutes(to group: RouterGroup<Context>) {
         group.put("me", use: update)
+        group.get(":id/public", use: getUserPublic)  // Public details endpoint
+        group.get(":id", use: getUser)  // Full details endpoint
+        group.delete(":id", use: deleteUser)
+        group.put(":id/role", use: updateRole)  // New endpoint for role management
     }
     
     /// Add all routes (deprecated)
@@ -54,6 +58,35 @@ struct UserController {
                 as: CreateUserRequest.self,
                 context: context
             )
+            
+            // Check role permissions if a role is specified
+            if let requestedRole = createUser.role {
+                if let currentUser = context.identity {
+                    // If authenticated user is creating another user, check permissions
+                    switch currentUser.role {
+                    case .admin:
+                        // Admin can create users with any role
+                        break
+                    case .staff:
+                        // Staff can only create customers or sellers
+                        guard requestedRole == .customer || requestedRole == .seller else {
+                            throw HTTPError(.forbidden, message: "Staff can only create customer or seller accounts")
+                        }
+                    case .seller:
+                        // Sellers can only create customer accounts
+                        guard requestedRole == .customer else {
+                            throw HTTPError(.forbidden, message: "Sellers can only create customer accounts")
+                        }
+                    case .customer:
+                        // Customers cannot specify roles
+                        throw HTTPError(.forbidden, message: "You cannot specify a role when creating an account")
+                    }
+                } else {
+                    // Unauthenticated users cannot specify roles
+                    throw HTTPError(.forbidden, message: "You cannot specify a role when creating an account")
+                }
+            }
+
             context.logger.info("Decoded create user request: \(createUser.username)")
             
             let db = self.fluent.db()
@@ -85,7 +118,7 @@ struct UserController {
                 try await user.save(on: database)
                 
                 // Generate and store verification code
-                let code = EmailVerificationCode.generateCode()
+                let code = Environment.current.isTesting ? "123456" : EmailVerificationCode.generateCode()
                 let verificationCode = EmailVerificationCode(
                     userID: try user.requireID(),
                     code: code,
@@ -207,6 +240,156 @@ struct UserController {
         }
         
         try await user.save(on: db)
+        return .init(status: .ok, response: UserResponse(from: user))
+    }
+    
+    /// Get a specific user's public details by ID
+    @Sendable func getUserPublic(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<PublicUserResponse> {
+        guard let _ = context.identity else {
+            throw HTTPError(.unauthorized)
+        }
+
+        // Get user ID from path parameters
+        guard let userIDString = request.uri.path.split(separator: "/").dropLast().last,
+              let userID = UUID(uuidString: String(userIDString)) else {
+            throw HTTPError(.badRequest, message: "Invalid user ID format")
+        }
+
+        // Find user
+        guard let user = try await User.find(userID, on: fluent.db()) else {
+            throw HTTPError(.notFound, message: "User not found")
+        }
+
+        return EditedResponse(status: .ok, response: PublicUserResponse(from: user))
+    }
+
+    /// Get a specific user by ID
+    /// Returns full details for own profile or admin
+    @Sendable func getUser(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<UserResponse> {
+        guard let currentUser = context.identity else {
+            throw HTTPError(.unauthorized)
+        }
+
+        // Get user ID from path parameters
+        guard let userIDString = request.uri.path.split(separator: "/").last,
+              let userID = UUID(uuidString: String(userIDString)) else {
+            throw HTTPError(.badRequest, message: "Invalid user ID format")
+        }
+
+        // Find user
+        guard let user = try await User.find(userID, on: fluent.db()) else {
+            throw HTTPError(.notFound, message: "User not found")
+        }
+
+        // Return full details if admin or own profile
+        if currentUser.role == .admin || currentUser.id == userID {
+            return EditedResponse(status: .ok, response: UserResponse(from: user))
+        }
+
+        // Return forbidden for others
+        throw HTTPError(.forbidden, message: "You don't have permission to access this user's details")
+    }
+
+    /// Delete a user
+    /// Only admins can delete users, or users can delete their own account
+    @Sendable func deleteUser(
+        _ request: Request,
+        context: Context
+    ) async throws -> Response {
+        guard let currentUser = context.identity else {
+            throw HTTPError(.unauthorized)
+        }
+
+        // Get user ID from path parameters
+        guard let userIDString = request.uri.path.split(separator: "/").last,
+              let userID = UUID(uuidString: String(userIDString)) else {
+            throw HTTPError(.badRequest, message: "Invalid user ID format")
+        }
+
+        // If not admin and trying to delete another user
+        if !currentUser.role.isAdmin && currentUser.id != userID {
+            throw HTTPError(.forbidden, message: "You don't have permission to delete this user")
+        }
+
+        // Find user
+        guard let user = try await User.find(userID, on: fluent.db()) else {
+            throw HTTPError(.notFound, message: "User not found")
+        }
+
+        // Store current token for invalidation
+        let currentToken = request.headers.bearer?.token
+
+        // Delete user
+        try await user.delete(on: fluent.db())
+
+        // If we have a token and it belongs to the deleted user, blacklist it
+        if let token = currentToken,
+           let payload = try? await self.jwtKeyCollection.verify(token, as: JWTPayloadData.self),
+           payload.subject.value == userID.uuidString {
+            await tokenStore.blacklist(token, expiresAt: payload.expiration.value, reason: .tokenVersionChange)
+        }
+
+        return Response(status: .noContent)
+    }
+
+    /// Update a user's role
+    /// Only admins can set admin/staff roles
+    /// Staff can set customer/seller roles
+    @Sendable func updateRole(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<UserResponse> {
+        guard let currentUser = context.identity else {
+            throw HTTPError(.unauthorized)
+        }
+
+        // Get user ID from path parameters
+        guard let userIDString = request.uri.path.split(separator: "/").dropLast().last,
+              let userID = UUID(uuidString: String(userIDString)) else {
+            throw HTTPError(.badRequest, message: "Invalid user ID format")
+        }
+
+        // Decode request
+        struct UpdateRoleRequest: Codable {
+            let role: Role
+        }
+        let updateRole = try await request.decode(as: UpdateRoleRequest.self, context: context)
+
+        // Find user to update
+        guard let user = try await User.find(userID, on: fluent.db()) else {
+            throw HTTPError(.notFound, message: "User not found")
+        }
+
+        // Check permissions based on role hierarchy
+        switch currentUser.role {
+        case .admin:
+            // Admin can set any role
+            break
+        case .staff:
+            // Staff can only set customer or seller roles
+            guard updateRole.role == .customer || updateRole.role == .seller else {
+                throw HTTPError(.forbidden, message: "Staff can only assign customer or seller roles")
+            }
+        case .seller, .customer:
+            // Other roles cannot change roles
+            throw HTTPError(.forbidden, message: "You don't have permission to change user roles")
+        }
+
+        // Cannot change admin's role unless you're an admin
+        if user.role == .admin && currentUser.role != .admin {
+            throw HTTPError(.forbidden, message: "Only admins can modify admin roles")
+        }
+
+        // Update role
+        user.role = updateRole.role
+        try await user.save(on: fluent.db())
+
         return .init(status: .ok, response: UserResponse(from: user))
     }
 }

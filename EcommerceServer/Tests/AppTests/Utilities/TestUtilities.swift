@@ -69,6 +69,27 @@ extension TestClientProtocol {
             }
         }
     }
+
+    /// Set a user's role directly in the database for testing
+    /// - Parameters:
+    ///   - app: The application instance
+    ///   - email: The email address of the user
+    ///   - role: The role to set
+    /// - Throws: If user is not found or database operation fails
+    func setUserRole(app: some ApplicationProtocol, email: String, role: Role) async throws {
+        guard let fluent = app.services.first(where: { $0 is DatabaseService }) as? DatabaseService else {
+            throw HTTPError(.internalServerError, message: "Database service not found")
+        }
+        
+        guard let user = try await User.query(on: fluent.fluent.db())
+            .filter(\User.$email, .equal, email)
+            .first() else {
+            throw HTTPError(.notFound, message: "User not found")
+        }
+        
+        user.role = role
+        try await user.save(on: fluent.fluent.db())
+    }
 }
 
 // MARK: - Test TOTP Extensions
