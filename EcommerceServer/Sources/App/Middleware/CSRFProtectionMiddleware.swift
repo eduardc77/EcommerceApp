@@ -125,7 +125,7 @@ struct CSRFProtectionMiddleware: MiddlewareProtocol {
 extension AppConfig {
     // CSRF Protection Configuration
     static let csrfProtectionEnabled: Bool = {
-        let enabled = Environment.get("CSRF_PROTECTION_ENABLED", default: "")
+        let enabled = Environment.get("ENABLE_CSRF", default: "")
         if !enabled.isEmpty {
             return enabled.lowercased() == "true"
         }

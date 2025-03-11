@@ -118,7 +118,7 @@ struct UserController {
                 try await user.save(on: database)
                 
                 // Generate and store verification code
-                let code = Environment.current.isTesting ? "123456" : EmailVerificationCode.generateCode()
+                let code = EmailVerificationCode.generateCode()
                 let verificationCode = EmailVerificationCode(
                     userID: try user.requireID(),
                     code: code,

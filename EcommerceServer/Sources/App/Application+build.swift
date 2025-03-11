@@ -118,8 +118,20 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     // Create HTTP client
     let httpClient = HTTPClient(eventLoopGroupProvider: .singleton)
 
-    // TEMPORARY: Force mock email service
-    let emailService = MockEmailService(logger: logger)
+    // Initialize email service based on environment
+    let emailService: EmailService = {
+        if Environment.current.isTesting {
+            return MockEmailService(logger: logger)
+        } else {
+            return SendGridEmailService(
+                httpClient: httpClient,
+                apiKey: AppConfig.sendGridAPIKey,
+                fromEmail: AppConfig.sendGridFromEmail,
+                fromName: AppConfig.sendGridFromName,
+                logger: logger
+            )
+        }
+    }()
 
     let router = Router(context: AppRequestContext.self)
     router.add(middleware: LogRequestsMiddleware(.debug))

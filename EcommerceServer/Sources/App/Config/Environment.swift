@@ -7,23 +7,51 @@ enum Environment: String {
     case testing = "testing"
 
     static var current: Environment {
-        guard let env = ProcessInfo.processInfo.environment["APP_ENV"] else {
-            return .development
+        // First check if we're running tests
+        if NSClassFromString("XCTest") != nil {
+            return .testing
         }
         
-        switch env.lowercased() {
+        // Then check environment variable
+        guard let env = ProcessInfo.processInfo.environment["APP_ENV"]?.lowercased() else {
+            #if DEBUG
+            print("⚠️ No APP_ENV set, defaulting to development")
+            return .development
+            #else
+            fatalError("APP_ENV must be set in non-debug builds")
+            #endif
+        }
+        
+        switch env {
         case "testing":
             return .testing
         case "production":
             return .production
-        default:
+        case "staging":
+            return .staging
+        case "development":
             return .development
+        default:
+            #if DEBUG
+            print("⚠️ Unknown environment '\(env)', defaulting to development")
+            return .development
+            #else
+            fatalError("Invalid APP_ENV value: \(env)")
+            #endif
         }
     }
     
     /// Get environment variable with a default value
     static func get(_ key: String, default defaultValue: String) -> String {
         ProcessInfo.processInfo.environment[key] ?? defaultValue
+    }
+    
+    /// Get required environment variable
+    static func require(_ key: String) -> String {
+        guard let value = ProcessInfo.processInfo.environment[key] else {
+            fatalError("Required environment variable '\(key)' is not set")
+        }
+        return value
     }
     
     /// Get environment variable as Int with a default value
@@ -40,6 +68,16 @@ enum Environment: String {
         guard let value = ProcessInfo.processInfo.environment[key] else {
             return defaultValue
         }
+        
+        // Try parsing as JSON array first
+        if value.hasPrefix("[") && value.hasSuffix("]") {
+            let jsonData = value.data(using: .utf8)!
+            if let array = try? JSONDecoder().decode([String].self, from: jsonData) {
+                return array.isEmpty ? defaultValue : array
+            }
+        }
+        
+        // Fall back to comma-separated format
         let array = value.split(separator: ",").map(String.init)
         return array.isEmpty ? defaultValue : array
     }
@@ -47,11 +85,11 @@ enum Environment: String {
     var baseURL: String {
         switch self {
         case .development:
-            return "http://localhost:8080"
+            return Environment.get("BASE_URL", default: "http://localhost:8080")
         case .staging:
-            return "https://api-staging.yourdomain.com"
+            return Environment.require("BASE_URL")
         case .production:
-            return "https://api.yourdomain.com"
+            return Environment.require("BASE_URL")
         case .testing:
             return "http://localhost:8080"
         }
@@ -113,7 +151,7 @@ struct AppConfig {
     
     // Rate Limiting
     static let requestsPerMinute: Int = {
-        let value = Environment.getInt("RATE_LIMIT_PER_MINUTE", default: 0)
+        let value = Environment.getInt("REQUESTS_PER_MINUTE", default: 0)
         if value <= 0 {
             switch environment {
             case .production:

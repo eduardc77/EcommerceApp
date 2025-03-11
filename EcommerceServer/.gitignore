@@ -1,6 +1,24 @@
-.env
+# Swift
+.DS_Store
+/.build
+/Packages
+/*.xcodeproj
+xcuserdata/
+DerivedData/
+.swiftpm/config/registries.json
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.netrc
 
-# SQLite database files
+# Environment files
+.env
+.env.development
+.env.staging
+.env.production
+.env.testing
+
+# Database
 *.sqlite
-*.sqlite-shm
-*.sqlite-wal
+*.sqlite-*
+
+# Logs
+*.log

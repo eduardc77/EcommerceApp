@@ -27,9 +27,6 @@ struct SendGridEmailService: EmailService {
     private let logger: Logger
     
     init(httpClient: HTTPClient, apiKey: String, fromEmail: String, fromName: String, logger: Logger) {
-        if Environment.current.isTesting {
-            fatalError("SendGridEmailService should not be used in testing environment")
-        }
         self.httpClient = httpClient
         self.apiKey = apiKey
         self.fromEmail = fromEmail
@@ -110,26 +107,29 @@ struct MockEmailService: EmailService {
     private let logger: Logger
     
     init(logger: Logger) {
+        guard Environment.current.isTesting else {
+            fatalError("MockEmailService should only be used in testing environment")
+        }
         self.logger = logger
     }
     
     func sendVerificationEmail(to email: String, code: String) async throws {
-        // In testing, we always use 123456 regardless of the passed code
+        // In testing environment, we always log the code as 123456
         logger.info("Mock email service: Verification code for \(email) is 123456")
     }
     
     func send2FASetupEmail(to email: String, code: String) async throws {
-        // In testing, we always use 123456 regardless of the passed code
+        // In testing environment, we always log the code as 123456
         logger.info("Mock email service: 2FA setup code for \(email) is 123456")
     }
     
     func send2FADisableEmail(to email: String, code: String) async throws {
-        // In testing, we always use 123456 regardless of the passed code
+        // In testing environment, we always log the code as 123456
         logger.info("Mock email service: 2FA disable code for \(email) is 123456")
     }
     
     func send2FALoginEmail(to email: String, code: String) async throws {
-        // In testing, we always use 123456 regardless of the passed code
+        // In testing environment, we always log the code as 123456
         logger.info("Mock email service: 2FA login code for \(email) is 123456")
     }
 }
