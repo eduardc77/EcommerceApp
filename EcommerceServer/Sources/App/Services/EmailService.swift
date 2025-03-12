@@ -16,6 +16,9 @@ protocol EmailService {
     
     /// Send a 2FA login verification code
     func send2FALoginEmail(to: String, code: String) async throws
+    
+    /// Send a password reset verification code
+    func sendPasswordResetEmail(to: String, code: String) async throws
 }
 
 /// SendGrid email service implementation using SendGridKit
@@ -97,6 +100,20 @@ struct SendGridEmailService: EmailService {
         try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
         logger.info("Would send 2FA login code \(code) to \(email)")
     }
+    
+    func sendPasswordResetEmail(to email: String, code: String) async throws {
+        let subject = "Password Reset Request"
+        let htmlContent = """
+            <h1>Password Reset</h1>
+            <p>You have requested to reset your password.</p>
+            <p>Your password reset code is: <strong>\(code)</strong></p>
+            <p>This code will expire in 30 minutes.</p>
+            <p>If you did not request this password reset, please ignore this email or contact support if you have concerns.</p>
+            """
+        
+        try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
+        logger.info("Would send password reset code \(code) to \(email)")
+    }
 }
 
 /// Empty struct for emails without dynamic template data
@@ -131,6 +148,11 @@ struct MockEmailService: EmailService {
     func send2FALoginEmail(to email: String, code: String) async throws {
         // In testing environment, we always log the code as 123456
         logger.info("Mock email service: 2FA login code for \(email) is 123456")
+    }
+    
+    func sendPasswordResetEmail(to email: String, code: String) async throws {
+        // In testing environment, we always log the code as 123456
+        logger.info("Mock email service: Password reset code for \(email) is 123456")
     }
 }
 

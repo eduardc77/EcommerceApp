@@ -36,6 +36,30 @@ extension String {
     }
 }
 
+/// Request structure for changing a password
+struct ChangePasswordRequest: Codable, Sendable {
+    let currentPassword: String
+    let newPassword: String
+}
+
+/// Request structure for initiating a password reset
+struct ForgotPasswordRequest: Codable, Sendable {
+    let email: String
+}
+
+/// Request structure for completing a password reset
+struct ResetPasswordRequest: Codable, Sendable {
+    let email: String
+    let code: String
+    let newPassword: String
+}
+
+/// Simple message response structure
+struct MessageResponse: Codable, Sendable {
+    let message: String
+    let success: Bool
+}
+
 /// Controller handling authentication-related endpoints
 struct AuthController {
     typealias Context = AppRequestContext
@@ -74,6 +98,8 @@ struct AuthController {
 
         group.post("login", use: self.login)
             .post("email-code", use: self.requestEmailCode)
+            .post("forgot-password", use: self.forgotPassword)
+            .post("reset-password", use: self.resetPassword)
 
         // Refresh token doesn't use JWT middleware since it's validated differently
         group.post("refresh", use: self.refreshToken)
@@ -673,6 +699,175 @@ struct AuthController {
             )
         )
     }
+
+    /// Request a password reset for a user
+    @Sendable func forgotPassword(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        let forgotRequest = try await request.decode(as: ForgotPasswordRequest.self, context: context)
+        
+        // Try to find user by email
+        guard let user = try await User.query(on: fluent.db())
+            .filter(\.$email == forgotRequest.email)
+            .first() else {
+            // Return success even if user not found to prevent email enumeration
+            return .init(
+                status: .ok,
+                response: MessageResponse(
+                    message: "If an account exists with that email, a password reset link has been sent",
+                    success: true
+                )
+            )
+        }
+        
+        // Delete any existing verification codes for this user
+        let userID = try user.requireID()
+        try await EmailVerificationCode.query(on: fluent.db())
+            .filter(\.$user.$id == userID)
+            .filter(\.$type == "password_reset")
+            .delete()
+        
+        // Generate and store verification code
+        let code = EmailVerificationCode.generateCode()
+        let verificationCode = EmailVerificationCode(
+            userID: userID,
+            code: code,
+            type: "password_reset",
+            expiresAt: Date().addingTimeInterval(1800) // 30 minutes
+        )
+        try await verificationCode.save(on: fluent.db())
+        
+        // Send password reset email
+        try await emailService.sendPasswordResetEmail(to: user.email, code: code)
+        
+        return .init(
+            status: .ok,
+            response: MessageResponse(
+                message: "If an account exists with that email, a password reset link has been sent",
+                success: true
+            )
+        )
+    }
+    
+    /// Reset a user's password using a verification code
+    @Sendable func resetPassword(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        // Decode the request
+        struct ResetPasswordRequest: Codable {
+            let email: String
+            let code: String
+            let newPassword: String
+        }
+        
+        let resetRequest = try await request.decode(as: ResetPasswordRequest.self, context: context)
+        
+        // Find user by email
+        guard let user = try await User.query(on: fluent.db())
+            .filter(\.$email == resetRequest.email)
+            .first() else {
+            throw HTTPError(.badRequest, message: "Invalid reset request")
+        }
+        
+        // Find and verify the reset code
+        let userID = try user.requireID()
+        guard let verificationCode = try await EmailVerificationCode.query(on: fluent.db())
+            .filter(\.$user.$id == userID)
+            .filter(\.$type == "password_reset")
+            .sort(\.$createdAt, .descending)
+            .first() else {
+            throw HTTPError(.badRequest, message: "Invalid or expired reset code")
+        }
+        
+        // Check if code is expired
+        if verificationCode.isExpired {
+            try await verificationCode.delete(on: fluent.db())
+            throw HTTPError(.badRequest, message: "Reset code has expired")
+        }
+        
+        // Check attempts
+        if verificationCode.hasExceededAttempts {
+            try await verificationCode.delete(on: fluent.db())
+            throw HTTPError(.tooManyRequests, message: "Too many attempts. Please request a new code.")
+        }
+        
+        // Verify the code
+        if verificationCode.code != resetRequest.code {
+            verificationCode.incrementAttempts()
+            try await verificationCode.save(on: fluent.db())
+            throw HTTPError(.badRequest, message: "Invalid reset code")
+        }
+        
+        // Validate the new password
+        let validator = PasswordValidator()
+        let validationResult = validator.validate(resetRequest.newPassword, userInfo: [
+            "username": user.username,
+            "email": user.email,
+            "displayName": user.displayName
+        ])
+        
+        guard validationResult.isValid else {
+            let errorMessage = validationResult.firstError ?? "Invalid password"
+            throw HTTPError(.badRequest, message: errorMessage)
+        }
+        
+        // Check if password was previously used
+        if try await user.isPasswordPreviouslyUsed(resetRequest.newPassword) {
+            return .init(
+                status: .badRequest,
+                response: MessageResponse(
+                    message: "Password has been previously used. Please choose a different password.",
+                    success: false
+                )
+            )
+        }
+        
+        // Update the password
+        do {
+            // Hash the new password with increased cost factor
+            let newHash = try await NIOThreadPool.singleton.runIfActive {
+                Bcrypt.hash(resetRequest.newPassword, cost: 12)
+            }
+            
+            // If there's an existing password hash, add it to history
+            if let currentHash = user.passwordHash {
+                var history = user.passwordHistory ?? []
+                history.insert(currentHash, at: 0)
+                
+                // Keep only the most recent passwords
+                if history.count > User.maxPasswordHistoryCount {
+                    history = Array(history.prefix(User.maxPasswordHistoryCount))
+                }
+                
+                user.passwordHistory = history
+            }
+            
+            // Update the password hash and timestamp
+            user.passwordHash = newHash
+            user.passwordUpdatedAt = Date()
+            
+            // Increment token version to invalidate all existing sessions
+            user.tokenVersion += 1
+            
+            try await user.save(on: fluent.db())
+            
+            // Delete the verification code after successful reset
+            try await verificationCode.delete(on: fluent.db())
+            
+            return .init(
+                status: .ok,
+                response: MessageResponse(
+                    message: "Password has been reset successfully. Please log in with your new password.",
+                    success: true
+                )
+            )
+        } catch {
+            context.logger.error("Unexpected error updating password for user \(user.username): \(error.localizedDescription)")
+            throw HTTPError(.internalServerError, message: "Failed to update password. Please try again later.")
+        }
+    }
 }
 
 /// Security Headers Middleware
@@ -739,18 +934,6 @@ struct SecurityHeadersMiddleware: MiddlewareProtocol {
 
         return response
     }
-}
-
-/// Request structure for changing a password
-struct ChangePasswordRequest: Codable, Sendable {
-    let currentPassword: String
-    let newPassword: String
-}
-
-/// Simple message response structure
-struct MessageResponse: Codable, Sendable {
-    let message: String
-    let success: Bool
 }
 
 extension MessageResponse: ResponseEncodable {}
