@@ -193,11 +193,17 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.twoFactorEnabled = false
         self.twoFactorSecret = nil
         self.emailVerificationEnabled = false
-        self.passwordHash = try await NIOThreadPool.singleton.runIfActive {
+        
+        // Hash the password
+        let passwordHash = try await NIOThreadPool.singleton.runIfActive {
             Bcrypt.hash(userRequest.password, cost: 12)
         }
+        self.passwordHash = passwordHash
         self.passwordUpdatedAt = Date()
-        self.passwordHistory = nil
+        
+        // Store the initial password hash in history
+        self.passwordHistory = [passwordHash]
+        
         self.tokenVersion = 0
     }
     
@@ -331,8 +337,19 @@ extension User {
         static let email: FluentKit.FieldKey = "email"
         static let avatar: FluentKit.FieldKey = "avatar"
         static let role: FluentKit.FieldKey = "role"
+        static let passwordHash: FluentKit.FieldKey = "password_hash"
+        static let passwordUpdatedAt: FluentKit.FieldKey = "password_updated_at"
+        static let emailVerified: FluentKit.FieldKey = "email_verified"
         static let failedLoginAttempts: FluentKit.FieldKey = "failed_login_attempts"
         static let lastFailedLogin: FluentKit.FieldKey = "last_failed_login"
+        static let lastLoginAt: FluentKit.FieldKey = "last_login_at"
+        static let accountLocked: FluentKit.FieldKey = "account_locked"
+        static let lockoutUntil: FluentKit.FieldKey = "lockout_until"
+        static let requirePasswordChange: FluentKit.FieldKey = "require_password_change"
+        static let twoFactorEnabled: FluentKit.FieldKey = "two_factor_enabled"
+        static let twoFactorSecret: FluentKit.FieldKey = "two_factor_secret"
+        static let emailVerificationEnabled: FluentKit.FieldKey = "email_verification_enabled"
+        static let passwordHistory: FluentKit.FieldKey = "password_history"
         static let tokenVersion: FluentKit.FieldKey = "token_version"
         static let createdAt: FluentKit.FieldKey = "created_at"
         static let updatedAt: FluentKit.FieldKey = "updated_at"
@@ -352,8 +369,19 @@ extension User {
                 .unique(on: FieldKey.email)
                 .field(FieldKey.avatar, .string)
                 .field(FieldKey.role, .string, .required)
+                .field(FieldKey.passwordHash, .string)
+                .field(FieldKey.passwordUpdatedAt, .datetime)
+                .field(FieldKey.emailVerified, .bool, .required)
                 .field(FieldKey.failedLoginAttempts, .int, .required)
                 .field(FieldKey.lastFailedLogin, .datetime)
+                .field(FieldKey.lastLoginAt, .datetime)
+                .field(FieldKey.accountLocked, .bool, .required)
+                .field(FieldKey.lockoutUntil, .datetime)
+                .field(FieldKey.requirePasswordChange, .bool, .required)
+                .field(FieldKey.twoFactorEnabled, .bool, .required)
+                .field(FieldKey.twoFactorSecret, .string)
+                .field(FieldKey.emailVerificationEnabled, .bool, .required)
+                .field(FieldKey.passwordHistory, .array(of: .string))
                 .field(FieldKey.tokenVersion, .int, .required)
                 .field(FieldKey.createdAt, .datetime)
                 .field(FieldKey.updatedAt, .datetime)

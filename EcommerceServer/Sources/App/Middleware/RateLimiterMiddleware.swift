@@ -8,6 +8,13 @@ private actor RateLimitState {
     private var requestCounts: [String: (count: Int, timestamp: Date)]
     
     init() {
+        if Environment.current.isProduction {
+            print("""
+                ⚠️ WARNING: In-memory rate limiter is not suitable for distributed environments.
+                For production with multiple instances, implement a distributed cache (e.g., Redis)
+                or use a reverse proxy/load balancer level rate limiting.
+                """)
+        }
         self.requestCounts = [:]
     }
     

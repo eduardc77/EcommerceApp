@@ -111,20 +111,24 @@ struct AppConfig {
         if environment.isProduction && secret.isEmpty {
             fatalError("JWT_SECRET must be set in production environment")
         }
+        if !secret.isEmpty && secret.count < 32 {
+            print("⚠️ WARNING: JWT_SECRET is shorter than recommended length of 32 characters")
+            if environment.isProduction {
+                fatalError("JWT_SECRET must be at least 32 characters in production")
+            }
+        }
         return secret.isEmpty ? defaultJWTSecret : secret
     }()
     
     private static var defaultJWTSecret: String {
-        switch environment {
-        case .production:
-            return "" // Will trigger the fatal error above
-        case .staging:
-            return "staging-secret-key-replace-in-production"
-        case .development:
-            return "default-dev-only-secret"
-        case .testing:
-            return "test-secret-key-for-testing-purposes-only"
+        // Generate a secure random string for development/testing
+        if environment.isDevelopment || environment.isTesting {
+            let bytes = (0..<32).map { _ in UInt8.random(in: 0...255) }
+            let randomString = Data(bytes).base64URLEncodedString()
+            print("⚠️ Using generated JWT secret for \(environment). Please set JWT_SECRET in environment.")
+            return randomString
         }
+        fatalError("JWT_SECRET must be set in \(environment) environment")
     }
     
     // CORS Configuration

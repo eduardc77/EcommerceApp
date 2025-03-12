@@ -57,15 +57,23 @@ struct DatabaseService: Service {
 }
 
 func buildApplication(_ args: AppArguments) async throws -> some ApplicationProtocol {
-    // Load environment variables from .env file
-    loadEnvironment()
-    
-    // Initialize logger
+    // Initialize logger first
     let logger = {
         var logger = Logger(label: "auth-jwt")
         logger.logLevel = .debug
         return logger
     }()
+    
+    // Load environment variables from .env file
+    loadEnvironment(logger: logger)
+    
+    // Debug: Print current environment and configuration
+    logger.info("Current Environment: \(Environment.current)")
+    logger.info("APP_ENV: \(ProcessInfo.processInfo.environment["APP_ENV"] ?? "not set")")
+    logger.info("Loading from file: .env.\(Environment.current)")
+    logger.info("SendGrid API Key: \(AppConfig.sendGridAPIKey.isEmpty ? "not set" : "set (length: \(AppConfig.sendGridAPIKey.count))")")
+    logger.info("SendGrid From Email: \(AppConfig.sendGridFromEmail)")
+    logger.info("SendGrid From Name: \(AppConfig.sendGridFromName)")
 
     let fluent = Fluent(logger: logger)
     // add sqlite database
@@ -239,16 +247,33 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
 }
 
 /// Load environment variables from .env file
-private func loadEnvironment() {
-    guard let contents = try? String(contentsOfFile: ".env", encoding: .utf8) else {
+private func loadEnvironment(logger: Logger) {
+    // First try to load environment-specific file
+    let envFile = ".env.\(Environment.current)"
+    logger.debug("Attempting to load \(envFile)")
+    
+    if let contents = try? String(contentsOfFile: envFile, encoding: .utf8) {
+        logger.info("Loading environment from \(envFile)")
+        loadEnvContents(contents)
         return
+    } else {
+        logger.warning("Could not load \(envFile)")
     }
     
+    // Fall back to .env file
+    if let contents = try? String(contentsOfFile: ".env", encoding: .utf8) {
+        logger.info("Loading environment from .env")
+        loadEnvContents(contents)
+    } else {
+        logger.warning("Could not load .env file")
+    }
+}
+
+private func loadEnvContents(_ contents: String) {
     let lines = contents.components(separatedBy: .newlines)
     for line in lines {
         let parts = line.components(separatedBy: "=")
         guard parts.count == 2 else { continue }
-        
         let key = parts[0].trimmingCharacters(in: .whitespaces)
         let value = parts[1].trimmingCharacters(in: .whitespaces)
         setenv(key, value, 1)
