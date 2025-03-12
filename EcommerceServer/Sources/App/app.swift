@@ -26,3 +26,10 @@ struct HummingbirdArguments: AsyncParsableCommand, AppArguments {
         try await app.runService()
     }
 }
+
+// Add multipart form support to AppRequestContext
+extension AppRequestContext {
+    var multipartDecoder: MultipartRequestDecoder { .init() }
+    var multipartEncoder: MultipartResponseEncoder { .init() }
+    var maxUploadSize: Int { 10_000_000 } // 10MB limit
+}

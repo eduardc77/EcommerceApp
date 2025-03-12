@@ -65,11 +65,6 @@ struct UserResponse: Decodable {
     let updatedAt: String
 }
 
-struct MessageResponse: Codable {
-    let message: String
-    let success: Bool
-}
-
 struct TOTPSetupResponse: Codable {
     let secret: String
     let qrCodeUrl: String

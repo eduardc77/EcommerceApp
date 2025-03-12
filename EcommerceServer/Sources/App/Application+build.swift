@@ -232,6 +232,10 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     // Add public auth routes (login, register) to a separate group
     authController.addPublicRoutes(to: api.group("auth"))
 
+    // Add file upload routes
+    let fileUploadController = FileUploadController(fluent: fluent)
+    fileUploadController.addProtectedRoutes(to: api.group("files").add(middleware: userJWTAuthenticator))
+
     var app = Application(
         router: router,
         configuration: .init(

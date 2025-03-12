@@ -73,6 +73,15 @@
       }
     },
     {
+      "identity" : "multipart-kit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vapor/multipart-kit.git",
+      "state" : {
+        "revision" : "3498e60218e6003894ff95192d756e238c01f44e",
+        "version" : "4.7.1"
+      }
+    },
+    {
       "identity" : "sendgrid-kit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor-community/sendgrid-kit.git",
