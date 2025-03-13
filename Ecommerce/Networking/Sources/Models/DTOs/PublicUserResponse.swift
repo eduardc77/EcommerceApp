@@ -1,28 +1,20 @@
-public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable {
-    public let id: String  // UUID as string
+/// Public user information encoded into HTTP response
+public struct PublicUserResponse: Codable, Sendable {
     public let username: String
     public let displayName: String
-    public let email: String
-    public let avatar: String
-    public let role: Role
+    public let role: String
     public let createdAt: String
     public let updatedAt: String
-    
+
     public init(
-        id: String,
         username: String,
         displayName: String,
-        email: String,
-        avatar: String,
-        role: Role,
+        role: String,
         createdAt: String,
         updatedAt: String
     ) {
-        self.id = id
         self.username = username
         self.displayName = displayName
-        self.email = email
-        self.avatar = avatar
         self.role = role
         self.createdAt = createdAt
         self.updatedAt = updatedAt

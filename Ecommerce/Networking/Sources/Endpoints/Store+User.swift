@@ -1,22 +1,11 @@
 import Foundation
 
 extension Store {
-    public enum AvailabilityType: Sendable {
-        case username(String)
-        case email(String)
-        
-        var queryItem: (key: String, value: String) {
-            switch self {
-            case .username(let value): return ("username", value)
-            case .email(let value): return ("email", value)
-            }
-        }
-    }
-    
     public enum User: APIEndpoint {
         case getAll
         case get(id: String)
-        case register(dto: CreateUserRequest)
+        case getPublic(id: String)
+        case create(dto: CreateUserRequest)
         case update(id: String, dto: UpdateUserRequest)
         case checkAvailability(type: AvailabilityType)
         
@@ -24,10 +13,14 @@ extension Store {
             switch self {
             case .getAll:
                 return "/users"
-            case .get(let id), .update(let id, _):
+            case .get(let id):
                 return "/users/\(id)"
-            case .register:
-                return "/users/register"
+            case .getPublic(let id):
+                return "/users/\(id)/public"
+            case .create:
+                return "/users"
+            case .update(let id, _):
+                return "/users/\(id)"
             case .checkAvailability(type):
                 let query = type.queryItem
                 return "/users/availability?\(query.key)=\(query.value)"
@@ -36,18 +29,18 @@ extension Store {
         
         public var httpMethod: HTTPMethod {
             switch self {
-            case .register:
+            case .create:
                 return .post
             case .update:
                 return .put
-            case .getAll, .get, .checkAvailability:
+            case .getAll, .get, .getPublic, .checkAvailability:
                 return .get
             }
         }
         
         public var requestBody: Any? {
             switch self {
-            case .register(let dto):
+            case .create(let dto):
                 return dto
             case .update(_, let dto):
                 return dto
