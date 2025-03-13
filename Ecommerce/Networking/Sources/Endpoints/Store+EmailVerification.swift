@@ -1,62 +1,55 @@
 import Foundation
 
-extension Store {
-    public enum EmailVerification: APIEndpoint {
-        case verifyInitial(code: String)
-        case resend(email: String)
+public extension Store {
+    enum EmailVerification: APIEndpoint {
+        case status
         case sendCode
         case verify(code: String)
-        case disable(code: String)
-        case status
+        case verifyInitial(email: String, code: String)
+        case resendVerification(email: String)
+        case disable
         
         public var path: String {
             switch self {
-            case .verifyInitial:
-                return "/auth/email/verify-email"
-            case .resend:
-                return "/auth/email/resend-verification"
-            case .sendCode:
-                return "/auth/email/send-code"
-            case .verify:
-                return "/auth/email/verify"
-            case .disable:
-                return "/auth/email/disable"
             case .status:
-                return "/auth/email/status"
+                return "/email-verification/status"
+            case .sendCode:
+                return "/email-verification/send-code"
+            case .verify:
+                return "/email-verification/verify"
+            case .verifyInitial:
+                return "/email-verification/verify-email"
+            case .resendVerification:
+                return "/email-verification/resend-verification"
+            case .disable:
+                return "/email-verification/disable"
             }
         }
         
         public var httpMethod: HTTPMethod {
             switch self {
-            case .verifyInitial, .resend, .sendCode, .verify:
-                return .post
-            case .disable:
-                return .delete
             case .status:
                 return .get
+            case .disable:
+                return .delete
+            default:
+                return .post
             }
         }
         
         public var requestBody: Any? {
             switch self {
-            case .verifyInitial(let code), .verify(let code):
+            case .verify(let code):
                 return ["code": code]
-            case .resend(let email):
+            case .verifyInitial(let email, let code):
+                return ["email": email, "code": code]
+            case .resendVerification(let email):
                 return ["email": email]
-            case .disable(let code):
-                return nil  // Code goes in header
             default:
                 return nil
             }
         }
         
-        public var formParams: [String: String]? {
-            switch self {
-            case .disable(let code):
-                return ["x-email-code": code]
-            default:
-                return nil
-            }
-        }
+        public var formParams: [String: String]? { nil }
     }
 } 

@@ -1,12 +1,12 @@
 import Foundation
 
 public protocol EmailVerificationServiceProtocol {
-    func verifyInitialEmail(code: String) async throws -> MessageResponse
-    func resendVerification(email: String) async throws -> MessageResponse
-    func sendVerificationCode() async throws -> MessageResponse
-    func verifyEmailCode(code: String) async throws -> MessageResponse
-    func disable(code: String) async throws -> MessageResponse
     func getStatus() async throws -> EmailVerificationStatusResponse
+    func sendCode() async throws -> MessageResponse
+    func verify(code: String) async throws -> MessageResponse
+    func verifyInitialEmail(email: String, code: String) async throws -> MessageResponse
+    func resendVerificationEmail(email: String) async throws -> MessageResponse
+    func disableEmailVerification() async throws -> MessageResponse
 }
 
 public actor EmailVerificationService: EmailVerificationServiceProtocol {
@@ -18,25 +18,16 @@ public actor EmailVerificationService: EmailVerificationServiceProtocol {
         self.environment = .develop
     }
     
-    public func verifyInitialEmail(code: String) async throws -> MessageResponse {
+    public func getStatus() async throws -> EmailVerificationStatusResponse {
         try await apiClient.performRequest(
-            from: Store.EmailVerification.verifyInitial(code: code),
+            from: Store.EmailVerification.status,
             in: environment,
-            allowRetry: false,
-            requiresAuthorization: false
+            allowRetry: true,
+            requiresAuthorization: true
         )
     }
     
-    public func resendVerification(email: String) async throws -> MessageResponse {
-        try await apiClient.performRequest(
-            from: Store.EmailVerification.resend(email: email),
-            in: environment,
-            allowRetry: false,
-            requiresAuthorization: false
-        )
-    }
-    
-    public func sendVerificationCode() async throws -> MessageResponse {
+    public func sendCode() async throws -> MessageResponse {
         try await apiClient.performRequest(
             from: Store.EmailVerification.sendCode,
             in: environment,
@@ -45,7 +36,7 @@ public actor EmailVerificationService: EmailVerificationServiceProtocol {
         )
     }
     
-    public func verifyEmailCode(code: String) async throws -> MessageResponse {
+    public func verify(code: String) async throws -> MessageResponse {
         try await apiClient.performRequest(
             from: Store.EmailVerification.verify(code: code),
             in: environment,
@@ -54,20 +45,29 @@ public actor EmailVerificationService: EmailVerificationServiceProtocol {
         )
     }
     
-    public func disable(code: String) async throws -> MessageResponse {
+    public func verifyInitialEmail(email: String, code: String) async throws -> MessageResponse {
         try await apiClient.performRequest(
-            from: Store.EmailVerification.disable(code: code),
+            from: Store.EmailVerification.verifyInitial(email: email, code: code),
             in: environment,
             allowRetry: false,
-            requiresAuthorization: true
+            requiresAuthorization: false
         )
     }
     
-    public func getStatus() async throws -> EmailVerificationStatusResponse {
+    public func resendVerificationEmail(email: String) async throws -> MessageResponse {
         try await apiClient.performRequest(
-            from: Store.EmailVerification.status,
+            from: Store.EmailVerification.resendVerification(email: email),
             in: environment,
-            allowRetry: true,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+    }
+    
+    public func disableEmailVerification() async throws -> MessageResponse {
+        try await apiClient.performRequest(
+            from: Store.EmailVerification.disable,
+            in: environment,
+            allowRetry: false,
             requiresAuthorization: true
         )
     }
