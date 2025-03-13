@@ -6,6 +6,7 @@ public protocol UserServiceProtocol {
     func updateUser(id: String, dto: UpdateUserRequest) async throws -> UserResponse
     func checkAvailability(_ type: AvailabilityType) async throws -> AvailabilityResponse
     func getProfile() async throws -> UserResponse
+    func updateRole(userId: String, request: UpdateRoleRequest) async throws -> UserResponse
 }
 
 public actor UserService: UserServiceProtocol {
@@ -74,6 +75,15 @@ public actor UserService: UserServiceProtocol {
     public func getProfile() async throws -> UserResponse {
         try await apiClient.performRequest(
             from: Store.Authentication.me,
+            in: environment,
+            allowRetry: true,
+            requiresAuthorization: true
+        )
+    }
+    
+    public func updateRole(userId: String, request: UpdateRoleRequest) async throws -> UserResponse {
+        try await apiClient.performRequest(
+            from: Store.User.updateRole(userId),
             in: environment,
             allowRetry: true,
             requiresAuthorization: true

@@ -8,6 +8,7 @@ extension Store {
         case create(dto: CreateUserRequest)
         case update(id: String, dto: UpdateUserRequest)
         case checkAvailability(type: AvailabilityType)
+        case updateRole(String)
         
         public var path: String {
             switch self {
@@ -24,6 +25,8 @@ extension Store {
             case .checkAvailability(type):
                 let query = type.queryItem
                 return "/users/availability?\(query.key)=\(query.value)"
+            case .updateRole(let userId):
+                return "/users/\(userId)/role"
             }
         }
         
@@ -35,6 +38,8 @@ extension Store {
                 return .put
             case .getAll, .get, .getPublic, .checkAvailability:
                 return .get
+            case .updateRole:
+                return .put
             }
         }
         
