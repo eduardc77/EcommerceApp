@@ -38,11 +38,31 @@ public final class UserManager {
         }
     }
     
-    public func createUser(username: String, displayName: String, email: String, password: String) async {
+    public func getUserPublic(id: String) async -> PublicUserResponse? {
         isLoading = true
         error = nil
         do {
-            let dto = CreateUserRequest(username: username, displayName: displayName, email: email, password: password)
+            let user = try await userService.getUserPublic(id: id)
+            isLoading = false
+            return user
+        } catch {
+            self.error = error
+            isLoading = false
+            return nil
+        }
+    }
+    
+    public func createUser(username: String, displayName: String, email: String, password: String, role: Role? = nil) async {
+        isLoading = true
+        error = nil
+        do {
+            let dto = CreateUserRequest(
+                username: username,
+                displayName: displayName,
+                email: email,
+                password: password,
+                role: role
+            )
             let newUser = try await userService.createUser(dto)
             users.append(newUser)
         } catch {
@@ -51,13 +71,28 @@ public final class UserManager {
         isLoading = false
     }
     
-    public func updateUser(id: String, displayName: String) async {
+    public func updateUser(id: String, displayName: String, email: String? = nil) async {
         isLoading = true
         error = nil
         do {
-            let dto = UpdateUserRequest(displayName: displayName)
+            let dto = UpdateUserRequest(displayName: displayName, email: email)
             let updatedUser = try await userService.updateUser(id: id, dto: dto)
             if let index = users.firstIndex(where: { $0.id == id }) {
+                users[index] = updatedUser
+            }
+        } catch {
+            self.error = error
+        }
+        isLoading = false
+    }
+    
+    public func updateUserRole(userId: String, role: Role) async {
+        isLoading = true
+        error = nil
+        do {
+            let request = UpdateRoleRequest(role: role)
+            let updatedUser = try await userService.updateRole(userId: userId, request: request)
+            if let index = users.firstIndex(where: { $0.id == userId }) {
                 users[index] = updatedUser
             }
         } catch {
@@ -89,6 +124,22 @@ public final class UserManager {
             let response = try await userService.checkAvailability(.email(email))
             isLoading = false
             return response.available
+        } catch {
+            self.error = error
+            isLoading = false
+            return false
+        }
+    }
+    
+    /// Delete a user
+    public func deleteUser(id: String) async -> Bool {
+        isLoading = true
+        error = nil
+        do {
+            _ = try await userService.deleteUser(id: id)
+            users.removeAll { $0.id == id }
+            isLoading = false
+            return true
         } catch {
             self.error = error
             isLoading = false
