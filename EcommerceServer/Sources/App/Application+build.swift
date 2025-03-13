@@ -233,8 +233,8 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     authController.addPublicRoutes(to: api.group("auth"))
 
     // Add file upload routes
-    let fileUploadController = FileUploadController(fluent: fluent)
-    fileUploadController.addProtectedRoutes(to: api.group("files").add(middleware: userJWTAuthenticator))
+    let fileController = FileController(fluent: fluent)
+    fileController.addProtectedRoutes(to: api.group("files").add(middleware: userJWTAuthenticator))  // Both download and upload are protected
 
     var app = Application(
         router: router,

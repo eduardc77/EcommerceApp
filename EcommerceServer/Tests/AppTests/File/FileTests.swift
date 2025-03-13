@@ -5,7 +5,7 @@ import HummingbirdTesting
 import HummingbirdAuthTesting
 import Testing
 
-@Suite("Multipart Form Tests")
+@Suite("File Tests")
 struct MultipartFormTests {
     // Helper function to create test user and get auth token
     private static func createTestUserAndGetToken(
@@ -72,8 +72,8 @@ struct MultipartFormTests {
         return formData
     }
 
-    @Test("Should upload file successfully")
-    func testSuccessfulFileUpload() async throws {
+    @Test("Should upload and download file successfully")
+    func testUploadAndDownload() async throws {
         let app = try await buildApplication(TestAppArguments())
         let testData = "Hello, World!".data(using: .utf8)!
         let boundary = "----HBTestFormBoundaryXYZ123"
@@ -86,13 +86,14 @@ struct MultipartFormTests {
             
             let formData = Self.createMultipartFormData(
                 boundary: boundary,
-                filename: "test.jpg",
-                contentType: "image/jpeg",
+                filename: "test.txt",
+                contentType: "text/plain",
                 data: testData
             )
             
-            try await client.execute(
-                uri: "/api/files/upload",
+            // Upload file
+            let filename = try await client.execute(
+                uri: "/api/files/",
                 method: .post,
                 headers: [
                     .contentType: "multipart/form-data; boundary=\(boundary)",
@@ -103,15 +104,24 @@ struct MultipartFormTests {
                 #expect(response.status == .created)
                 let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
                 #expect(messageResponse.success)
-                #expect(messageResponse.message.contains("successfully"))
+                return messageResponse.message
             }
             
-            let uploadDir = NSTemporaryDirectory().appending("uploads")
-            #expect(FileManager.default.fileExists(atPath: uploadDir))
-            try? FileManager.default.removeItem(atPath: uploadDir)
+            // Download file
+            try await client.execute(
+                uri: "/api/files/\(filename)",
+                method: .get,
+                headers: [
+                    .authorization: "Bearer \(accessToken)"
+                ]
+            ) { response in
+                #expect(response.status == .ok)
+                let downloadedString = String(buffer: response.body)
+                #expect(downloadedString == String(data: testData, encoding: .utf8)!)
+            }
         }
     }
-    
+
     @Test("Should reject unauthorized upload")
     func testUnauthorizedUpload() async throws {
         let app = try await buildApplication(TestAppArguments())
@@ -127,12 +137,89 @@ struct MultipartFormTests {
             )
             
             try await client.execute(
-                uri: "/api/files/upload",
+                uri: "/api/files/",
                 method: .post,
                 headers: [.contentType: "multipart/form-data; boundary=\(boundary)"],
                 body: ByteBuffer(data: formData)
             ) { response in
                 #expect(response.status == .unauthorized)
+            }
+        }
+    }
+
+    @Test("Should handle concurrent uploads")
+    func testConcurrentUploads() async throws {
+        let app = try await buildApplication(TestAppArguments())
+        
+        try await app.test(.router) { client in
+            let accessToken = try await Self.createTestUserAndGetToken(
+                client: client,
+                email: "concurrent@example.com"
+            )
+            
+            await withThrowingTaskGroup(of: Void.self) { group in
+                for i in 0..<10 {
+                    group.addTask {
+                        let testData = "Concurrent test \(i)".data(using: .utf8)!
+                        let boundary = "----HBTestFormBoundaryXYZ123\(i)"
+                        
+                        let formData = Self.createMultipartFormData(
+                            boundary: boundary,
+                            filename: "concurrent-\(i).txt",
+                            contentType: "text/plain",
+                            data: testData
+                        )
+                        
+                        try await client.execute(
+                            uri: "/api/files/",
+                            method: .post,
+                            headers: [
+                                .contentType: "multipart/form-data; boundary=\(boundary)",
+                                .authorization: "Bearer \(accessToken)"
+                            ],
+                            body: ByteBuffer(data: formData)
+                        ) { response in
+                            #expect(response.status == .created)
+                            let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
+                            #expect(messageResponse.success)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    @Test("Should reject invalid file types")
+    func testInvalidFileType() async throws {
+        let app = try await buildApplication(TestAppArguments())
+        let testData = "Hello, World!".data(using: .utf8)!
+        let boundary = "----HBTestFormBoundaryXYZ123"
+        
+        try await app.test(.router) { client in
+            let accessToken = try await Self.createTestUserAndGetToken(
+                client: client,
+                email: "invalidtype@example.com"
+            )
+            
+            let formData = Self.createMultipartFormData(
+                boundary: boundary,
+                filename: "test.exe",
+                contentType: "application/x-msdownload",
+                data: testData
+            )
+            
+            try await client.execute(
+                uri: "/api/files/",
+                method: .post,
+                headers: [
+                    .contentType: "multipart/form-data; boundary=\(boundary)",
+                    .authorization: "Bearer \(accessToken)"
+                ],
+                body: ByteBuffer(data: formData)
+            ) { response in
+                #expect(response.status == .unsupportedMediaType)
+                let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
+                #expect(!messageResponse.success)
             }
         }
     }

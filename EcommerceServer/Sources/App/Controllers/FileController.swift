@@ -3,10 +3,12 @@ import Hummingbird
 import HummingbirdAuth
 import HummingbirdFluent
 import NIOFoundationCompat
+import HTTPTypes
 
-struct FileUploadController {
+struct FileController {
     typealias Context = AppRequestContext
     let fluent: Fluent
+    let fileIO = FileIO()
     
     // Maximum file size (5MB)
     private let maxFileSize = 5 * 1024 * 1024
@@ -16,7 +18,8 @@ struct FileUploadController {
         "image/jpeg",
         "image/png",
         "image/gif",
-        "application/pdf"
+        "application/pdf",
+        "text/plain"  // Added for testing
     ]
     
     // Upload directory path
@@ -30,10 +33,11 @@ struct FileUploadController {
     
     /// Add protected routes that require authentication
     func addProtectedRoutes(to group: RouterGroup<Context>) {
-        group.post("upload", use: uploadFile)
+        group.post("/", use: uploadFile)
+        group.get(":filename", use: download)
     }
     
-    /// Handle file upload
+    /// Handle file upload - supports both multipart/form-data and raw bytes
     @Sendable func uploadFile(
         _ request: Request,
         context: Context
@@ -49,18 +53,38 @@ struct FileUploadController {
             )
         }
         
-        // Check content type
-        guard let contentType = request.headers[values: .contentType].first,
-              contentType.starts(with: "multipart/form-data") else {
+        // Create uploads directory if it doesn't exist
+        do {
+            try FileManager.default.createDirectory(
+                atPath: uploadDir,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+        } catch {
+            context.logger.error("Failed to create upload directory: \(error)")
             return .init(
-                status: .unsupportedMediaType,
+                status: .internalServerError,
                 response: MessageResponse(
-                    message: "Content type must be multipart/form-data",
+                    message: "Failed to process file upload",
                     success: false
                 )
             )
         }
-        
+
+        // Check if this is a multipart upload or raw bytes
+        if let contentType = request.headers[values: .contentType].first,
+           contentType.starts(with: "multipart/form-data") {
+            return try await handleMultipartUpload(request, context: context)
+        } else {
+            return try await handleRawUpload(request, context: context)
+        }
+    }
+
+    /// Handle multipart form data upload
+    private func handleMultipartUpload(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
         // Check content length before decoding
         if let contentLength = request.headers[values: .contentLength].first.flatMap(Int.init),
            contentLength > maxFileSize {
@@ -108,38 +132,17 @@ struct FileUploadController {
                 )
             )
         }
-        
-        // Create uploads directory if it doesn't exist
-        do {
-            try FileManager.default.createDirectory(
-                atPath: uploadDir,
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
-        } catch {
-            context.logger.error("Failed to create upload directory: \(error)")
-            return .init(
-                status: .internalServerError,
-                response: MessageResponse(
-                    message: "Failed to process file upload",
-                    success: false
-                )
-            )
-        }
-        
-        // Generate unique filename
-        let fileExtension = uploadRequest.file.filename.split(separator: ".").last.map { ".\($0)" } ?? ""
-        let filename = "\(UUID().uuidString)\(fileExtension)"
+
+        // Get filename and save file
+        let filename = fileName(for: request)
         let filePath = "\(uploadDir)/\(filename)"
         
-        // Save the file
         do {
             try uploadRequest.file.data.write(to: URL(fileURLWithPath: filePath))
-        
             return .init(
                 status: .created,
                 response: MessageResponse(
-                    message: "File uploaded successfully",
+                    message: filename,
                     success: true
                 )
             )
@@ -154,4 +157,83 @@ struct FileUploadController {
             )
         }
     }
+
+    /// Handle raw bytes upload like in the example
+    private func handleRawUpload(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        let filename = fileName(for: request)
+        let filePath = "\(uploadDir)/\(filename)"
+        
+        do {
+            try await fileIO.writeFile(
+                contents: request.body,
+                path: filePath,
+                context: context
+            )
+            
+            return .init(
+                status: .created,
+                response: MessageResponse(
+                    message: filename,
+                    success: true
+                )
+            )
+        } catch {
+            context.logger.error("Failed to save file: \(error)")
+            return .init(
+                status: .internalServerError,
+                response: MessageResponse(
+                    message: "Failed to save uploaded file",
+                    success: false
+                )
+            )
+        }
+    }
+
+    /// Downloads a file by filename.
+    /// - Parameter request: any request
+    /// - Returns: Response of chunked bytes if success
+    /// Note that this download has no login checks and allows anyone to download
+    /// by its filename alone.
+    @Sendable private func download(_ request: Request, context: Context) async throws -> Response {
+        let filename = try context.parameters.require("filename", as: String.self)
+        let filePath = "\(uploadDir)/\(filename)"
+        let body = try await fileIO.loadFile(
+            path: filePath,
+            context: context
+        )
+        return Response(
+            status: .ok,
+            headers: self.headers(for: filename),
+            body: body
+        )
+    }
+
+    /// Adds headers for a given filename
+    private func headers(for filename: String) -> HTTPFields {
+        return [
+            .contentDisposition: "attachment;filename=\"\(filename)\"",
+        ]
+    }
+}
+
+// MARK: - File Naming
+
+extension FileController {
+    private func uuidFileName(_ ext: String = "") -> String {
+        return UUID().uuidString.appending(ext)
+    }
+
+    private func fileName(for request: Request) -> String {
+        guard let fileName = request.headers[.fileName] else {
+            return self.uuidFileName()
+        }
+        return fileName
+    }
+}
+
+extension HTTPField.Name {
+    static var fileName: Self { .init("File-Name")! }
 } 
