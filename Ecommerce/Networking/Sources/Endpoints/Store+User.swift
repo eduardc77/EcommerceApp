@@ -1,12 +1,14 @@
 import Foundation
 
-extension Store {
-    public enum User: APIEndpoint {
+public extension Store {
+    enum User: APIEndpoint {
         case getAll
         case get(id: String)
         case getPublic(id: String)
+        case register(dto: CreateUserRequest)
         case create(dto: CreateUserRequest)
         case update(id: String, dto: UpdateUserRequest)
+        case delete(id: String)
         case checkAvailability(type: AvailabilityType)
         case updateRole(String)
         
@@ -18,9 +20,13 @@ extension Store {
                 return "/users/\(id)"
             case .getPublic(let id):
                 return "/users/\(id)/public"
+            case .register:
+                return "/users/register"
             case .create:
                 return "/users"
             case .update(let id, _):
+                return "/users/\(id)"
+            case .delete(let id):
                 return "/users/\(id)"
             case .checkAvailability(type):
                 let query = type.queryItem
@@ -32,10 +38,12 @@ extension Store {
         
         public var httpMethod: HTTPMethod {
             switch self {
-            case .create:
+            case .register, .create:
                 return .post
             case .update:
                 return .put
+            case .delete:
+                return .delete
             case .getAll, .get, .getPublic, .checkAvailability:
                 return .get
             case .updateRole:
@@ -45,7 +53,7 @@ extension Store {
         
         public var requestBody: Any? {
             switch self {
-            case .create(let dto):
+            case .register(let dto), .create(let dto):
                 return dto
             case .update(_, let dto):
                 return dto

@@ -2,8 +2,10 @@ public protocol UserServiceProtocol {
     func getAllUsers() async throws -> [UserResponse]
     func getUser(id: String) async throws -> UserResponse
     func getUserPublic(id: String) async throws -> PublicUserResponse
+    func register(_ dto: CreateUserRequest) async throws -> UserResponse
     func createUser(_ dto: CreateUserRequest) async throws -> UserResponse
     func updateUser(id: String, dto: UpdateUserRequest) async throws -> UserResponse
+    func deleteUser(id: String) async throws -> MessageResponse
     func checkAvailability(_ type: AvailabilityType) async throws -> AvailabilityResponse
     func getProfile() async throws -> UserResponse
     func updateRole(userId: String, request: UpdateRoleRequest) async throws -> UserResponse
@@ -45,6 +47,15 @@ public actor UserService: UserServiceProtocol {
         )
     }
     
+    public func register(_ dto: CreateUserRequest) async throws -> UserResponse {
+        try await apiClient.performRequest(
+            from: Store.User.register(dto: dto),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false  // Public endpoint
+        )
+    }
+    
     public func createUser(_ dto: CreateUserRequest) async throws -> UserResponse {
         try await apiClient.performRequest(
             from: Store.User.create(dto: dto),
@@ -59,6 +70,15 @@ public actor UserService: UserServiceProtocol {
             from: Store.User.update(id: id, dto: dto),
             in: environment,
             allowRetry: true,
+            requiresAuthorization: true
+        )
+    }
+    
+    public func deleteUser(id: String) async throws -> MessageResponse {
+        try await apiClient.performRequest(
+            from: Store.User.delete(id: id),
+            in: environment,
+            allowRetry: false,
             requiresAuthorization: true
         )
     }
