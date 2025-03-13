@@ -3,7 +3,7 @@ public struct CreateUserRequest: Codable, Sendable {
     public let displayName: String
     public let email: String
     public let password: String
-    public let avatar: String
+    public let avatar: String?
     public let role: Role?
     
     public init(
@@ -11,7 +11,7 @@ public struct CreateUserRequest: Codable, Sendable {
         displayName: String,
         email: String,
         password: String,
-        avatar: String = "https://api.dicebear.com/7.x/avataaars/png",
+        avatar: String? = "https://api.dicebear.com/7.x/avataaars/png",
         role: Role? = nil
     ) {
         self.username = username
