@@ -24,9 +24,6 @@ struct UserController {
     
     /// Add public routes (registration, availability)
     func addPublicRoutes(to group: RouterGroup<Context>) {
-        // Registration endpoint
-        group.post("register", use: self.create)
-        
         // Group availability checks under /availability
         let availabilityGroup = group.group("availability")
         availabilityGroup.get(use: checkAvailability)

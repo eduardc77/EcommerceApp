@@ -80,7 +80,12 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     if args.inMemoryDatabase {
         fluent.databases.use(.sqlite(.memory), as: .sqlite)
     } else {
-        fluent.databases.use(.sqlite(.file("db.sqlite")), as: .sqlite)
+        // Use absolute path to the database file in the server directory
+        let fileManager = FileManager.default
+        let serverDirectory = fileManager.currentDirectoryPath
+        let dbPath = serverDirectory + "/db.sqlite"
+        logger.info("Using database at path: \(dbPath)")
+        fluent.databases.use(.sqlite(.file(dbPath)), as: .sqlite)
     }
 
     // add migrations
@@ -90,7 +95,9 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     
     // migrate
     if args.migrate || args.inMemoryDatabase {
+        logger.info("Running database migrations...")
         try await fluent.migrate()
+        logger.info("Database migrations completed successfully")
     }
 
     // Initialize token store
@@ -155,6 +162,18 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
         )
     }
     
+    // Debug route to verify API versioning
+    router.currentAPIGroup().get("debug-version") { _, _ in
+        EditedResponse(
+            status: .ok,
+            response: [
+                "currentVersion": APIVersion.current.rawValue,
+                "fullPath": "/api/\(APIVersion.current.rawValue)/debug-version",
+                "timestamp": Date().ISO8601Format()
+            ]
+        )
+    }
+    
     router.get("/slow") { _, _ in
         try await Task.sleep(for: .seconds(3))
         return EditedResponse(
@@ -164,7 +183,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     }
     
     // Create a base API group with CORS middleware
-    let api = router.group("api")
+    let api = router.currentAPIGroup()
         .add(middleware: CORSMiddleware(
             allowOrigin: .custom(AppConfig.allowedOrigins.joined(separator: ", ")),
             allowHeaders: [.accept, .authorization, .contentType, .origin, .init(AppConfig.csrfHeaderName)!],

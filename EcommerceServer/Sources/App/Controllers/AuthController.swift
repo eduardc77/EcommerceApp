@@ -97,6 +97,7 @@ struct AuthController {
         group.add(middleware: SecurityHeadersMiddleware())
 
         group.post("login", use: self.login)
+            .post("register", use: self.register)
             .post("email-code", use: self.requestEmailCode)
             .post("forgot-password", use: self.forgotPassword)
             .post("reset-password", use: self.resetPassword)
@@ -867,6 +868,72 @@ struct AuthController {
             context.logger.error("Unexpected error updating password for user \(user.username): \(error.localizedDescription)")
             throw HTTPError(.internalServerError, message: "Failed to update password. Please try again later.")
         }
+    }
+
+    /// Register a new user (public endpoint)
+    @Sendable func register(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<UserResponse> {
+        let createUser = try await request.decode(
+            as: CreateUserRequest.self,
+            context: context
+        )
+        
+        // For public registration, force role to be customer
+        if createUser.role != nil {
+            throw HTTPError(.badRequest, message: "Cannot specify role during registration")
+        }
+
+        context.logger.info("Decoded register user request: \(createUser.username)")
+        
+        let db = self.fluent.db()
+        
+        // Check if username exists
+        let existingUsername = try await User.query(on: db)
+            .filter(\.$username == createUser.username)
+            .first()
+        guard existingUsername == nil else {
+            context.logger.notice("Username already exists: \(createUser.username)")
+            throw HTTPError(.conflict, message: "Username already exists")
+        }
+        
+        // Check if email exists
+        let existingEmail = try await User.query(on: db)
+            .filter(\.$email == createUser.email)
+            .first()
+        guard existingEmail == nil else {
+            context.logger.notice("Email already exists: \(createUser.email)")
+            throw HTTPError(.conflict, message: "Email already exists")
+        }
+        
+        context.logger.info("Creating new user: \(createUser.username)")
+        let user = try await User(from: createUser)
+        user.role = .customer  // Force role to customer for public registration
+        
+        // Save both user and verification code in a transaction
+        try await db.transaction { database in
+            // Save user first
+            try await user.save(on: database)
+            
+            // Generate and store verification code
+            let code = EmailVerificationCode.generateCode()
+            let verificationCode = EmailVerificationCode(
+                userID: try user.requireID(),
+                code: code,
+                type: "email_verify",
+                expiresAt: Date().addingTimeInterval(300) // 5 minutes
+            )
+            
+            try await verificationCode.save(on: database)
+            
+            // Send verification email
+            try await emailService.sendVerificationEmail(to: user.email, code: code)
+        }
+        
+        context.logger.info("Successfully registered user and sent verification email: \(user.username)")
+        
+        return .init(status: .created, response: UserResponse(from: user))
     }
 }
 
