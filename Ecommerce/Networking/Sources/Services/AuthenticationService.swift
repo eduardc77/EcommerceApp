@@ -1,11 +1,15 @@
 import OSLog
 
 public protocol AuthenticationServiceProtocol {
-    func login(dto: LoginRequest) async throws -> AuthResponse
+    func login(dto: LoginRequest, totpCode: String?, emailCode: String?) async throws -> AuthResponse
     func register(dto: CreateUserRequest) async throws -> AuthResponse
     func refreshToken(_ refreshToken: String) async throws -> AuthResponse
     func logout() async throws
     func me() async throws -> UserResponse
+    func changePassword(current: String, new: String) async throws -> MessageResponse
+    func requestEmailCode() async throws -> MessageResponse
+    func forgotPassword(email: String) async throws -> MessageResponse
+    func resetPassword(email: String, code: String, newPassword: String) async throws -> MessageResponse
 }
 
 public actor AuthenticationService: AuthenticationServiceProtocol {
@@ -18,9 +22,9 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         self.environment = .develop
     }
 
-    public func login(dto: LoginRequest) async throws -> AuthResponse {
+    public func login(dto: LoginRequest, totpCode: String? = nil, emailCode: String? = nil) async throws -> AuthResponse {
         let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.login(dto: dto),
+            from: Store.Authentication.login(dto: dto, totpCode: totpCode, emailCode: emailCode),
             in: environment,
             allowRetry: false,
             requiresAuthorization: false
@@ -36,7 +40,7 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             allowRetry: false,
             requiresAuthorization: false
         )
-        logger.debug("User registered successfully: \(response.user.displayName)")
+        logger.debug("Registration successful: \(response.user.displayName)")
         return response
     }
 
@@ -69,6 +73,50 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             requiresAuthorization: true
         )
         logger.debug("Retrieved user profile: \(response.displayName)")
+        return response
+    }
+    
+    public func changePassword(current: String, new: String) async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.changePassword(current: current, new: new),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: true
+        )
+        logger.debug("Password changed successfully")
+        return response
+    }
+    
+    public func requestEmailCode() async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.requestEmailCode,
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: true
+        )
+        logger.debug("Email code requested successfully")
+        return response
+    }
+    
+    public func forgotPassword(email: String) async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.forgotPassword(email: email),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        logger.debug("Password reset requested for email")
+        return response
+    }
+    
+    public func resetPassword(email: String, code: String, newPassword: String) async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.resetPassword(email: email, code: code, newPassword: newPassword),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        logger.debug("Password reset successfully")
         return response
     }
 }

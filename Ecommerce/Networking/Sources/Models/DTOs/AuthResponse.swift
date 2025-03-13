@@ -30,4 +30,9 @@ public struct AuthResponse: Codable, Sendable {
         self.requiresTOTP = requiresTOTP
         self.requiresEmailVerification = requiresEmailVerification
     }
+    
+    /// Helper to get expiration date from ISO8601 string
+    public var expirationDate: Date? {
+        ISO8601DateFormatter().date(from: expiresAt)
+    }
 } 
