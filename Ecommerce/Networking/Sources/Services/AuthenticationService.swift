@@ -4,6 +4,8 @@ public protocol AuthenticationServiceProtocol {
     func login(dto: LoginRequest) async throws -> AuthResponse
     func register(dto: CreateUserRequest) async throws -> AuthResponse
     func refreshToken(_ refreshToken: String) async throws -> AuthResponse
+    func logout() async throws
+    func me() async throws -> UserResponse
 }
 
 public actor AuthenticationService: AuthenticationServiceProtocol {
@@ -28,16 +30,14 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
     }
 
     public func register(dto: CreateUserRequest) async throws -> AuthResponse {
-        let userResponse: UserResponse = try await apiClient.performRequest(
-            from: Store.User.register(dto: dto),
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.register(dto: dto),
             in: environment,
             allowRetry: false,
             requiresAuthorization: false
         )
-        logger.debug("User registered successfully: \(userResponse.displayName)")
-        
-        let loginDTO = LoginRequest(identifier: dto.username, password: dto.password)
-        return try await login(dto: loginDTO)
+        logger.debug("User registered successfully: \(response.user.displayName)")
+        return response
     }
 
     public func refreshToken(_ refreshToken: String) async throws -> AuthResponse {
@@ -48,6 +48,27 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             requiresAuthorization: false
         )
         logger.debug("Token refreshed successfully")
+        return response
+    }
+    
+    public func logout() async throws {
+        let _: EmptyResponse = try await apiClient.performRequest(
+            from: Store.Authentication.logout,
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: true
+        )
+        logger.debug("Logged out successfully")
+    }
+    
+    public func me() async throws -> UserResponse {
+        let response: UserResponse = try await apiClient.performRequest(
+            from: Store.Authentication.me,
+            in: environment,
+            allowRetry: true,
+            requiresAuthorization: true
+        )
+        logger.debug("Retrieved user profile: \(response.displayName)")
         return response
     }
 }

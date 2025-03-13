@@ -8,7 +8,16 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
     public let createdAt: String
     public let updatedAt: String
     
-    public init(id: String, username: String, displayName: String, email: String, avatar: String, role: Role, createdAt: String, updatedAt: String) {
+    public init(
+        id: String,
+        username: String,
+        displayName: String,
+        email: String,
+        avatar: String,
+        role: Role,
+        createdAt: String,
+        updatedAt: String
+    ) {
         self.id = id
         self.username = username
         self.displayName = displayName
@@ -17,5 +26,16 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
         self.role = role
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case username
+        case displayName = "display_name"
+        case email
+        case avatar
+        case role
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
 } 

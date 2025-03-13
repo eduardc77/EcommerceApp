@@ -4,6 +4,7 @@ extension Store {
     
     public enum Authentication: APIEndpoint {
         case login(dto: LoginRequest)
+        case register(dto: CreateUserRequest)
         case refreshToken(_ token: String)
         case logout
         case me
@@ -12,6 +13,8 @@ extension Store {
             switch self {
                 case .login:
                     return "/auth/login"
+                case .register:
+                    return "/auth/register"
                 case .refreshToken:
                     return "/auth/refresh"
                 case .logout:
@@ -23,7 +26,7 @@ extension Store {
         
         public var httpMethod: HTTPMethod {
             switch self {
-                case .login, .refreshToken, .logout:
+                case .login, .register, .refreshToken, .logout:
                     return .post
                 case .me:
                     return .get
@@ -35,15 +38,19 @@ extension Store {
                 case .login(let dto):
                     let credentials = "\(dto.identifier):\(dto.password)".data(using: .utf8)?.base64EncodedString() ?? ""
                     return ["Authorization": "Basic \(credentials)"]
+                case .refreshToken(let token):
+                    return ["Authorization": "Bearer \(token)"]
                 default:
                     return nil
             }
         }
         
-        public var requestBody: [String: Any]? {
+        public var requestBody: Any? {
             switch self {
-            case .login:
-                return nil
+            case .login(let dto):
+                return nil  // Credentials are in Authorization header
+            case .register(let dto):
+                return dto
             case .refreshToken(let token):
                 return ["refreshToken": token]
             case .logout, .me:
