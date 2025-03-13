@@ -23,7 +23,7 @@ struct AccountView: View {
                 Section {
                     HStack(spacing: 16) {
                         Group {
-                            if let avatarURL = URL(string: user.avatar) {
+                            if let avatarURL = URL(string: user.avatar ?? "") {
                                 AsyncImage(url: avatarURL) { image in
                                     image
                                         .resizable()
@@ -169,7 +169,9 @@ struct AccountView: View {
             .environment(AuthenticationManager(
                 authService: PreviewAuthenticationService(),
                 userService: PreviewUserService(),
-                tokenStore: PreviewTokenStore()
+                tokenStore: PreviewTokenStore(),
+                totpService: PreviewTOTPService(),
+                emailVerificationService: PreviewEmailVerificationService()
             ))
     }
 } 

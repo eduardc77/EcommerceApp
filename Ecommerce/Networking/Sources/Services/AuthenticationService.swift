@@ -1,7 +1,7 @@
 import OSLog
 
 public protocol AuthenticationServiceProtocol {
-    func login(dto: LoginRequest, totpCode: String?, emailCode: String?) async throws -> AuthResponse
+    func login(dto: LoginRequest) async throws -> AuthResponse
     func register(dto: CreateUserRequest) async throws -> AuthResponse
     func refreshToken(_ refreshToken: String) async throws -> AuthResponse
     func logout() async throws
@@ -22,9 +22,9 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         self.environment = .develop
     }
 
-    public func login(dto: LoginRequest, totpCode: String? = nil, emailCode: String? = nil) async throws -> AuthResponse {
+    public func login(dto: LoginRequest) async throws -> AuthResponse {
         let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.login(dto: dto, totpCode: totpCode, emailCode: emailCode),
+            from: Store.Authentication.login(dto: dto),
             in: environment,
             allowRetry: false,
             requiresAuthorization: false

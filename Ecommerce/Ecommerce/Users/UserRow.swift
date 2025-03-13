@@ -12,7 +12,7 @@ struct UserRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: URL(string: user.avatar)) { image in
+            AsyncImage(url: URL(string: user.avatar ?? "")) { image in
                 image
                     .resizable()
                     .scaledToFit()

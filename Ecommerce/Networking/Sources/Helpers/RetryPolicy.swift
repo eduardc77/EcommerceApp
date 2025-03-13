@@ -20,7 +20,7 @@ public struct DefaultRetryPolicy: RetryPolicy {
         switch error {
         case let networkError as NetworkError:
             switch networkError {
-            case .timeout, .serverError:
+            case .timeout, .internalServerError, .serviceUnavailable, .badGateway, .gatewayTimeout:
                 return true
             default:
                 return false

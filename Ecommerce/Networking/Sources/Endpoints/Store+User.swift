@@ -28,7 +28,7 @@ public extension Store {
                 return "/users/\(id)"
             case .delete(let id):
                 return "/users/\(id)"
-            case .checkAvailability(type):
+            case .checkAvailability(let type):
                 let query = type.queryItem
                 return "/users/availability?\(query.key)=\(query.value)"
             case .updateRole(let userId):

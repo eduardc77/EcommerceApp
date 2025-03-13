@@ -1,5 +1,3 @@
-import Foundation
-
 /// Type of availability check for user registration
 public enum AvailabilityType: Sendable {
     case username(String)

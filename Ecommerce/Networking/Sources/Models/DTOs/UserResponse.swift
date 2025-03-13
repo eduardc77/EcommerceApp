@@ -1,3 +1,5 @@
+import Foundation
+
 public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable {
     public let id: String  // UUID as string
     public let username: String
@@ -48,7 +50,7 @@ extension UserResponse {
             username: username,
             displayName: displayName,
             avatar: avatar,
-            role: role.rawValue,
+            role: role,
             createdAt: createdAt,
             updatedAt: updatedAt
         )

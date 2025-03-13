@@ -3,7 +3,7 @@ import Foundation
 extension Store {
     
     public enum Authentication: APIEndpoint {
-        case login(dto: LoginRequest, totpCode: String?, emailCode: String?)
+        case login(dto: LoginRequest)
         case register(dto: CreateUserRequest)
         case refreshToken(_ token: String)
         case logout
@@ -48,7 +48,7 @@ extension Store {
         
         public var headers: [String: String]? {
             switch self {
-                case .login(let dto, let totpCode, let emailCode):
+                case .login(let dto):
                     var headers: [String: String] = [:]
                     
                     // Add Basic Auth header
@@ -56,10 +56,10 @@ extension Store {
                     headers["Authorization"] = "Basic \(credentials)"
                     
                     // Add 2FA headers if provided
-                    if let totpCode = totpCode {
+                    if let totpCode = dto.totpCode {
                         headers["X-TOTP-Code"] = totpCode
                     }
-                    if let emailCode = emailCode {
+                    if let emailCode = dto.emailCode {
                         headers["X-Email-Code"] = emailCode
                     }
                     

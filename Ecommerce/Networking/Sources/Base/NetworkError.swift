@@ -6,7 +6,10 @@ public enum NetworkError: Error, Sendable {
     case forbidden(description: String)
     case notFound(description: String)
     case clientError(statusCode: Int, description: String)
-    case serverError(ServerError)
+    case internalServerError(description: String)
+    case serviceUnavailable(description: String)
+    case badGateway(description: String)
+    case gatewayTimeout(description: String)
     case badRequest(description: String)
     case decodingError(description: String)
     case unknownError(statusCode: Int, description: String)
@@ -38,13 +41,15 @@ public enum NetworkError: Error, Sendable {
                 .missingToken(let description),
                 .encodingError(let description),
                 .invalidURLComponents(let description),
-                .invalidRequestBody(let description):
+                .invalidRequestBody(let description),
+                .internalServerError(let description),
+                .serviceUnavailable(let description),
+                .badGateway(let description),
+                .gatewayTimeout(let description):
             return description
         case .clientError(let statusCode, let description),
                 .unknownError(let statusCode, let description):
             return "Status Code: \(statusCode), Description: \(description)"
-        case .serverError(let serverError):
-            return "Server Error: \(serverError.error), Path: \(serverError.path), Status: \(serverError.status), Timestamp: \(serverError.timestamp)"
         }
     }
 }

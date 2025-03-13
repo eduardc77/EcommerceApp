@@ -63,13 +63,13 @@ struct LoginView: View {
             .sheet(isPresented: $showEmailVerification) {
                 EmailVerificationView()
             }
-            .onChange(of: authManager.requires2FA) { requires2FA in
+            .onChange(of: authManager.requires2FA) { _, requires2FA in
                 showTOTPVerification = requires2FA
                 if requires2FA {
                     totpCode = ""
                 }
             }
-            .onChange(of: authManager.requiresEmailVerification) { requiresEmailVerification in
+            .onChange(of: authManager.requiresEmailVerification) { _, requiresEmailVerification in
                 showEmailVerification = requiresEmailVerification
             }
         }

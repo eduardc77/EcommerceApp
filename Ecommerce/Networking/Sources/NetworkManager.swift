@@ -164,40 +164,26 @@ private extension NetworkManager {
     }
     
     func handleServerError(data: Data, httpResponse: HTTPURLResponse, responseDescription: String) async throws -> (Data, HTTPURLResponse) {
-        let errorType = ServerErrorType(statusCode: httpResponse.statusCode)
-        let serverError = await responseHandler.decodeServerError(
-            from: data,
-            statusCode: httpResponse.statusCode,
-            defaultMessage: errorType.message
-        )
-        
-        throw NetworkError.serverError(serverError)
+        throw await responseHandler.decodeError(from: data, statusCode: httpResponse.statusCode)
     }
 }
 
 // MARK: - Error Handling
 private extension NetworkManager {
-    enum ServerErrorType {
+    enum ErrorType {
         case badGateway
         case serviceUnavailable
         case gatewayTimeout
+        case internalServerError
         case unknown
         
         init(statusCode: Int) {
             switch statusCode {
+            case 500: self = .internalServerError
             case 502: self = .badGateway
             case 503: self = .serviceUnavailable
             case 504: self = .gatewayTimeout
             default: self = .unknown
-            }
-        }
-        
-        var message: String {
-            switch self {
-            case .badGateway: "Bad Gateway"
-            case .serviceUnavailable: "Service Unavailable"
-            case .gatewayTimeout: "Gateway Timeout"
-            case .unknown: "Server Error"
             }
         }
     }

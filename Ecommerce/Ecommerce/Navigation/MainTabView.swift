@@ -4,6 +4,9 @@ import Networking
 struct MainTabView: View {
     @State private var selectedTab: AppTab = .home
     @Environment(CartManager.self) private var cartManager
+    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(TOTPManager.self) private var totpManager
+    @Environment(EmailVerificationManager.self) private var emailVerificationManager
 
 #if !os(macOS) && !os(tvOS)
     @AppStorage("sidebarCustomizations") private var tabViewCustomization: TabViewCustomization
@@ -65,28 +68,44 @@ struct MainTabView: View {
 }
 
 #Preview {
-    MainTabView()
+    let previewAPIClient = PreviewAPIClient()
+    
+    // Initialize preview services
+    let authService = PreviewAuthenticationService()
+    let userService = PreviewUserService()
+    let tokenStore = PreviewTokenStore()
+    let totpService = PreviewTOTPService()
+    let emailVerificationService = PreviewEmailVerificationService()
+    
+    // Initialize managers
+    let totpManager = TOTPManager(totpService: totpService)
+    let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
+    
+    // Initialize auth manager with services
+    let authManager = AuthenticationManager(
+        authService: authService,
+        userService: userService,
+        tokenStore: tokenStore,
+        totpService: totpService,
+        emailVerificationService: emailVerificationService
+    )
+    
+    return MainTabView()
         .environment(ProductManager(
-            productService: ProductService(apiClient: PreviewAPIClient()),
-            categoryService: CategoryService(apiClient: PreviewAPIClient())
+            productService: ProductService(apiClient: previewAPIClient),
+            categoryService: CategoryService(apiClient: previewAPIClient)
         ))
         .environment(CategoryManager(
-            categoryService: CategoryService(apiClient: PreviewAPIClient())
+            categoryService: CategoryService(apiClient: previewAPIClient)
         ))
         .environment(UserManager(
-            userService: PreviewUserService()
+            userService: userService
         ))
-        .environment(AuthenticationManager(
-            authService: PreviewAuthenticationService(),
-            userService: PreviewUserService(),
-            tokenStore: PreviewTokenStore()
-        ))
+        .environment(authManager)
         .environment(PermissionManager(
-            authManager: AuthenticationManager(
-                authService: PreviewAuthenticationService(),
-                userService: PreviewUserService(),
-                tokenStore: PreviewTokenStore()
-            )
+            authManager: authManager
         ))
         .environment(CartManager())
+        .environment(totpManager)
+        .environment(emailVerificationManager)
 }

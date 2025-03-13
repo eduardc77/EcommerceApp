@@ -33,7 +33,7 @@ struct UserDetailView: View {
             Section {
                 HStack {
                     Spacer()
-                    AsyncImage(url: URL(string: user.avatar)) { image in
+                    AsyncImage(url: URL(string: user.avatar ?? "")) { image in
                         image
                             .resizable()
                             .scaledToFit()

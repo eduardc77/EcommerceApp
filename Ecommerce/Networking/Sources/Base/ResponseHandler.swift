@@ -27,49 +27,31 @@ public actor ResponseHandler {
         } catch {
             Logger.networking.error("Failed to decode response: \(error)")
             if let errorResponse = try? decoder.decode(ErrorResponse.self, from: data) {
-                throw NetworkError.serverError(ServerError(
-                    error: errorResponse.error.message,
-                    timestamp: Date(),
-                    path: "",
-                    status: 500
-                ))
+                throw NetworkError.internalServerError(description: errorResponse.error.message)
             }
             throw NetworkError.decodingError(description: "Failed to decode response: \(error.localizedDescription)")
         }
     }
     
-    public func decodeServerError(from data: Data, statusCode: Int, defaultMessage: String? = nil) -> ServerError {
-        if let serverError = try? decoder.decode(ServerError.self, from: data) {
-            return serverError
-        }
+    public func decodeError(from data: Data, statusCode: Int) -> NetworkError {
         if let errorResponse = try? decoder.decode(ErrorResponse.self, from: data) {
-            return ServerError(
-                error: errorResponse.error.message,
-                timestamp: Date(),
-                path: "",
-                status: statusCode
-            )
+            let message = errorResponse.error.message
+            switch statusCode {
+            case 500: return .internalServerError(description: message)
+            case 502: return .badGateway(description: message)
+            case 503: return .serviceUnavailable(description: message)
+            case 504: return .gatewayTimeout(description: message)
+            default: return .unknownError(statusCode: statusCode, description: message)
+            }
         }
-        return ServerError(
-            error: defaultMessage ?? "Unknown Server Error",
-            timestamp: Date(),
-            path: "",
-            status: statusCode
-        )
+        
+        let defaultMessage = HTTPURLResponse.localizedString(forStatusCode: statusCode)
+        switch statusCode {
+        case 500: return .internalServerError(description: defaultMessage)
+        case 502: return .badGateway(description: defaultMessage)
+        case 503: return .serviceUnavailable(description: defaultMessage)
+        case 504: return .gatewayTimeout(description: defaultMessage)
+        default: return .unknownError(statusCode: statusCode, description: defaultMessage)
+        }
     }
-}
-
-/// Server error response format
-public struct ErrorResponse: Codable {
-    public let error: ErrorDetail
-    
-    public struct ErrorDetail: Codable {
-        public let message: String
-    }
-}
-
-/// Internal wrapper for server responses
-private struct EditedResponse<T: Decodable>: Decodable {
-    let status: Int
-    let response: T
 }

@@ -1,10 +1,12 @@
+import Foundation
+
 /// Public user information encoded into HTTP response
 public struct PublicUserResponse: Codable, Identifiable, Sendable {
     public let id: String  // UUID as string
     public let username: String
     public let displayName: String
     public let avatar: String?
-    public let role: String
+    public let role: Role
     public let createdAt: String
     public let updatedAt: String
 
@@ -13,7 +15,7 @@ public struct PublicUserResponse: Codable, Identifiable, Sendable {
         username: String,
         displayName: String,
         avatar: String?,
-        role: String,
+        role: Role,
         createdAt: String,
         updatedAt: String
     ) {

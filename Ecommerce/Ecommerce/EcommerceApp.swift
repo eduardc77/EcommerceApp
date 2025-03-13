@@ -16,6 +16,8 @@ struct EcommerceApp: App {
     @State private var favoritesManager = FavoritesManager()
     @State private var cartManager = CartManager()
     @State private var toastManager = ToastManager()
+    @State private var totpManager: TOTPManager
+    @State private var emailVerificationManager: EmailVerificationManager
     
     init() {
         // Initialize core networking
@@ -33,8 +35,10 @@ struct EcommerceApp: App {
         let userService = UserService(apiClient: apiClient)
         let totpService = TOTPService(apiClient: apiClient)
         let emailVerificationService = EmailVerificationService(apiClient: apiClient)
+        let productService = ProductService(apiClient: apiClient)
+        let categoryService = CategoryService(apiClient: apiClient)
         
-        // Initialize auth manager with new services
+        // Initialize managers
         let auth = AuthenticationManager(
             authService: authService,
             userService: userService,
@@ -44,28 +48,27 @@ struct EcommerceApp: App {
         )
         _authManager = State(initialValue: auth)
         
-        // Initialize user manager
         _userManager = State(initialValue: UserManager(userService: userService))
-        
-        // Initialize permission manager
+        _productManager = State(initialValue: ProductManager(productService: productService, categoryService: categoryService))
+        _categoryManager = State(initialValue: CategoryManager(categoryService: categoryService))
         _permissionManager = State(initialValue: PermissionManager(authManager: auth))
-        
-        // Initialize managers with mock services for now
-        _categoryManager = State(initialValue: CategoryManager())  // Using mock implementation
-        _productManager = State(initialValue: ProductManager())   // Using mock implementation
+        _totpManager = State(initialValue: TOTPManager(totpService: totpService))
+        _emailVerificationManager = State(initialValue: EmailVerificationManager(emailVerificationService: emailVerificationService))
     }
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(authManager)
+                .environment(userManager)
+                .environment(permissionManager)
                 .environment(categoryManager)
                 .environment(productManager)
-                .environment(permissionManager)
-                .environment(userManager)
                 .environment(favoritesManager)
                 .environment(cartManager)
                 .environment(toastManager)
+                .environment(totpManager)
+                .environment(emailVerificationManager)
                 .overlay {
                     ToastContainer()
                         .environment(toastManager)

@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		CE7F980E2D6E984800D738C2 /* Networking in Frameworks */ = {isa = PBXBuildFile; productRef = CE7F980D2D6E984800D738C2 /* Networking */; };
+		CEDE8AA02D8387B00089D481 /* Networking in Frameworks */ = {isa = PBXBuildFile; productRef = CEDE8A9F2D8387B00089D481 /* Networking */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,7 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CE7F980E2D6E984800D738C2 /* Networking in Frameworks */,
+				CEDE8AA02D8387B00089D481 /* Networking in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -127,7 +127,7 @@
 			);
 			name = Ecommerce;
 			packageProductDependencies = (
-				CE7F980D2D6E984800D738C2 /* Networking */,
+				CEDE8A9F2D8387B00089D481 /* Networking */,
 			);
 			productName = Ecommerce;
 			productReference = CE7F97DC2D6E980F00D738C2 /* Ecommerce.app */;
@@ -609,7 +609,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		CE7F980D2D6E984800D738C2 /* Networking */ = {
+		CEDE8A9F2D8387B00089D481 /* Networking */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Networking;
 		};

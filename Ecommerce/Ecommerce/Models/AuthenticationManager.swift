@@ -3,11 +3,11 @@ import Networking
 
 @Observable
 public final class AuthenticationManager {
-    private let authService: any AuthenticationServiceProtocol
-    private let userService: any UserServiceProtocol
+    private let authService: AuthenticationServiceProtocol
+    private let userService: UserServiceProtocol
     private let tokenStore: TokenStoreProtocol
-    private let totpService: any TOTPServiceProtocol
-    private let emailVerificationService: any EmailVerificationServiceProtocol
+    private let totpService: TOTPServiceProtocol
+    private let emailVerificationService: EmailVerificationServiceProtocol
     private let dateFormatter = ISO8601DateFormatter()
     
     public var currentUser: UserResponse?
@@ -18,11 +18,11 @@ public final class AuthenticationManager {
     public var requiresEmailVerification = false
     
     public init(
-        authService: any AuthenticationServiceProtocol,
-        userService: any UserServiceProtocol,
+        authService: AuthenticationServiceProtocol,
+        userService: UserServiceProtocol,
         tokenStore: TokenStoreProtocol,
-        totpService: any TOTPServiceProtocol,
-        emailVerificationService: any EmailVerificationServiceProtocol
+        totpService: TOTPServiceProtocol,
+        emailVerificationService: EmailVerificationServiceProtocol
     ) {
         self.authService = authService
         self.userService = userService
@@ -37,10 +37,10 @@ public final class AuthenticationManager {
     }
     
     private func createToken(from response: AuthResponse) -> Token {
-        return Token(
+        Token(
             accessToken: response.accessToken,
             refreshToken: response.refreshToken,
-            expirationDate: dateFormatter.date(from: response.expiresAt)
+            expirationDate: ISO8601DateFormatter().date(from: response.expiresAt) ?? Date().addingTimeInterval(TimeInterval(response.expiresIn))
         )
     }
     
@@ -82,13 +82,14 @@ public final class AuthenticationManager {
     public func signIn(identifier: String, password: String, totpCode: String? = nil) async {
         isLoading = true
         error = nil
-        requires2FA = false
+        isAuthenticated = false
         
         do {
             let response = try await authService.login(dto: LoginRequest(
                 identifier: identifier,
                 password: password,
-                totpCode: totpCode
+                totpCode: totpCode,
+                emailCode: nil
             ))
             
             let token = createToken(from: response)
@@ -99,9 +100,10 @@ public final class AuthenticationManager {
             // Check 2FA and email verification status
             await check2FAStatus()
             await checkEmailVerificationStatus()
-        } catch let error as NetworkError {
-            self.error = error
-            if case .unauthorized(let description) = error, description.contains("2FA required") {
+            
+        } catch let networkError as NetworkError {
+            self.error = networkError
+            if case .unauthorized(let description) = networkError, description.contains("2FA required") {
                 requires2FA = true
             }
             isAuthenticated = false
@@ -115,9 +117,11 @@ public final class AuthenticationManager {
         isLoading = false
     }
     
+    @MainActor
     public func register(username: String, displayName: String, email: String, password: String) async {
         isLoading = true
         error = nil
+        
         do {
             let dto = CreateUserRequest(
                 username: username,
@@ -132,11 +136,13 @@ public final class AuthenticationManager {
             currentUser = authResponse.user
             
             // Send verification email
-            try await emailVerificationService.sendVerificationCode()
+            _ = try await emailVerificationService.sendCode()
             requiresEmailVerification = true
+            
         } catch {
             self.error = error
         }
+        
         isLoading = false
     }
     
@@ -144,19 +150,22 @@ public final class AuthenticationManager {
     public func signOut() async {
         isLoading = true
         error = nil
+        
         do {
             // Clear token and cached data
             try await tokenStore.invalidateToken()
             URLCache.shared.removeAllCachedResponses()
             
             // Clear state
-            currentUser = nil
             isAuthenticated = false
+            currentUser = nil
             requires2FA = false
             requiresEmailVerification = false
+            
         } catch {
             self.error = error
         }
+        
         isLoading = false
     }
     
@@ -174,25 +183,30 @@ public final class AuthenticationManager {
         isLoading = false
     }
     
+    @MainActor
     public func updateProfile(displayName: String, email: String? = nil) async {
         guard let id = currentUser?.id else { return }
         isLoading = true
         error = nil
+        
         do {
             let dto = UpdateUserRequest(displayName: displayName, email: email)
             currentUser = try await userService.updateUser(id: id, dto: dto)
             
             // If email was updated, we need to update the JWT since it uses email as subject
             if let newEmail = email {
-                // Re-login to get new tokens with updated email
-                let loginDTO = LoginRequest(identifier: newEmail, password: "")  // Password not needed as we're already authenticated
+                // Reauthenticate to get new tokens with updated email
+                let loginDTO = LoginRequest(identifier: newEmail, password: "") // Password not needed as we're already authenticated
                 let response = try await authService.login(dto: loginDTO)
                 try await tokenStore.setToken(createToken(from: response))
-                
-                // Send verification email for new address
-                try await emailVerificationService.sendVerificationCode()
+            }
+            
+            // Send verification email for new address
+            if email != nil {
+                _ = try await emailVerificationService.sendCode()
                 requiresEmailVerification = true
             }
+            
         } catch {
             self.error = error
         }
@@ -214,21 +228,21 @@ public final class AuthenticationManager {
     
     private func check2FAStatus() async {
         do {
-            let status = try await totpService.getTOTPStatus()
-            requires2FA = status.isEnabled
+            let status = try await totpService.getStatus()
+            requires2FA = status.enabled
         } catch {
             // Don't update UI state for 2FA check failures
             print("Failed to check 2FA status: \(error)")
         }
     }
     
-    public func setup2FA() async -> TOTPSetupResponse? {
+    public func setup2FA() async -> String? {
         isLoading = true
         error = nil
         do {
-            let response = try await totpService.setupTOTP()
+            let response = try await totpService.setup()
             isLoading = false
-            return response
+            return response.qrCodeUrl
         } catch {
             self.error = error
             isLoading = false
@@ -240,7 +254,7 @@ public final class AuthenticationManager {
         isLoading = true
         error = nil
         do {
-            try await totpService.verifyTOTP(code: code)
+            _ = try await totpService.verify(code: code)
             isLoading = false
             return true
         } catch {
@@ -250,11 +264,11 @@ public final class AuthenticationManager {
         }
     }
     
-    public func enable2FA() async {
+    public func enable2FA(code: String) async {
         isLoading = true
         error = nil
         do {
-            try await totpService.enableTOTP()
+            _ = try await totpService.enable(code: code)
             requires2FA = true
         } catch {
             self.error = error
@@ -262,11 +276,11 @@ public final class AuthenticationManager {
         isLoading = false
     }
     
-    public func disable2FA() async {
+    public func disable2FA(code: String) async {
         isLoading = true
         error = nil
         do {
-            try await totpService.disableTOTP()
+            _ = try await totpService.disable(code: code)
             requires2FA = false
         } catch {
             self.error = error
@@ -278,8 +292,8 @@ public final class AuthenticationManager {
     
     private func checkEmailVerificationStatus() async {
         do {
-            let status = try await emailVerificationService.getEmailVerificationStatus()
-            requiresEmailVerification = !status.isVerified
+            let status = try await emailVerificationService.getStatus()
+            requiresEmailVerification = !status.verified
         } catch {
             // Don't update UI state for email verification check failures
             print("Failed to check email verification status: \(error)")
@@ -290,7 +304,7 @@ public final class AuthenticationManager {
         isLoading = true
         error = nil
         do {
-            try await emailVerificationService.verifyEmailCode(code: code)
+            _ = try await emailVerificationService.verify(code: code)
             requiresEmailVerification = false
             isLoading = false
             return true
@@ -305,7 +319,7 @@ public final class AuthenticationManager {
         isLoading = true
         error = nil
         do {
-            try await emailVerificationService.sendVerificationCode()
+            _ = try await emailVerificationService.sendCode()
         } catch {
             self.error = error
         }
