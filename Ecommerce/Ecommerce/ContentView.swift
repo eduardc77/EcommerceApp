@@ -5,16 +5,26 @@
 
 import SwiftUI
 
+enum AppFlow {
+    case login
+    case main
+}
+
 struct ContentView: View {
     @Environment(AuthenticationManager.self) private var authManager
+    @State private var currentFlow: AppFlow = .login
 
     var body: some View {
         Group {
-            if authManager.isAuthenticated {
-                MainTabView()
-            } else {
+            switch currentFlow {
+            case .login:
                 LoginView()
+            case .main:
+                MainTabView()
             }
+        }
+        .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
+            updateFlow()
         }
         .overlay {
             if authManager.isLoading {
@@ -30,6 +40,14 @@ struct ContentView: View {
             if let error = authManager.error {
                 Text(error.localizedDescription)
             }
+        }
+    }
+
+    private func updateFlow() {
+        if authManager.isAuthenticated {
+            currentFlow = .main
+        } else {
+            currentFlow = .login
         }
     }
 }

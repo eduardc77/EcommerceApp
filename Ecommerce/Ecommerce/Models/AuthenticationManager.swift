@@ -124,6 +124,7 @@ public final class AuthenticationManager {
         isLoading = true
         error = nil
         isAuthenticated = false
+        requiresEmailVerification = false
         
         do {
             let dto = CreateUserRequest(
@@ -138,8 +139,17 @@ public final class AuthenticationManager {
             try await tokenStore.setToken(token)
             
             currentUser = authResponse.user
-            isAuthenticated = true
             requiresEmailVerification = authResponse.requiresEmailVerification
+            
+            // Only set isAuthenticated if email verification is not required
+            if !requiresEmailVerification {
+                isAuthenticated = true
+            }
+            
+            // If email verification is required, send the initial code
+            if requiresEmailVerification {
+                _ = try? await emailVerificationService.setup2FA()
+            }
             
         } catch let networkError as NetworkError {
             self.error = networkError
@@ -222,7 +232,7 @@ public final class AuthenticationManager {
             
             // Send verification email for new address
             if email != nil {
-                _ = try await emailVerificationService.sendCode()
+                _ = try await emailVerificationService.setup2FA()
                 requiresEmailVerification = true
             }
             
@@ -243,91 +253,32 @@ public final class AuthenticationManager {
         }
     }
     
-    // MARK: - 2FA Management
-    
-    private func check2FAStatus() async {
-        do {
-            let status = try await totpService.getStatus()
-            requires2FA = status.enabled
-        } catch {
-            // Don't update UI state for 2FA check failures
-        }
-    }
-    
-    public func setup2FA() async -> String? {
-        isLoading = true
-        error = nil
-        do {
-            let response = try await totpService.setup()
-            isLoading = false
-            return response.qrCodeUrl
-        } catch {
-            self.error = error
-            isLoading = false
-            return nil
-        }
-    }
-    
-    public func verify2FA(code: String) async -> Bool {
-        isLoading = true
-        error = nil
-        do {
-            _ = try await totpService.verify(code: code)
-            isLoading = false
-            return true
-        } catch {
-            self.error = error
-            isLoading = false
-            return false
-        }
-    }
-    
-    public func enable2FA(code: String) async {
-        isLoading = true
-        error = nil
-        do {
-            _ = try await totpService.enable(code: code)
-            requires2FA = true
-        } catch {
-            self.error = error
-        }
-        isLoading = false
-    }
-    
-    public func disable2FA(code: String) async {
-        isLoading = true
-        error = nil
-        do {
-            _ = try await totpService.disable(code: code)
-            requires2FA = false
-        } catch {
-            self.error = error
-        }
-        isLoading = false
-    }
-    
     // MARK: - Email Verification
     
     private func checkEmailVerificationStatus() async {
         do {
-            let status = try await emailVerificationService.getStatus()
+            let status = try await emailVerificationService.getInitialStatus()
             requiresEmailVerification = !status.verified
         } catch {
             // Don't update UI state for email verification check failures
         }
     }
     
+    @MainActor
     public func verifyEmail(code: String) async -> Bool {
         isLoading = true
         error = nil
+        defer { isLoading = false }
         do {
-            _ = try await emailVerificationService.verify(code: code)
-            requiresEmailVerification = false
-            isLoading = false
-            return true
+            if let email = currentUser?.email {
+                _ = try await emailVerificationService.verifyInitialEmail(email: email, code: code)
+                requiresEmailVerification = false
+                isAuthenticated = true
+                return true
+            }
+            return false
         } catch {
             self.error = error
-            isLoading = false
             return false
         }
     }
@@ -336,7 +287,64 @@ public final class AuthenticationManager {
         isLoading = true
         error = nil
         do {
-            _ = try await emailVerificationService.sendCode()
+            if let email = currentUser?.email {
+                _ = try await emailVerificationService.resendVerificationEmail(email: email)
+            }
+        } catch {
+            self.error = error
+        }
+        isLoading = false
+    }
+    
+    @MainActor
+    public func skipEmailVerification() {
+        requiresEmailVerification = false
+        isAuthenticated = true
+    }
+    
+    // MARK: - 2FA Management
+    
+    private func check2FAStatus() async {
+        do {
+            let status = try await emailVerificationService.get2FAStatus()
+            requires2FA = status.enabled
+        } catch {
+            // Don't update UI state for 2FA check failures
+        }
+    }
+    
+    public func setup2FA() async {
+        isLoading = true
+        error = nil
+        do {
+            _ = try await emailVerificationService.setup2FA()
+        } catch {
+            self.error = error
+        }
+        isLoading = false
+    }
+    
+    public func verify2FA(code: String) async -> Bool {
+        isLoading = true
+        error = nil
+        do {
+            _ = try await emailVerificationService.verify2FA(code: code)
+            requires2FA = true
+            isLoading = false
+            return true
+        } catch {
+            self.error = error
+            isLoading = false
+            return false
+        }
+    }
+    
+    public func disable2FA() async {
+        isLoading = true
+        error = nil
+        do {
+            _ = try await emailVerificationService.disable2FA()
+            requires2FA = false
         } catch {
             self.error = error
         }

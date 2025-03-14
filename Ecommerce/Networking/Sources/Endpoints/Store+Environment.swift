@@ -6,6 +6,7 @@ extension Store {
         case production
         case staging
         case develop
+        case testing
         
         public var scheme: String { "http" }
         
@@ -15,7 +16,7 @@ extension Store {
                 return "api.ecommerce.com"
             case .staging:
                 return "staging.ecommerce.com"
-            case .develop:
+            case .develop, .testing:
                 return "localhost"
             }
         }
@@ -24,7 +25,7 @@ extension Store {
             switch self {
             case .production, .staging:
                 return nil
-            case .develop:
+            case .develop, .testing:
                 return 8080
             }
         }

@@ -17,16 +17,16 @@ struct EmailVerificationController {
     
     /// Add public routes for initial email verification
     func addPublicRoutes(to group: RouterGroup<Context>) {
-        group.post("verify-email", use: verifyInitialEmail)
-        group.post("resend-verification", use: resendVerificationEmail)
+        group.post("verify-initial", use: verifyInitialEmail)
+        group.post("resend", use: resendVerificationEmail)
     }
     
-    /// Add protected routes for email verification
+    /// Add protected routes for email verification (2FA)
     func addProtectedRoutes(to group: RouterGroup<Context>) {
-        group.post("send-code", use: sendVerificationCode)
-        group.post("verify", use: verifyEmailCode)
-        group.delete("disable", use: disableEmailVerification)
-        group.get("status", use: getEmailVerificationStatus)
+        group.post("2fa/setup", use: sendVerificationCode)
+        group.post("2fa/verify", use: verify2FAEmailCode)
+        group.delete("2fa/disable", use: disableEmailVerification)
+        group.get("2fa/status", use: getEmailVerificationStatus)
     }
     
     /// Send verification code - used for both initial verification and resend
@@ -69,13 +69,70 @@ struct EmailVerificationController {
         )
     }
     
-    /// Verify email code during setup and enable 2FA if successful
-    @Sendable func verifyEmailCode(
+    /// Verify initial email verification code
+    @Sendable func verifyInitialEmail(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        // Decode request
+        let verifyRequest = try await request.decode(as: EmailVerifyRequest.self, context: context)
+        
+        // Find the most recent verification code for any user
+        guard let verificationCode = try await EmailVerificationCode.query(on: fluent.db())
+            .filter(\.$type, .equal, "email_verify")
+            .sort(\.$createdAt, .descending)
+            .with(\.$user)
+            .first() else {
+            throw HTTPError(.badRequest, message: "No verification code found")
+        }
+        
+        // Check if code is expired
+        if verificationCode.isExpired {
+            try await verificationCode.delete(on: fluent.db())
+            throw HTTPError(.badRequest, message: "Verification code has expired")
+        }
+        
+        // Check attempts
+        if verificationCode.hasExceededAttempts {
+            try await verificationCode.delete(on: fluent.db())
+            throw HTTPError(.tooManyRequests, message: "Too many attempts. Please request a new code.")
+        }
+        
+        // Verify the code
+        if verificationCode.code != verifyRequest.code {
+            verificationCode.incrementAttempts()
+            try await verificationCode.save(on: fluent.db())
+            throw HTTPError(.unauthorized, message: "Invalid verification code")
+        }
+        
+        // Delete the verification code
+        try await verificationCode.delete(on: fluent.db())
+        
+        // Mark email as verified only, don't enable 2FA
+        verificationCode.user.emailVerified = true
+        try await verificationCode.user.save(on: fluent.db())
+        
+        return .init(
+            status: .ok,
+            response: MessageResponse(
+                message: "Email verified successfully. You can now enable 2FA in your account settings if desired.",
+                success: true
+            )
+        )
+    }
+    
+    /// Verify email code during 2FA setup
+    @Sendable func verify2FAEmailCode(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<MessageResponse> {
         guard let user = context.identity else {
             throw HTTPError(.unauthorized)
+        }
+        
+        // Ensure email is verified before allowing 2FA setup
+        guard user.emailVerified else {
+            throw HTTPError(.badRequest, message: "Email must be verified before enabling 2FA")
         }
         
         // Decode verification request
@@ -115,16 +172,15 @@ struct EmailVerificationController {
         // Delete the verification code
         try await verificationCode.delete(on: fluent.db())
         
-        // Enable email verification
+        // Enable email-based 2FA only when explicitly requested
         user.emailVerificationEnabled = true
-        user.emailVerified = true
         user.tokenVersion += 1  // Increment token version to invalidate all existing tokens
         try await user.save(on: fluent.db())
         
         return .init(
             status: .ok,
             response: MessageResponse(
-                message: "Email verification enabled successfully",
+                message: "Two-factor authentication enabled successfully",
                 success: true
             )
         )
@@ -215,60 +271,6 @@ struct EmailVerificationController {
             response: EmailVerificationStatusResponse(
                 enabled: user.emailVerificationEnabled,
                 verified: user.emailVerified
-            )
-        )
-    }
-    
-    /// Verify initial email verification code
-    @Sendable func verifyInitialEmail(
-        _ request: Request,
-        context: Context
-    ) async throws -> EditedResponse<MessageResponse> {
-        // Decode request
-        let verifyRequest = try await request.decode(as: EmailVerifyRequest.self, context: context)
-        
-        // Find the most recent verification code for any user
-        // This works in testing because we're using a clean database for each test
-        // In production, we would need to pass the user's email in the request
-        guard let verificationCode = try await EmailVerificationCode.query(on: fluent.db())
-            .filter(\.$type, .equal, "email_verify")
-            .sort(\.$createdAt, .descending)
-            .with(\.$user)
-            .first() else {
-            throw HTTPError(.badRequest, message: "No verification code found")
-        }
-        
-        // Check if code is expired
-        if verificationCode.isExpired {
-            try await verificationCode.delete(on: fluent.db())
-            throw HTTPError(.badRequest, message: "Verification code has expired")
-        }
-        
-        // Check attempts
-        if verificationCode.hasExceededAttempts {
-            try await verificationCode.delete(on: fluent.db())
-            throw HTTPError(.tooManyRequests, message: "Too many attempts. Please request a new code.")
-        }
-        
-        // Verify the code
-        if verificationCode.code != verifyRequest.code {
-            verificationCode.incrementAttempts()
-            try await verificationCode.save(on: fluent.db())
-            throw HTTPError(.unauthorized, message: "Invalid verification code")
-        }
-        
-        // Delete the verification code
-        try await verificationCode.delete(on: fluent.db())
-        
-        // Mark email as verified
-        verificationCode.user.emailVerified = true
-        try await verificationCode.user.save(on: fluent.db())
-        
-        return .init(
-            status: .ok,
-            response: MessageResponse(
-                message: "Email verified successfully",
-                success: true
             )
         )
     }

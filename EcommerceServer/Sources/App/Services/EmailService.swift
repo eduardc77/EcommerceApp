@@ -38,19 +38,26 @@ struct SendGridEmailService: EmailService {
     }
     
     func sendEmail(to email: String, subject: String, htmlContent: String) async throws {
-        let sendGridEmail = SendGridEmail(
-            personalizations: [
-                Personalization(to: [EmailAddress(email: email)])
-            ],
-            from: EmailAddress(email: self.fromEmail, name: self.fromName),
-            subject: subject,
-            content: [
-                EmailContent(type: "text/html", value: htmlContent)
-            ]
-        )
-        
-        let client = SendGridClient(httpClient: self.httpClient, apiKey: self.apiKey)
-        try await client.send(email: sendGridEmail)
+        do {
+            let sendGridEmail = SendGridEmail(
+                personalizations: [
+                    Personalization(to: [EmailAddress(email: email)])
+                ],
+                from: EmailAddress(email: self.fromEmail, name: self.fromName),
+                subject: subject,
+                content: [
+                    EmailContent(type: "text/html", value: htmlContent)
+                ]
+            )
+            
+            logger.info("Attempting to send email to \(email) using SendGrid")
+            let client = SendGridClient(httpClient: self.httpClient, apiKey: self.apiKey)
+            try await client.send(email: sendGridEmail)
+            logger.info("Successfully sent email to \(email)")
+        } catch {
+            logger.error("Failed to send email to \(email): \(error)")
+            throw error
+        }
     }
     
     func sendVerificationEmail(to email: String, code: String) async throws {
@@ -62,7 +69,7 @@ struct SendGridEmailService: EmailService {
             """
         
         try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
-        logger.info("Would send email verification code \(code) to \(email)")
+        logger.info("Sent verification email to \(email)")
     }
     
     func send2FASetupEmail(to email: String, code: String) async throws {
@@ -74,7 +81,7 @@ struct SendGridEmailService: EmailService {
             """
         
         try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
-        logger.info("Would send 2FA setup code \(code) to \(email)")
+        logger.info("Sent 2FA setup email to \(email)")
     }
     
     func send2FADisableEmail(to email: String, code: String) async throws {
@@ -86,7 +93,7 @@ struct SendGridEmailService: EmailService {
             """
         
         try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
-        logger.info("Would send 2FA disable code \(code) to \(email)")
+        logger.info("Sent 2FA disable email to \(email)")
     }
     
     func send2FALoginEmail(to email: String, code: String) async throws {
@@ -98,7 +105,7 @@ struct SendGridEmailService: EmailService {
             """
         
         try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
-        logger.info("Would send 2FA login code \(code) to \(email)")
+        logger.info("Sent 2FA login email to \(email)")
     }
     
     func sendPasswordResetEmail(to email: String, code: String) async throws {
@@ -112,7 +119,7 @@ struct SendGridEmailService: EmailService {
             """
         
         try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
-        logger.info("Would send password reset code \(code) to \(email)")
+        logger.info("Sent password reset email to \(email)")
     }
 }
 

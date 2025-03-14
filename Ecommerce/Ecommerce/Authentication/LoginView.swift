@@ -47,11 +47,10 @@ struct LoginView: View {
                 .disabled(authManager.isLoading)
                 
                 if !showTOTPVerification {
-                    Button("Create Account") {
-                        showRegistration = true
-                    }
-                    .sheet(isPresented: $showRegistration) {
+                    NavigationLink {
                         RegisterView()
+                    } label: {
+                        Text("Create Account")
                     }
                 }
             }

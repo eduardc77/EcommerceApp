@@ -8,6 +8,7 @@ struct AccountView: View {
     @State private var editedName = ""
     @State private var editedEmail = ""
     @State private var isRefreshing = false
+    @State private var showingEmailVerification = false
     
     var body: some View {
         List {
@@ -78,6 +79,41 @@ struct AccountView: View {
                     }
                 }
                 
+                // Email Verification Section
+                if authManager.requiresEmailVerification {
+                    Section {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.yellow)
+                                    .font(.title2)
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Email Not Verified")
+                                        .font(.headline)
+                                    Text("Verify your email to access all features")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            
+                            Button(action: {
+                                showingEmailVerification = true
+                            }) {
+                                Text("Verify Email")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
+                        }
+                        .padding(.vertical, 8)
+                    } header: {
+                        Text("Verification Status")
+                    } footer: {
+                        Text("Verifying your email helps secure your account and enables all features")
+                    }
+                }
+                
                 Section {
                     Button(role: .destructive, action: signOut) {
                         Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
@@ -105,6 +141,9 @@ struct AccountView: View {
         }
         .refreshable {
             await authManager.refreshProfile()
+        }
+        .sheet(isPresented: $showingEmailVerification) {
+            EmailVerificationView()
         }
         .toolbar {
             if let user = authManager.currentUser {

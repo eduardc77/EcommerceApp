@@ -267,16 +267,24 @@ extension CategoryResponse {
 
 // MARK: - Email Verification Service
 struct PreviewEmailVerificationService: EmailVerificationServiceProtocol {
-    func getStatus() async throws -> Networking.EmailVerificationStatusResponse {
-        EmailVerificationStatusResponse(enabled: true, verified: true)
+    func getInitialStatus() async throws -> Networking.EmailVerificationStatusResponse {
+        EmailVerificationStatusResponse(enabled: false, verified: true)
     }
     
-    func sendCode() async throws -> Networking.MessageResponse {
+    func get2FAStatus() async throws -> Networking.EmailVerificationStatusResponse {
+        EmailVerificationStatusResponse(enabled: false, verified: true)
+    }
+    
+    func setup2FA() async throws -> Networking.MessageResponse {
         MessageResponse(message: "Verification code sent", success: true)
     }
     
-    func verify(code: String) async throws -> Networking.MessageResponse {
-        MessageResponse(message: "Email verified successfully", success: true)
+    func verify2FA(code: String) async throws -> Networking.MessageResponse {
+        MessageResponse(message: "2FA enabled successfully", success: true)
+    }
+    
+    func disable2FA() async throws -> Networking.MessageResponse {
+        MessageResponse(message: "2FA disabled successfully", success: true)
     }
     
     func verifyInitialEmail(email: String, code: String) async throws -> Networking.MessageResponse {
@@ -285,10 +293,6 @@ struct PreviewEmailVerificationService: EmailVerificationServiceProtocol {
     
     func resendVerificationEmail(email: String) async throws -> Networking.MessageResponse {
         MessageResponse(message: "Verification email resent", success: true)
-    }
-    
-    func disableEmailVerification() async throws -> Networking.MessageResponse {
-        MessageResponse(message: "Email verification disabled", success: true)
     }
 }
 

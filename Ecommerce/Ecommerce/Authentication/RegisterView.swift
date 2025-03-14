@@ -2,20 +2,20 @@ import SwiftUI
 
 struct RegisterView: View {
     @Environment(AuthenticationManager.self) private var authManager
-    @Environment(\.dismiss) private var dismiss
-
     @State private var username = ""
     @State private var displayName = ""
     @State private var email = ""
     @State private var password = ""
     @State private var confirmPassword = ""
+    @State private var showError = false
     
     var body: some View {
         NavigationStack {
             Form {
                 Section("Personal Information") {
                     TextField("Username", text: $username)
-                        .textContentType(.name)
+                        .textContentType(.username)
+                        .autocapitalization(.none)
 
                     TextField("Display Name", text: $displayName)
                         .textContentType(.name)
@@ -23,6 +23,7 @@ struct RegisterView: View {
                     TextField("Email", text: $email)
                         .textContentType(.emailAddress)
                         .autocapitalization(.none)
+                        .keyboardType(.emailAddress)
                 }
                 
                 Section("Security") {
@@ -34,12 +35,7 @@ struct RegisterView: View {
                 }
             }
             .navigationTitle("Create Account")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Register", action: register)
                         .disabled(!isValid)
@@ -49,6 +45,11 @@ struct RegisterView: View {
                 if authManager.isLoading {
                     ProgressView()
                 }
+            }
+            .alert("Registration Error", isPresented: .constant(authManager.error != nil)) {
+                Button("OK") { authManager.error = nil }
+            } message: {
+                Text(authManager.error?.localizedDescription ?? "")
             }
         }
     }
@@ -69,11 +70,17 @@ struct RegisterView: View {
                 email: email,
                 password: password
             )
-            
-            // Only dismiss if registration was successful
-            if authManager.isAuthenticated {
-                dismiss()
-            }
         }
     }
+} 
+
+#Preview {
+    RegisterView()
+        .environment(AuthenticationManager(
+            authService: PreviewAuthenticationService(),
+            userService: PreviewUserService(),
+            tokenStore: PreviewTokenStore(),
+            totpService: PreviewTOTPService(),
+            emailVerificationService: PreviewEmailVerificationService()
+        ))
 } 
