@@ -40,7 +40,9 @@ public final class AuthenticationManager {
         Token(
             accessToken: response.accessToken,
             refreshToken: response.refreshToken,
-            expirationDate: ISO8601DateFormatter().date(from: response.expiresAt) ?? Date().addingTimeInterval(TimeInterval(response.expiresIn))
+            tokenType: response.tokenType,
+            expiresIn: response.expiresIn,
+            expiresAt: response.expiresAt
         )
     }
     
@@ -94,10 +96,10 @@ public final class AuthenticationManager {
             
             let token = createToken(from: response)
             try await tokenStore.setToken(token)
+            
             currentUser = response.user
             isAuthenticated = true
             
-            // Check 2FA and email verification status
             await check2FAStatus()
             await checkEmailVerificationStatus()
             
@@ -121,6 +123,7 @@ public final class AuthenticationManager {
     public func register(username: String, displayName: String, email: String, password: String) async {
         isLoading = true
         error = nil
+        isAuthenticated = false
         
         do {
             let dto = CreateUserRequest(
@@ -129,18 +132,25 @@ public final class AuthenticationManager {
                 email: email,
                 password: password
             )
+            
             let authResponse = try await authService.register(dto: dto)
             let token = createToken(from: authResponse)
             try await tokenStore.setToken(token)
-            isAuthenticated = true
+            
             currentUser = authResponse.user
+            isAuthenticated = true
+            requiresEmailVerification = authResponse.requiresEmailVerification
             
-            // Send verification email
-            _ = try await emailVerificationService.sendCode()
-            requiresEmailVerification = true
-            
+        } catch let networkError as NetworkError {
+            self.error = networkError
+            isAuthenticated = false
+            currentUser = nil
+            try? await tokenStore.invalidateToken()
         } catch {
             self.error = error
+            isAuthenticated = false
+            currentUser = nil
+            try? await tokenStore.invalidateToken()
         }
         
         isLoading = false
@@ -152,17 +162,26 @@ public final class AuthenticationManager {
         error = nil
         
         do {
-            // Clear token and cached data
-            try await tokenStore.invalidateToken()
-            URLCache.shared.removeAllCachedResponses()
-            
-            // Clear state
+            // Clear local state first
             isAuthenticated = false
             currentUser = nil
             requires2FA = false
             requiresEmailVerification = false
             
+            // Clear token and cached data
+            try await tokenStore.invalidateToken()
+            URLCache.shared.removeAllCachedResponses()
+            
+            // Call backend logout endpoint last
+            // If this fails, we're already logged out locally
+            try? await authService.logout()
+            
         } catch {
+            // Even if there's an error, we want to ensure we're logged out locally
+            isAuthenticated = false
+            currentUser = nil
+            requires2FA = false
+            requiresEmailVerification = false
             self.error = error
         }
         
@@ -232,7 +251,6 @@ public final class AuthenticationManager {
             requires2FA = status.enabled
         } catch {
             // Don't update UI state for 2FA check failures
-            print("Failed to check 2FA status: \(error)")
         }
     }
     
@@ -296,7 +314,6 @@ public final class AuthenticationManager {
             requiresEmailVerification = !status.verified
         } catch {
             // Don't update UI state for email verification check failures
-            print("Failed to check email verification status: \(error)")
         }
     }
     

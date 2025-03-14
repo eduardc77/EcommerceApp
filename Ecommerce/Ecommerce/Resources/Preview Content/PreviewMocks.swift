@@ -7,6 +7,7 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
         AuthResponse(
             accessToken: "preview_access_token",
             refreshToken: "preview_refresh_token",
+            tokenType: "Bearer",
             expiresIn: 3600,
             expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
             user: .previewUser,
@@ -19,6 +20,7 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
         AuthResponse(
             accessToken: "preview_access_token",
             refreshToken: "preview_refresh_token",
+            tokenType: "Bearer",
             expiresIn: 3600,
             expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
             user: .previewUser,
@@ -31,6 +33,7 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
         AuthResponse(
             accessToken: "preview_access_token",
             refreshToken: "preview_refresh_token",
+            tokenType: "Bearer",
             expiresIn: 3600,
             expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
             user: .previewUser,
@@ -124,7 +127,9 @@ actor PreviewTokenStore: TokenStoreProtocol {
         Token(
             accessToken: "preview_access_token",
             refreshToken: "preview_refresh_token",
-            expirationDate: Date().addingTimeInterval(3600)
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
         )
     }
     
@@ -180,9 +185,12 @@ struct PreviewAPIClient: APIClient {
             return AuthResponse(
                 accessToken: "preview_access_token",
                 refreshToken: "preview_refresh_token",
+                tokenType: "Bearer",
                 expiresIn: 3600,
                 expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
-                user: .previewUser
+                user: .previewUser,
+                requiresTOTP: false,
+                requiresEmailVerification: false
             ) as! T
         case is AvailabilityResponse.Type:
             return AvailabilityResponse(

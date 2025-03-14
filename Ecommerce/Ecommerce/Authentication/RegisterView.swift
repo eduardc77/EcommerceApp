@@ -69,7 +69,11 @@ struct RegisterView: View {
                 email: email,
                 password: password
             )
-            dismiss()
+            
+            // Only dismiss if registration was successful
+            if authManager.isAuthenticated {
+                dismiss()
+            }
         }
     }
 } 

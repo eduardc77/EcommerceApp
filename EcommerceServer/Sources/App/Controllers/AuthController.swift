@@ -874,7 +874,7 @@ struct AuthController {
     @Sendable func register(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<UserResponse> {
+    ) async throws -> EditedResponse<AuthResponse> {
         let createUser = try await request.decode(
             as: CreateUserRequest.self,
             context: context
@@ -933,7 +933,54 @@ struct AuthController {
         
         context.logger.info("Successfully registered user and sent verification email: \(user.username)")
         
-        return .init(status: .created, response: UserResponse(from: user))
+        // Generate tokens for the new user
+        let expiresIn = Int(jwtConfig.accessTokenExpiration)
+        let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
+        let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
+        let issuedAt = Date()
+        
+        // Create access token
+        let accessPayload = JWTPayloadData(
+            subject: SubjectClaim(value: try user.requireID().uuidString),
+            expiration: ExpirationClaim(value: accessExpirationDate),
+            type: "access",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: issuedAt,
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+
+        // Create refresh token with same version
+        let refreshPayload = JWTPayloadData(
+            subject: SubjectClaim(value: try user.requireID().uuidString),
+            expiration: ExpirationClaim(value: refreshExpirationDate),
+            type: "refresh",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: issuedAt,
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+
+        let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
+        let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
+
+        let dateFormatter = ISO8601DateFormatter()
+        return .init(
+            status: .created,
+            response: AuthResponse(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                expiresIn: UInt(expiresIn),
+                expiresAt: dateFormatter.string(from: accessExpirationDate),
+                user: UserResponse(from: user),
+                requiresTOTP: false,
+                requiresEmailVerification: true
+            )
+        )
     }
 }
 
