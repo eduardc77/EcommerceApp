@@ -69,4 +69,11 @@ Temporary Items
 # Swift Package Manager
 DerivedData/
 .swiftpm/xcode/package.xcworkspace
-.swiftpm/xcode/xcuserdata/ 
+.swiftpm/xcode/xcuserdata/
+
+# Additional Xcode specific files
+*.xcuserstate
+*.xcbkptlist
+xcschememanagement.plist
+IDEWorkspaceChecks.plist
+WorkspaceSettings.xcsettings 
