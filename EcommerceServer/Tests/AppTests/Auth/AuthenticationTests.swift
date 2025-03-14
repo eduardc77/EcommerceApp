@@ -23,7 +23,7 @@ struct AuthenticationTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -35,17 +35,17 @@ struct AuthenticationTests {
             
             // 2. Login to get JWT
             let authResponse = try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: "test_user_123", password: "Testing132!@#")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
             }
             
             // 3. Access protected endpoint with JWT
             try await client.execute(
-                uri: "/api/auth/me",
+                uri: "/api/v1/auth/me",
                 method: .get,
                 auth: .bearer(authResponse.accessToken)
             ) { response in
@@ -69,13 +69,13 @@ struct AuthenticationTests {
                 password: "Testing132!@#",
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            let userResponse = try await client.execute(
-                uri: "/api/users/register",
+            let authResponse = try await client.execute(
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(UserResponse.self, from: response.body)
+                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
             }
             
             // Complete email verification
@@ -88,7 +88,7 @@ struct AuthenticationTests {
             let expirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
             
             let payload = JWTPayloadData(
-                subject: .init(value: userResponse.id.uuidString),
+                subject: .init(value: authResponse.user.id),
                 expiration: .init(value: expirationDate),
                 type: "access",
                 issuer: jwtConfig.issuer,
@@ -116,7 +116,7 @@ struct AuthenticationTests {
             
             // 3. Use the token to access protected endpoint
             try await client.execute(
-                uri: "/api/auth/me",
+                uri: "/api/v1/auth/me",
                 method: .get,
                 auth: .bearer(token)
             ) { response in
@@ -134,7 +134,7 @@ struct AuthenticationTests {
         try await app.test(.router) { client in
             // 1. Test non-existent user
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: "nonexistent@example.com", password: "K9#mP2$vL5nQ8*xZ@")
             ) { response in
@@ -152,7 +152,7 @@ struct AuthenticationTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -164,7 +164,7 @@ struct AuthenticationTests {
             
             // 3. Test wrong password
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: "credentials@example.com", password: "wrongpassword")
             ) { response in
@@ -189,7 +189,7 @@ struct AuthenticationTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -202,7 +202,7 @@ struct AuthenticationTests {
             // 2. Attempt multiple rapid login requests
             for _ in 1...6 {
                 try await client.execute(
-                    uri: "/api/auth/login",
+                    uri: "/api/v1/auth/login",
                     method: .post,
                     auth: .basic(username: "ratelimit@example.com", password: "wrongpassword")
                 ) { response in
@@ -231,7 +231,7 @@ struct AuthenticationTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -244,7 +244,7 @@ struct AuthenticationTests {
             // 2. Attempt multiple failed logins
             for _ in 1...4 {
                 try await client.execute(
-                    uri: "/api/auth/login",
+                    uri: "/api/v1/auth/login",
                     method: .post,
                     auth: .basic(username: "lockout@example.com", password: "wrongpassword")
                 ) { response in
@@ -254,7 +254,7 @@ struct AuthenticationTests {
             
             // 5th attempt should trigger lockout
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: "lockout@example.com", password: "wrongpassword")
             ) { response in
@@ -263,7 +263,7 @@ struct AuthenticationTests {
             
             // Try correct password - should still be locked
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: "lockout@example.com", password: "K9#mP2$vL5nQ8*xZ@")
             ) { response in

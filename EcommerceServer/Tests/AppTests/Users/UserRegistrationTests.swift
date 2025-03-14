@@ -24,13 +24,13 @@ struct UserRegistrationTests {
             
             // 1. Register user
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
-                #expect(userResponse.username == "testuser")
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                #expect(authResponse.user.username == "testuser")
             }
             
             // 2. Complete email verification
@@ -38,12 +38,12 @@ struct UserRegistrationTests {
             
             // 3. Verify can now login
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: requestBody.email, password: requestBody.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
                 #expect(!authResponse.accessToken.isEmpty)
             }
         }
@@ -63,7 +63,7 @@ struct UserRegistrationTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(firstUser, allocator: ByteBufferAllocator())
             ) { response in
@@ -79,7 +79,7 @@ struct UserRegistrationTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(secondUser, allocator: ByteBufferAllocator())
             ) { response in
@@ -104,7 +104,7 @@ struct UserRegistrationTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(firstUser, allocator: ByteBufferAllocator())
             ) { response in
@@ -120,7 +120,7 @@ struct UserRegistrationTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(secondUser, allocator: ByteBufferAllocator())
             ) { response in

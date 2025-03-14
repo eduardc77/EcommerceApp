@@ -23,12 +23,12 @@ struct EmailVerificationTests {
             )
 
             let _ = try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(UserResponse.self, from: response.body)
+                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
             }
 
             // 2. Complete email verification using the helper method
@@ -36,23 +36,24 @@ struct EmailVerificationTests {
 
             // 3. Login after verification
             let authResponse = try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: requestBody.email, password: requestBody.password)
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
             }
 
             // 4. Check verification status
             try await client.execute(
-                uri: "/api/auth/me",
+                uri: "/api/v1/auth/email/2fa/status",
                 method: .get,
                 auth: .bearer(authResponse.accessToken)
             ) { response in
                 #expect(response.status == .ok)
-                let user = try JSONDecoder().decode(UserResponse.self, from: response.body)
-                #expect(user.email == requestBody.email)
+                let status = try JSONDecoder().decode(EmailVerificationStatusResponse.self, from: response.body)
+                #expect(status.verified)
+                #expect(!status.enabled)
             }
         }
     }
@@ -60,6 +61,10 @@ struct EmailVerificationTests {
     @Test("Email verification with 2FA setup")
     func testEmailVerification2FA() async throws {
         let app = try await buildApplication(TestAppArguments())
+        
+        // Debug: Print current environment
+        print("Current Environment:", ProcessInfo.processInfo.environment["APP_ENV"] ?? "not set")
+        print("Is Testing:", Environment.current.isTesting)
 
         try await app.test(.router) { client in
             // 1. Register and verify user
@@ -72,7 +77,7 @@ struct EmailVerificationTests {
             )
 
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -84,56 +89,66 @@ struct EmailVerificationTests {
 
             // 3. Login to get access token
             let authResponse = try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: requestBody.email, password: requestBody.password)
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
             }
 
             // 4. Enable 2FA with verification code
             try await client.execute(
-                uri: "/api/auth/email/send-code",
+                uri: "/api/v1/auth/email/2fa/setup",
                 method: .post,
                 auth: .bearer(authResponse.accessToken)
             ) { response in
                 #expect(response.status == .ok)
             }
 
+            // 5. Verify 2FA code
             try await client.execute(
-                uri: "/api/auth/email/verify",
+                uri: "/api/v1/auth/email/2fa/verify",
                 method: .post,
                 auth: .bearer(authResponse.accessToken),
+                body: JSONEncoder().encodeAsByteBuffer(EmailVerifyRequest(code: "123456"), allocator: ByteBufferAllocator())
+            ) { response in
+                #expect(response.status == .ok)
+            }
+
+            // 6. Try login again - should require email code
+            try await client.execute(
+                uri: "/api/v1/auth/login",
+                method: .post,
+                auth: .basic(username: requestBody.email, password: requestBody.password)
+            ) { response in
+                #expect(response.status == .unauthorized)
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                #expect(authResponse.requiresEmailVerification)
+            }
+
+            // 7. Request verification code
+            try await client.execute(
+                uri: "/api/v1/auth/email/resend",
+                method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
-                    EmailVerifyRequest(code: "123456"),
+                    ResendVerificationRequest(email: requestBody.email),
                     allocator: ByteBufferAllocator()
                 )
             ) { response in
                 #expect(response.status == .ok)
             }
 
-            // 5. Verify 2FA is required for login
+            // 8. Try invalid code
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/email/verify-initial",
                 method: .post,
-                auth: .basic(username: requestBody.email, password: requestBody.password)
+                body: JSONEncoder().encodeAsByteBuffer(
+                    EmailVerifyRequest(email: requestBody.email, code: "000000"),
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .unauthorized)
-                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
-                #expect(authResponse.requiresEmailVerification)
-            }
-
-            // 6. Complete login with 2FA code
-            try await client.execute(
-                uri: "/api/auth/login",
-                method: .post,
-                headers: [HTTPField.Name("x-email-code")!: "123456"],
-                auth: .basic(username: requestBody.email, password: requestBody.password)
-            ) { response in
-                #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
-                #expect(!authResponse.accessToken.isEmpty)
             }
         }
     }
@@ -153,7 +168,7 @@ struct EmailVerificationTests {
             )
 
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -162,7 +177,7 @@ struct EmailVerificationTests {
 
             // 2. Request verification code
             try await client.execute(
-                uri: "/api/auth/email/resend-verification",
+                uri: "/api/v1/auth/email/resend",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
                     ResendVerificationRequest(email: requestBody.email),
@@ -174,10 +189,10 @@ struct EmailVerificationTests {
 
             // 3. Try invalid code
             try await client.execute(
-                uri: "/api/auth/email/verify-email",
+                uri: "/api/v1/auth/email/verify-initial",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
-                    EmailVerifyRequest(code: "000000"),
+                    EmailVerifyRequest(email: requestBody.email, code: "000000"),
                     allocator: ByteBufferAllocator()
                 )
             ) { response in

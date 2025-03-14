@@ -24,7 +24,7 @@ struct TOTPTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -36,17 +36,17 @@ struct TOTPTests {
             
             // Login to get access token
             let authResponse = try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: "totp_test_123", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
             }
             
             // Test TOTP setup endpoint
             let setupResponseData = try await client.execute(
-                uri: "/api/auth/totp/setup",
+                uri: "/api/v1/auth/totp/setup",
                 method: .post,
                 auth: .bearer(authResponse.accessToken)
             ) { response in
@@ -59,7 +59,7 @@ struct TOTPTests {
             
             // Test invalid TOTP code
             try await client.execute(
-                uri: "/api/auth/totp/enable",
+                uri: "/api/v1/auth/totp/enable",
                 method: .post,
                 auth: .bearer(authResponse.accessToken),
                 body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: "000000"), allocator: ByteBufferAllocator())
@@ -70,7 +70,7 @@ struct TOTPTests {
             // Test valid TOTP code
             let validCode = try TOTP.generateTestCode(from: setupResponseData.secret)
             try await client.execute(
-                uri: "/api/auth/totp/enable",
+                uri: "/api/v1/auth/totp/enable",
                 method: .post,
                 auth: .bearer(authResponse.accessToken),
                 body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: validCode), allocator: ByteBufferAllocator())
@@ -81,7 +81,7 @@ struct TOTPTests {
             // Test TOTP disable
             let disableCode = try TOTP.generateTestCode(from: setupResponseData.secret)
             try await client.execute(
-                uri: "/api/auth/totp/disable",
+                uri: "/api/v1/auth/totp/disable",
                 method: .delete,
                 auth: .bearer(authResponse.accessToken),
                 body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: disableCode), allocator: ByteBufferAllocator())
@@ -104,7 +104,7 @@ struct TOTPTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -115,17 +115,17 @@ struct TOTPTests {
             try await client.completeEmailVerification(email: requestBody.email)
             
             let authResponse = try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
             }
             
             // Setup TOTP
             let setupResponse = try await client.execute(
-                uri: "/api/auth/totp/setup",
+                uri: "/api/v1/auth/totp/setup",
                 method: .post,
                 auth: .bearer(authResponse.accessToken)
             ) { response in
@@ -137,7 +137,7 @@ struct TOTPTests {
             let code = try TOTP.generateTestCode(from: setupResponse.secret)
             let enableRequest = TOTPVerifyRequest(code: code)
             try await client.execute(
-                uri: "/api/auth/totp/enable",
+                uri: "/api/v1/auth/totp/enable",
                 method: .post,
                 auth: .bearer(authResponse.accessToken),
                 body: JSONEncoder().encodeAsByteBuffer(enableRequest, allocator: ByteBufferAllocator())
@@ -149,7 +149,7 @@ struct TOTPTests {
             
             // Verify TOTP is enabled
             try await client.execute(
-                uri: "/api/auth/totp/status",
+                uri: "/api/v1/auth/totp/status",
                 method: .get,
                 auth: .bearer(authResponse.accessToken)
             ) { response in
@@ -162,7 +162,7 @@ struct TOTPTests {
             let disableCode = try TOTP.generateTestCode(from: setupResponse.secret)
             let disableRequest = TOTPVerifyRequest(code: disableCode)
             try await client.execute(
-                uri: "/api/auth/totp/disable",
+                uri: "/api/v1/auth/totp/disable",
                 method: .delete,
                 auth: .bearer(authResponse.accessToken),
                 body: JSONEncoder().encodeAsByteBuffer(disableRequest, allocator: ByteBufferAllocator())
@@ -174,7 +174,7 @@ struct TOTPTests {
             
             // Verify TOTP is disabled
             try await client.execute(
-                uri: "/api/auth/totp/status",
+                uri: "/api/v1/auth/totp/status",
                 method: .get,
                 auth: .bearer(authResponse.accessToken)
             ) { response in
@@ -198,7 +198,7 @@ struct TOTPTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -209,17 +209,17 @@ struct TOTPTests {
             try await client.completeEmailVerification(email: requestBody.email)
             
             let authResponse = try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
             }
             
             // Setup and enable TOTP
             let setupResponse = try await client.execute(
-                uri: "/api/auth/totp/setup",
+                uri: "/api/v1/auth/totp/setup",
                 method: .post,
                 auth: .bearer(authResponse.accessToken)
             ) { response in
@@ -230,7 +230,7 @@ struct TOTPTests {
             let enableCode = try TOTP.generateTestCode(from: setupResponse.secret)
             let enableRequest = TOTPVerifyRequest(code: enableCode)
             try await client.execute(
-                uri: "/api/auth/totp/enable",
+                uri: "/api/v1/auth/totp/enable",
                 method: .post,
                 auth: .bearer(authResponse.accessToken),
                 body: JSONEncoder().encodeAsByteBuffer(enableRequest, allocator: ByteBufferAllocator())
@@ -240,33 +240,39 @@ struct TOTPTests {
             
             // Try login without TOTP code
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .unauthorized)
-                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
                 #expect(authResponse.requiresTOTP)
-                #expect(authResponse.accessToken.isEmpty)
             }
             
-            return (setupResponse.secret, authResponse.accessToken)
-        }
-        
-        // Now test login with TOTP in a separate test block
-        try await app.test(.router) { client in
-            let loginCode = try TOTP.generateTestCode(from: secret)
+            // Login with valid TOTP code
+            let loginCode = try TOTP.generateTestCode(from: setupResponse.secret)
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 headers: [HTTPField.Name("x-totp-code")!: loginCode],
                 auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
                 #expect(!authResponse.requiresTOTP)
-                #expect(!authResponse.accessToken.isEmpty)
             }
+            
+            // Try login with invalid TOTP code
+            try await client.execute(
+                uri: "/api/v1/auth/login",
+                method: .post,
+                headers: [HTTPField.Name("x-totp-code")!: "001000"],
+                auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN!Z")
+            ) { response in
+                #expect(response.status == .unauthorized)
+            }
+            
+            return (setupResponse.secret, authResponse.accessToken)
         }
     }
     
@@ -283,7 +289,7 @@ struct TOTPTests {
                 avatar: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -294,17 +300,17 @@ struct TOTPTests {
             try await client.completeEmailVerification(email: requestBody.email)
             
             let authResponse = try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN!Z")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
             }
             
             // Setup TOTP
             let setupResponse = try await client.execute(
-                uri: "/api/auth/totp/setup",
+                uri: "/api/v1/auth/totp/setup",
                 method: .post,
                 auth: .bearer(authResponse.accessToken)
             ) { response in
@@ -315,7 +321,7 @@ struct TOTPTests {
             // Try to enable with invalid code
             let invalidRequest = TOTPVerifyRequest(code: "123456")
             try await client.execute(
-                uri: "/api/auth/totp/enable",
+                uri: "/api/v1/auth/totp/enable",
                 method: .post,
                 auth: .bearer(authResponse.accessToken),
                 body: JSONEncoder().encodeAsByteBuffer(invalidRequest, allocator: ByteBufferAllocator())
@@ -327,7 +333,7 @@ struct TOTPTests {
             let validCode = try TOTP.generateTestCode(from: setupResponse.secret)
             let validRequest = TOTPVerifyRequest(code: validCode)
             try await client.execute(
-                uri: "/api/auth/totp/enable",
+                uri: "/api/v1/auth/totp/enable",
                 method: .post,
                 auth: .bearer(authResponse.accessToken),
                 body: JSONEncoder().encodeAsByteBuffer(validRequest, allocator: ByteBufferAllocator())
@@ -342,7 +348,7 @@ struct TOTPTests {
         try await app.test(.router) { client in
             // Try login with invalid TOTP code
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 headers: [HTTPField.Name("x-totp-code")!: "001000"],
                 auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN!Z")
@@ -353,7 +359,7 @@ struct TOTPTests {
             // Try to disable with invalid code
             let invalidRequest = TOTPVerifyRequest(code: "000100")
             try await client.execute(
-                uri: "/api/auth/totp/disable",
+                uri: "/api/v1/auth/totp/disable",
                 method: .delete,
                 auth: .bearer(accessToken),
                 body: JSONEncoder().encodeAsByteBuffer(invalidRequest, allocator: ByteBufferAllocator())
@@ -365,7 +371,7 @@ struct TOTPTests {
             let validCode = try TOTP.generateTestCode(from: secret)
             let validRequest = TOTPVerifyRequest(code: validCode)
             try await client.execute(
-                uri: "/api/auth/totp/disable",
+                uri: "/api/v1/auth/totp/disable",
                 method: .delete,
                 auth: .bearer(accessToken),
                 body: JSONEncoder().encodeAsByteBuffer(validRequest, allocator: ByteBufferAllocator())

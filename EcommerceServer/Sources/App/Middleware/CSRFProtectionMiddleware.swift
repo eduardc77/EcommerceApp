@@ -158,5 +158,5 @@ extension AppConfig {
         }
     }()
     
-    static let csrfExemptPaths: [String] = Environment.getArray("CSRF_EXEMPT_PATHS", default: ["/api/auth/login", "/api/auth/refresh"])
+    static let csrfExemptPaths: [String] = Environment.getArray("CSRF_EXEMPT_PATHS", default: ["/api/v1/auth/login", "/api/v1/auth/refresh"])
 } 

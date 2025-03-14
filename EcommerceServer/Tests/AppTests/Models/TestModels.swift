@@ -44,23 +44,34 @@ struct ErrorResponse: Codable {
     let error: ErrorDetail
 }
 
-struct AuthResponse: Decodable {
+struct TestAuthResponse: Decodable {
     let accessToken: String
     let refreshToken: String
+    let tokenType: String
     let expiresIn: UInt
     let expiresAt: String
-    let user: UserResponse
+    let user: TestUserResponse
     let requiresTOTP: Bool
     let requiresEmailVerification: Bool
 }
 
-struct UserResponse: Decodable {
-    let id: UUID
+struct TestUserResponse: Decodable {
+    let id: String
     let username: String
     let displayName: String
     let email: String
     let avatar: String
-    let role: String
+    let role: Role
+    let createdAt: String
+    let updatedAt: String
+}
+
+struct TestPublicUserResponse: Decodable {
+    let id: String
+    let username: String
+    let displayName: String
+    let avatar: String?
+    let role: Role
     let createdAt: String
     let updatedAt: String
 }

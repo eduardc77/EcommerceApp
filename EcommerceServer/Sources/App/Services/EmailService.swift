@@ -131,8 +131,9 @@ struct MockEmailService: EmailService {
     private let logger: Logger
     
     init(logger: Logger) {
-        guard Environment.current.isTesting else {
-            fatalError("MockEmailService should only be used in testing environment")
+        // Double check we're in testing environment
+        guard Environment.current == .testing else {
+            fatalError("MockEmailService should only be used in testing environment (current: \(Environment.current))")
         }
         self.logger = logger
     }

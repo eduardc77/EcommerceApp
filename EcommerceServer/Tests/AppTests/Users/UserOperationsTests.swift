@@ -30,36 +30,36 @@ struct UserOperationsTests {
             
             // Register user
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
-                userId = userResponse.id.uuidString
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                userId = authResponse.user.id
             }
             
             // 2. Login to get token
             var accessToken: String = ""
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: user.email, password: user.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
                 accessToken = authResponse.accessToken
             }
             
             // 3. Get own user details
             try await client.execute(
-                uri: "/api/users/\(userId)",
+                uri: "/api/v1/users/\(userId)",
                 method: .get,
                 headers: [HTTPField.Name("Authorization")!: "Bearer \(accessToken)"]
             ) { response in
                 #expect(response.status == .ok)
-                let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
-                #expect(userResponse.id.uuidString == userId)
+                let userResponse = try JSONDecoder().decode(TestUserResponse.self, from: response.body)
+                #expect(userResponse.id == userId)
                 #expect(userResponse.username == user.username)
                 #expect(userResponse.email == user.email)
             }
@@ -84,13 +84,13 @@ struct UserOperationsTests {
             
             // Register first user
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user1, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
-                user1Id = userResponse.id.uuidString
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                user1Id = authResponse.user.id
             }
             
             // 2. Create second user
@@ -104,7 +104,7 @@ struct UserOperationsTests {
             
             // Register second user
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user2, allocator: ByteBufferAllocator())
             ) { response in
@@ -114,18 +114,18 @@ struct UserOperationsTests {
             // 3. Login as second user
             var user2Token: String = ""
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: user2.email, password: user2.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
                 user2Token = authResponse.accessToken
             }
             
             // 4. Try to get first user's details
             try await client.execute(
-                uri: "/api/users/\(user1Id)",
+                uri: "/api/v1/users/\(user1Id)",
                 method: .get,
                 headers: [HTTPField.Name("Authorization")!: "Bearer \(user2Token)"]
             ) { response in
@@ -154,30 +154,30 @@ struct UserOperationsTests {
             
             // Register user
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
-                userId = userResponse.id.uuidString
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                userId = authResponse.user.id
             }
             
             // 2. Login to get token
             var accessToken: String = ""
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: user.email, password: user.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
                 accessToken = authResponse.accessToken
             }
             
             // 3. Delete own account
             try await client.execute(
-                uri: "/api/users/\(userId)",
+                uri: "/api/v1/users/\(userId)",
                 method: .delete,
                 headers: [HTTPField.Name("Authorization")!: "Bearer \(accessToken)"]
             ) { response in
@@ -186,7 +186,7 @@ struct UserOperationsTests {
             
             // 4. Verify cannot get user details anymore
             try await client.execute(
-                uri: "/api/users/\(userId)",
+                uri: "/api/v1/users/\(userId)",
                 method: .get,
                 headers: [HTTPField.Name("Authorization")!: "Bearer \(accessToken)"]
             ) { response in
@@ -213,13 +213,13 @@ struct UserOperationsTests {
             
             // Register first user
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user1, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
-                user1Id = userResponse.id.uuidString
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                user1Id = authResponse.user.id
             }
             
             // 2. Create second user
@@ -233,7 +233,7 @@ struct UserOperationsTests {
             
             // Register second user
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user2, allocator: ByteBufferAllocator())
             ) { response in
@@ -243,18 +243,18 @@ struct UserOperationsTests {
             // 3. Login as second user
             var user2Token: String = ""
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: user2.email, password: user2.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
                 user2Token = authResponse.accessToken
             }
             
             // 4. Try to delete first user's account
             try await client.execute(
-                uri: "/api/users/\(user1Id)",
+                uri: "/api/v1/users/\(user1Id)",
                 method: .delete,
                 headers: [HTTPField.Name("Authorization")!: "Bearer \(user2Token)"]
             ) { response in
@@ -283,13 +283,13 @@ struct UserOperationsTests {
             
             // Register first user
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user1, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
-                user1Id = userResponse.id.uuidString
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                user1Id = authResponse.user.id
             }
             
             // 2. Create second user
@@ -303,7 +303,7 @@ struct UserOperationsTests {
             
             // Register second user
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user2, allocator: ByteBufferAllocator())
             ) { response in
@@ -313,26 +313,26 @@ struct UserOperationsTests {
             // 3. Login as second user
             var user2Token: String = ""
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: user2.email, password: user2.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
                 user2Token = authResponse.accessToken
             }
             
             // 4. Get first user's public details
             try await client.execute(
-                uri: "/api/users/\(user1Id)/public",
+                uri: "/api/v1/users/\(user1Id)/public",
                 method: .get,
                 headers: [HTTPField.Name("Authorization")!: "Bearer \(user2Token)"]
             ) { response in
                 #expect(response.status == .ok)
-                let userResponse = try JSONDecoder().decode(PublicUserResponse.self, from: response.body)
+                let userResponse = try JSONDecoder().decode(TestUserResponse.self, from: response.body)
                 #expect(userResponse.username == user1.username)
                 #expect(userResponse.displayName == user1.displayName)
-                #expect(userResponse.role == "customer")
+                #expect(userResponse.role == .customer)
                 
                 // Convert string dates to Date objects for comparison
                 let dateFormatter = ISO8601DateFormatter()
@@ -367,7 +367,7 @@ struct UserOperationsTests {
             
             // Register admin
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(adminUser, allocator: ByteBufferAllocator())
             ) { response in
@@ -390,36 +390,36 @@ struct UserOperationsTests {
             
             // Register regular user
             try await client.execute(
-                uri: "/api/users/register",
+                uri: "/api/v1/auth/register",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(regularUser, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
-                regularUserId = userResponse.id.uuidString
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                regularUserId = authResponse.user.id
             }
             
             // 3. Login as admin
             var adminToken: String = ""
             try await client.execute(
-                uri: "/api/auth/login",
+                uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: adminUser.email, password: adminUser.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
                 adminToken = authResponse.accessToken
             }
             
             // 4. Get regular user's details as admin
             try await client.execute(
-                uri: "/api/users/\(regularUserId)",
+                uri: "/api/v1/users/\(regularUserId)",
                 method: .get,
                 headers: [HTTPField.Name("Authorization")!: "Bearer \(adminToken)"]
             ) { response in
                 #expect(response.status == .ok)
-                let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
-                #expect(userResponse.id.uuidString == regularUserId)
+                let userResponse = try JSONDecoder().decode(TestUserResponse.self, from: response.body)
+                #expect(userResponse.id == regularUserId)
                 #expect(userResponse.username == regularUser.username)
                 #expect(userResponse.email == regularUser.email)  // Admin can see email
                 #expect(userResponse.displayName == regularUser.displayName)

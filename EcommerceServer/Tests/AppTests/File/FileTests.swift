@@ -21,7 +21,7 @@ struct MultipartFormTests {
         )
 
         try await client.execute(
-            uri: "/api/users/register",
+            uri: "/api/v1/auth/register",
             method: .post,
             body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
         ) { response in
@@ -31,12 +31,12 @@ struct MultipartFormTests {
         try await client.completeEmailVerification(email: requestBody.email)
         
         let authResponse = try await client.execute(
-            uri: "/api/auth/login",
+            uri: "/api/v1/auth/login",
             method: .post,
             auth: .basic(username: requestBody.email, password: requestBody.password)
         ) { response in
             #expect(response.status == .created)
-            return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+            return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
         }
         
         return authResponse.accessToken
@@ -93,7 +93,7 @@ struct MultipartFormTests {
             
             // Upload file
             let filename = try await client.execute(
-                uri: "/api/files/",
+                uri: "/api/v1/files",
                 method: .post,
                 headers: [
                     .contentType: "multipart/form-data; boundary=\(boundary)",
@@ -109,7 +109,7 @@ struct MultipartFormTests {
             
             // Download file
             try await client.execute(
-                uri: "/api/files/\(filename)",
+                uri: "/api/v1/files/\(filename)",
                 method: .get,
                 headers: [
                     .authorization: "Bearer \(accessToken)"
@@ -137,7 +137,7 @@ struct MultipartFormTests {
             )
             
             try await client.execute(
-                uri: "/api/files/",
+                uri: "/api/v1/files",
                 method: .post,
                 headers: [.contentType: "multipart/form-data; boundary=\(boundary)"],
                 body: ByteBuffer(data: formData)
@@ -171,7 +171,7 @@ struct MultipartFormTests {
                         )
                         
                         try await client.execute(
-                            uri: "/api/files/",
+                            uri: "/api/v1/files",
                             method: .post,
                             headers: [
                                 .contentType: "multipart/form-data; boundary=\(boundary)",
@@ -209,7 +209,7 @@ struct MultipartFormTests {
             )
             
             try await client.execute(
-                uri: "/api/files/",
+                uri: "/api/v1/files",
                 method: .post,
                 headers: [
                     .contentType: "multipart/form-data; boundary=\(boundary)",

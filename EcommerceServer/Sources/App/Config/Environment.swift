@@ -7,12 +7,7 @@ enum Environment: String {
     case testing = "testing"
 
     static var current: Environment {
-        // First check if we're running tests
-        if NSClassFromString("XCTest") != nil {
-            return .testing
-        }
-        
-        // Then check environment variable
+        // Check environment variable
         guard let env = ProcessInfo.processInfo.environment["APP_ENV"]?.lowercased() else {
             #if DEBUG
             print("⚠️ No APP_ENV set, defaulting to development")

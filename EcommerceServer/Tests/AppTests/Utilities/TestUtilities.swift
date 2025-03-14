@@ -23,8 +23,10 @@ struct TestAppArguments: AppArguments {
     let db: String = "sqlite"
 
     init() {
-        // Set test environment variables
+        // Force testing environment
         setenv("APP_ENV", "testing", 1)  // Must be "testing" for verification codes to work
+        
+        // Set test environment variables
         setenv("MIN_PASSWORD_LENGTH", "12", 1)
         setenv("JWT_SECRET", "test-secret-key-for-testing-purposes-only", 1)
         setenv("JWT_ISSUER", "test.api", 1)
@@ -33,6 +35,11 @@ struct TestAppArguments: AppArguments {
         setenv("SENDGRID_API_KEY", "", 1)  // Empty API key to force mock service
         setenv("SENDGRID_FROM_EMAIL", "test@example.com", 1)
         setenv("SENDGRID_FROM_NAME", "Test Server", 1)
+        
+        // Verify we're in testing environment
+        guard Environment.current == .testing else {
+            fatalError("TestAppArguments must be used in testing environment only")
+        }
     }
 }
 
@@ -45,7 +52,7 @@ extension TestClientProtocol {
     func completeEmailVerification(email: String) async throws {
         // Request new verification code
         try await self.execute(
-            uri: "/api/auth/email/resend-verification",
+            uri: "/api/v1/auth/email/resend",
             method: .post,
             body: JSONEncoder().encodeAsByteBuffer(ResendVerificationRequest(email: email), allocator: ByteBufferAllocator())
         ) { response in
@@ -58,9 +65,9 @@ extension TestClientProtocol {
         
         // Verify email with the test code
         try await self.execute(
-            uri: "/api/auth/email/verify-email",
+            uri: "/api/v1/auth/email/verify-initial",
             method: .post,
-            body: JSONEncoder().encodeAsByteBuffer(EmailVerifyRequest(code: "123456"), allocator: ByteBufferAllocator())
+            body: JSONEncoder().encodeAsByteBuffer(EmailVerifyRequest(email: email, code: "123456"), allocator: ByteBufferAllocator())
         ) { response in
             guard response.status == .ok else {
                 let error = try? JSONDecoder().decode(ErrorResponse.self, from: response.body)
