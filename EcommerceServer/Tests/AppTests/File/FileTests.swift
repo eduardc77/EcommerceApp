@@ -36,7 +36,7 @@ struct MultipartFormTests {
             auth: .basic(username: requestBody.email, password: requestBody.password)
         ) { response in
             #expect(response.status == .created)
-            return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+            return try JSONDecoder().decode(AuthResponse.self, from: response.body)
         }
         
         return authResponse.accessToken

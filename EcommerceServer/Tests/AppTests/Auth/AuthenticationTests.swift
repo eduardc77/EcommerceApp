@@ -40,7 +40,7 @@ struct AuthenticationTests {
                 auth: .basic(username: "test_user_123", password: "Testing132!@#")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // 3. Access protected endpoint with JWT
@@ -75,7 +75,7 @@ struct AuthenticationTests {
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // Complete email verification

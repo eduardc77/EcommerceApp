@@ -276,7 +276,7 @@ struct InputValidationTests {
                 body: JSONEncoder().encodeAsByteBuffer(validRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(authResponse.user.username == "validuser")
             }
             

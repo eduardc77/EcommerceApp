@@ -40,20 +40,17 @@ struct TokenManagementTests {
                 auth: .basic(username: "refresh@example.com", password: "K9#mP2$vL5nQ8*x")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 3. Use refresh token to get new access token
-            let refreshBody = RefreshTokenRequest(
-                refreshToken: authResponse.refreshToken
-            )
             let refreshResponse = try await client.execute(
                 uri: "/api/v1/auth/refresh",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(refreshBody, allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(["refreshToken": authResponse.refreshToken], allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 4. Verify new access token works
@@ -63,7 +60,7 @@ struct TokenManagementTests {
                 auth: .bearer(refreshResponse.accessToken)
             ) { response in
                 #expect(response.status == .ok)
-                let user = try JSONDecoder().decode(TestUserResponse.self, from: response.body)
+                let user = try JSONDecoder().decode(UserResponse.self, from: response.body)
                 #expect(user.username == "refreshuser")
             }
 
@@ -77,11 +74,10 @@ struct TokenManagementTests {
             }
 
             // 6. Verify old refresh token is invalidated
-            let oldRefreshBody = RefreshTokenRequest(refreshToken: authResponse.refreshToken)
             try await client.execute(
                 uri: "/api/v1/auth/refresh",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(oldRefreshBody, allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(["refreshToken": authResponse.refreshToken], allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .unauthorized)
             }
@@ -119,7 +115,7 @@ struct TokenManagementTests {
                 auth: .basic(username: "logout@example.com", password: "K9#mP2$vL5nQ8*x")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 3. Logout
@@ -141,11 +137,10 @@ struct TokenManagementTests {
             }
 
             // 5. Verify refresh token is invalidated
-            let refreshBody = RefreshTokenRequest(refreshToken: authResponse.refreshToken)
             try await client.execute(
                 uri: "/api/v1/auth/refresh",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(refreshBody, allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(["refreshToken": authResponse.refreshToken], allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .unauthorized)
             }
@@ -182,7 +177,7 @@ struct TokenManagementTests {
                 auth: .basic(username: "blacklist@example.com", password: "K9#mP2$vL5nQ8*x")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 2. Use token successfully
@@ -244,7 +239,7 @@ struct TokenManagementTests {
                 auth: .basic(username: "original@example.com", password: "K9#mP2$vL5nQ8*xZ@")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 2. Update email
@@ -262,7 +257,7 @@ struct TokenManagementTests {
                 body: JSONEncoder().encodeAsByteBuffer(updateRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .ok)
-                let user = try JSONDecoder().decode(TestUserResponse.self, from: response.body)
+                let user = try JSONDecoder().decode(UserResponse.self, from: response.body)
                 #expect(user.email == "updated@example.com")
             }
 
@@ -296,7 +291,7 @@ struct TokenManagementTests {
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // Complete email verification
@@ -355,7 +350,7 @@ struct TokenManagementTests {
                 auth: .basic(username: "version@example.com", password: "K9#mP2$vL5nQ8*x")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 2. Create token with incorrect version

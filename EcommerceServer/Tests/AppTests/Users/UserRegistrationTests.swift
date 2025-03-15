@@ -29,7 +29,7 @@ struct UserRegistrationTests {
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(authResponse.user.username == "testuser")
             }
             
@@ -43,7 +43,7 @@ struct UserRegistrationTests {
                 auth: .basic(username: requestBody.email, password: requestBody.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(!authResponse.accessToken.isEmpty)
             }
         }

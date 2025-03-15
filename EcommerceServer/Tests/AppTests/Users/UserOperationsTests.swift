@@ -35,7 +35,7 @@ struct UserOperationsTests {
                 body: JSONEncoder().encodeAsByteBuffer(user, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 userId = authResponse.user.id
             }
             
@@ -47,7 +47,7 @@ struct UserOperationsTests {
                 auth: .basic(username: user.email, password: user.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 accessToken = authResponse.accessToken
             }
             
@@ -58,7 +58,7 @@ struct UserOperationsTests {
                 headers: [HTTPField.Name("Authorization")!: "Bearer \(accessToken)"]
             ) { response in
                 #expect(response.status == .ok)
-                let userResponse = try JSONDecoder().decode(TestUserResponse.self, from: response.body)
+                let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
                 #expect(userResponse.id == userId)
                 #expect(userResponse.username == user.username)
                 #expect(userResponse.email == user.email)
@@ -89,7 +89,7 @@ struct UserOperationsTests {
                 body: JSONEncoder().encodeAsByteBuffer(user1, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 user1Id = authResponse.user.id
             }
             
@@ -119,7 +119,7 @@ struct UserOperationsTests {
                 auth: .basic(username: user2.email, password: user2.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 user2Token = authResponse.accessToken
             }
             
@@ -159,7 +159,7 @@ struct UserOperationsTests {
                 body: JSONEncoder().encodeAsByteBuffer(user, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 userId = authResponse.user.id
             }
             
@@ -171,7 +171,7 @@ struct UserOperationsTests {
                 auth: .basic(username: user.email, password: user.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 accessToken = authResponse.accessToken
             }
             
@@ -218,7 +218,7 @@ struct UserOperationsTests {
                 body: JSONEncoder().encodeAsByteBuffer(user1, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 user1Id = authResponse.user.id
             }
             
@@ -248,7 +248,7 @@ struct UserOperationsTests {
                 auth: .basic(username: user2.email, password: user2.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 user2Token = authResponse.accessToken
             }
             
@@ -288,7 +288,7 @@ struct UserOperationsTests {
                 body: JSONEncoder().encodeAsByteBuffer(user1, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 user1Id = authResponse.user.id
             }
             
@@ -318,7 +318,7 @@ struct UserOperationsTests {
                 auth: .basic(username: user2.email, password: user2.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 user2Token = authResponse.accessToken
             }
             
@@ -329,7 +329,7 @@ struct UserOperationsTests {
                 headers: [HTTPField.Name("Authorization")!: "Bearer \(user2Token)"]
             ) { response in
                 #expect(response.status == .ok)
-                let userResponse = try JSONDecoder().decode(TestPublicUserResponse.self, from: response.body)
+                let userResponse = try JSONDecoder().decode(PublicUserResponse.self, from: response.body)
                 #expect(userResponse.username == user1.username)
                 #expect(userResponse.displayName == user1.displayName)
                 #expect(userResponse.role == .customer)
@@ -395,7 +395,7 @@ struct UserOperationsTests {
                 body: JSONEncoder().encodeAsByteBuffer(regularUser, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 regularUserId = authResponse.user.id
             }
             
@@ -407,7 +407,7 @@ struct UserOperationsTests {
                 auth: .basic(username: adminUser.email, password: adminUser.password)
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 adminToken = authResponse.accessToken
             }
             
@@ -418,7 +418,7 @@ struct UserOperationsTests {
                 headers: [HTTPField.Name("Authorization")!: "Bearer \(adminToken)"]
             ) { response in
                 #expect(response.status == .ok)
-                let userResponse = try JSONDecoder().decode(TestUserResponse.self, from: response.body)
+                let userResponse = try JSONDecoder().decode(UserResponse.self, from: response.body)
                 #expect(userResponse.id == regularUserId)
                 #expect(userResponse.username == regularUser.username)
                 #expect(userResponse.email == regularUser.email)  // Admin can see email

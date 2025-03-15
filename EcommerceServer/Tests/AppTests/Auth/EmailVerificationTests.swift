@@ -28,7 +28,7 @@ struct EmailVerificationTests {
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 2. Complete email verification using the helper method
@@ -41,7 +41,7 @@ struct EmailVerificationTests {
                 auth: .basic(username: requestBody.email, password: requestBody.password)
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 4. Check verification status
@@ -90,7 +90,7 @@ struct EmailVerificationTests {
                 auth: .basic(username: requestBody.email, password: requestBody.password)
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 4. Setup 2FA - this generates and sends the initial setup code
@@ -119,7 +119,7 @@ struct EmailVerificationTests {
                 auth: .basic(username: requestBody.email, password: requestBody.password)
             ) { response in
                 #expect(response.status == .unauthorized)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(authResponse.requiresEmailVerification)
             }
 
@@ -141,7 +141,7 @@ struct EmailVerificationTests {
                 auth: .basic(username: requestBody.email, password: requestBody.password)
             ) { response in
                 #expect(response.status == .created)
-                let finalAuthResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let finalAuthResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(!finalAuthResponse.requiresEmailVerification)
             }
         }

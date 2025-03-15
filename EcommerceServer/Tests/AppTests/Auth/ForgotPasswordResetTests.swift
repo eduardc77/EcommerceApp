@@ -216,7 +216,7 @@ struct ForgotPasswordResetTests {
                 auth: .basic(username: "resettest3@example.com", password: "NewP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // 5. Verify cannot login with old password

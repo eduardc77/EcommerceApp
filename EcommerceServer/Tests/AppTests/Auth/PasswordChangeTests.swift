@@ -62,7 +62,7 @@ struct PasswordChangeTests {
                 auth: .basic(username: "passwordtest@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // 3. Try to change password with incorrect current password
@@ -114,7 +114,7 @@ struct PasswordChangeTests {
                 auth: .basic(username: "passwordtest2@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // 3. Try to change password with weak new password
@@ -166,7 +166,7 @@ struct PasswordChangeTests {
                 auth: .basic(username: "passwordtest3@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // 3. Change password with valid inputs
@@ -203,7 +203,7 @@ struct PasswordChangeTests {
                 auth: .basic(username: "passwordtest3@example.com", password: "NewP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // 6. Verify cannot login with old password
@@ -249,7 +249,7 @@ struct PasswordChangeTests {
                 auth: .basic(username: "passwordtest4@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // 3. Change password to a new one
@@ -274,7 +274,7 @@ struct PasswordChangeTests {
                 auth: .basic(username: "passwordtest4@example.com", password: "NewP@ssw0rd!9K#")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // 5. Try to change back to the original password

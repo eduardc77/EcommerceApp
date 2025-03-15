@@ -41,7 +41,7 @@ struct TOTPTests {
                 auth: .basic(username: "totp_test_123", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // Test TOTP setup endpoint
@@ -62,7 +62,7 @@ struct TOTPTests {
                 uri: "/api/v1/auth/totp/enable",
                 method: .post,
                 auth: .bearer(authResponse.accessToken),
-                body: JSONEncoder().encodeAsByteBuffer(TestTOTPVerifyRequest(code: "000000"), allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: "000000"), allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .unauthorized)
             }
@@ -120,7 +120,7 @@ struct TOTPTests {
                 auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // Setup TOTP
@@ -214,7 +214,7 @@ struct TOTPTests {
                 auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // Setup and enable TOTP
@@ -245,7 +245,7 @@ struct TOTPTests {
                 auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .unauthorized)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(authResponse.requiresTOTP)
             }
             
@@ -258,7 +258,7 @@ struct TOTPTests {
                 auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
             ) { response in
                 #expect(response.status == .created)
-                let authResponse = try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(!authResponse.requiresTOTP)
             }
             
@@ -305,7 +305,7 @@ struct TOTPTests {
                 auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN!Z")
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // Setup TOTP
