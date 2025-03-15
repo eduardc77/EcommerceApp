@@ -85,6 +85,10 @@ struct TOTPStatusResponse: Codable {
     let enabled: Bool
 }
 
-struct TOTPVerifyRequest: Codable {
+struct TestEmailVerifyRequest: Codable {
     let code: String
 } 
+
+struct TestTOTPVerifyRequest: Codable {
+    let code: String
+}

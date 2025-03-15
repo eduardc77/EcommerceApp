@@ -103,7 +103,7 @@ struct PreviewUserService: UserServiceProtocol {
         .previewUser
     }
     
-    func updateUser(id: String, dto: UpdateUserRequest) async throws -> UserResponse {
+    func updateProfile(id: String, dto: UpdateUserRequest) async throws -> UserResponse {
         .previewUser
     }
     

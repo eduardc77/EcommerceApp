@@ -31,11 +31,12 @@ struct UserController {
     
     /// Add protected routes that require authentication
     func addProtectedRoutes(to group: RouterGroup<Context>) {
-        group.put("me", use: update)
-        group.get(":id/public", use: getUserPublic)  // Public details endpoint
-        group.get(":id", use: getUser)  // Full details endpoint
+        group.put("update-profile", use: updateProfile)  // For users to update their own profile
+        group.get(":id/public", use: getUserPublic)      // Public details endpoint
+        group.get(":id", use: getUser)                  // Full details endpoint
+        group.put(":id", use: adminUpdate)              // Admin-only update endpoint
         group.delete(":id", use: deleteUser)
-        group.put(":id/role", use: updateRole)  // New endpoint for role management
+        group.put(":id/role", use: updateRole)          // Admin/staff role management
     }
     
     /// Add all routes (deprecated)
@@ -184,14 +185,19 @@ struct UserController {
         throw HTTPError(.badRequest, message: "Either 'username' or 'email' query parameter is required")
     }
     
-    /// Update existing user
-    @Sendable func update(
+    /// Update own profile (for any authenticated user)
+    @Sendable func updateProfile(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<UserResponse> {
         guard let user = context.identity else { throw HTTPError(.unauthorized) }
         let updateUser = try await request.decode(as: UpdateUserRequest.self, context: context)
         let db = self.fluent.db()
+        
+        // Prevent role updates through this endpoint
+        if updateUser.role != nil {
+            throw HTTPError(.forbidden, message: "Cannot update role through this endpoint")
+        }
         
         // Update display name if provided
         if let newDisplayName = updateUser.displayName {
@@ -239,7 +245,63 @@ struct UserController {
         try await user.save(on: db)
         return .init(status: .ok, response: UserResponse(from: user))
     }
-    
+
+    /// Admin-only endpoint to update any user
+    @Sendable func adminUpdate(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<UserResponse> {
+        guard let currentUser = context.identity else {
+            throw HTTPError(.unauthorized)
+        }
+        
+        // Only admins can use this endpoint
+        guard currentUser.role == .admin else {
+            throw HTTPError(.forbidden, message: "Only administrators can update other users")
+        }
+
+        // Get user ID from path parameters
+        guard let userIDString = request.uri.path.split(separator: "/").last,
+              let userID = UUID(uuidString: String(userIDString)) else {
+            throw HTTPError(.badRequest, message: "Invalid user ID format")
+        }
+
+        // Find user to update
+        guard let user = try await User.find(userID, on: fluent.db()) else {
+            throw HTTPError(.notFound, message: "User not found")
+        }
+
+        let updateUser = try await request.decode(as: UpdateUserRequest.self, context: context)
+        
+        // Apply updates
+        if let displayName = updateUser.displayName {
+            user.displayName = displayName
+        }
+        
+        if let email = updateUser.email {
+            // Check email availability
+            let existingEmail = try await User.query(on: fluent.db())
+                .filter(\.$email == email)
+                .filter(\.$id != userID)  // Exclude current user
+                .first()
+                
+            guard existingEmail == nil else {
+                throw HTTPError(.conflict, message: "Email already exists")
+            }
+            
+            user.email = email
+            user.emailVerified = false
+            user.tokenVersion += 1
+        }
+        
+        if let avatar = updateUser.avatar {
+            user.avatar = avatar
+        }
+        
+        try await user.save(on: fluent.db())
+        return .init(status: .ok, response: UserResponse(from: user))
+    }
+
     /// Get a specific user's public details by ID
     @Sendable func getUserPublic(
         _ request: Request,

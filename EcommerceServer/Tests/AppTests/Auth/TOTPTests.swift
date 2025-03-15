@@ -62,7 +62,7 @@ struct TOTPTests {
                 uri: "/api/v1/auth/totp/enable",
                 method: .post,
                 auth: .bearer(authResponse.accessToken),
-                body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: "000000"), allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(TestTOTPVerifyRequest(code: "000000"), allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .unauthorized)
             }
@@ -188,7 +188,7 @@ struct TOTPTests {
     @Test("Login flow with TOTP works correctly")
     func testLoginWithTOTP() async throws {
         let app = try await buildApplication(TestAppArguments())
-        let (secret, _) = try await app.test(.router) { client in
+        let (_, _) = try await app.test(.router) { client in
             // Create and login user
             let requestBody = TestCreateUserRequest(
                 username: "totp_test_789",

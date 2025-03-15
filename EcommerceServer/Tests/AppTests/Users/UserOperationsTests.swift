@@ -329,7 +329,7 @@ struct UserOperationsTests {
                 headers: [HTTPField.Name("Authorization")!: "Bearer \(user2Token)"]
             ) { response in
                 #expect(response.status == .ok)
-                let userResponse = try JSONDecoder().decode(TestUserResponse.self, from: response.body)
+                let userResponse = try JSONDecoder().decode(TestPublicUserResponse.self, from: response.body)
                 #expect(userResponse.username == user1.username)
                 #expect(userResponse.displayName == user1.displayName)
                 #expect(userResponse.role == .customer)

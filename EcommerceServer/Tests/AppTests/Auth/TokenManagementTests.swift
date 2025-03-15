@@ -247,7 +247,7 @@ struct TokenManagementTests {
                 return try JSONDecoder().decode(TestAuthResponse.self, from: response.body)
             }
 
-            // 2. Update email - this should succeed but invalidate the token
+            // 2. Update email
             let updateRequest = UpdateUserRequest(
                 displayName: nil,
                 email: "updated@example.com",
@@ -256,7 +256,7 @@ struct TokenManagementTests {
                 role: nil
             )
             try await client.execute(
-                uri: "/api/v1/auth/me",
+                uri: "/api/v1/users/update-profile",
                 method: .put,
                 auth: .bearer(authResponse.accessToken),
                 body: JSONEncoder().encodeAsByteBuffer(updateRequest, allocator: ByteBufferAllocator())

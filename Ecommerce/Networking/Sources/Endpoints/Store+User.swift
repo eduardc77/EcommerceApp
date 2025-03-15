@@ -7,7 +7,8 @@ public extension Store {
         case getPublic(id: String)
         case register(dto: CreateUserRequest)
         case create(dto: CreateUserRequest)
-        case update(id: String, dto: UpdateUserRequest)
+        case updateProfile(dto: UpdateUserRequest)
+        case adminUpdate(id: String, dto: UpdateUserRequest)
         case delete(id: String)
         case checkAvailability(type: AvailabilityType)
         case updateRole(String)
@@ -24,7 +25,9 @@ public extension Store {
                 return "/users/register"
             case .create:
                 return "/users"
-            case .update(let id, _):
+            case .updateProfile:
+                return "/users/update-profile"
+            case .adminUpdate(let id, _):
                 return "/users/\(id)"
             case .delete(let id):
                 return "/users/\(id)"
@@ -40,14 +43,12 @@ public extension Store {
             switch self {
             case .register, .create:
                 return .post
-            case .update:
+            case .updateProfile, .adminUpdate, .updateRole:
                 return .put
             case .delete:
                 return .delete
             case .getAll, .get, .getPublic, .checkAvailability:
                 return .get
-            case .updateRole:
-                return .put
             }
         }
         
@@ -55,7 +56,7 @@ public extension Store {
             switch self {
             case .register(let dto), .create(let dto):
                 return dto
-            case .update(_, let dto):
+            case .updateProfile(let dto), .adminUpdate(_, let dto):
                 return dto
             default:
                 return nil

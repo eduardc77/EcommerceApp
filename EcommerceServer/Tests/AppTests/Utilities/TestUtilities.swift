@@ -67,7 +67,7 @@ extension TestClientProtocol {
         try await self.execute(
             uri: "/api/v1/auth/email/verify-initial",
             method: .post,
-            body: JSONEncoder().encodeAsByteBuffer(EmailVerifyRequest(email: email, code: "123456"), allocator: ByteBufferAllocator())
+            body: JSONEncoder().encodeAsByteBuffer(TestEmailVerifyRequest(code: "123456"), allocator: ByteBufferAllocator())
         ) { response in
             guard response.status == .ok else {
                 let error = try? JSONDecoder().decode(ErrorResponse.self, from: response.body)

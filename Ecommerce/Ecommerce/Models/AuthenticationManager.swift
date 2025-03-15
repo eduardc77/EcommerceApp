@@ -220,7 +220,7 @@ public final class AuthenticationManager {
         
         do {
             let dto = UpdateUserRequest(displayName: displayName, email: email)
-            currentUser = try await userService.updateUser(id: id, dto: dto)
+            currentUser = try await userService.updateProfile(id: id, dto: dto)
             
             // If email was updated, we need to update the JWT since it uses email as subject
             if let newEmail = email {

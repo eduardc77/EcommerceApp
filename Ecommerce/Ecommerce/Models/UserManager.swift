@@ -76,7 +76,7 @@ public final class UserManager {
         error = nil
         do {
             let dto = UpdateUserRequest(displayName: displayName, email: email)
-            let updatedUser = try await userService.updateUser(id: id, dto: dto)
+            let updatedUser = try await userService.updateProfile(id: id, dto: dto)
             if let index = users.firstIndex(where: { $0.id == id }) {
                 users[index] = updatedUser
             }
