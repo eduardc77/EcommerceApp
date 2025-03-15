@@ -19,7 +19,7 @@ struct EmailVerificationTests {
                 displayName: "Verify Test User",
                 email: "verify@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
 
             let _ = try await client.execute(
@@ -69,7 +69,7 @@ struct EmailVerificationTests {
                 displayName: "Email 2FA User",
                 email: "email2fa@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
 
             try await client.execute(
@@ -158,7 +158,7 @@ struct EmailVerificationTests {
                 displayName: "Invalid Code Test",
                 email: "invalid@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
 
             try await client.execute(

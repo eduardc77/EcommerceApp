@@ -17,7 +17,7 @@ struct CreateUserRequest: Decodable, Sendable {
     let displayName: String
     let email: String
     let password: String
-    let avatar: String?
+    let profilePicture: String?
     let role: Role?
 
     enum CodingKeys: String, CodingKey {
@@ -25,7 +25,7 @@ struct CreateUserRequest: Decodable, Sendable {
         case displayName
         case email
         case password
-        case avatar
+        case profilePicture
         case role
     }
 
@@ -148,8 +148,8 @@ struct CreateUserRequest: Decodable, Sendable {
             throw HTTPError(.badRequest, message: "Invalid password format")
         }
         
-        // Make avatar optional with a default value
-        self.avatar = try container.decodeIfPresent(String.self, forKey: .avatar) ?? "https://api.dicebear.com/7.x/avataaars/png"
+        // Make profilePicture optional with a default value
+        self.profilePicture = try container.decodeIfPresent(String.self, forKey: .profilePicture) ?? "https://api.dicebear.com/7.x/avataaars/png"
         self.role = try container.decodeIfPresent(Role.self, forKey: .role)
         
         // Validate password using the new validator with user info
@@ -172,7 +172,7 @@ struct CreateUserRequest: Decodable, Sendable {
         displayName: String,
         email: String,
         password: String,
-        avatar: String? = "https://api.dicebear.com/7.x/avataaars/png",
+        profilePicture: String? = "https://api.dicebear.com/7.x/avataaars/png",
         role: Role? = nil
     ) throws {
         // Validate username
@@ -205,7 +205,7 @@ struct CreateUserRequest: Decodable, Sendable {
         }
         self.password = password
         
-        self.avatar = avatar
+        self.profilePicture = profilePicture
         self.role = role
         
         // Validate password using the new validator with user info

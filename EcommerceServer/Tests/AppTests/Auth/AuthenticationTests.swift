@@ -20,7 +20,7 @@ struct AuthenticationTests {
                 displayName: "Test User",
                 email: "testuser@example.com",
                 password: "Testing132!@#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -67,7 +67,7 @@ struct AuthenticationTests {
                 displayName: "Test User",
                 email: "testuser@example.com",
                 password: "Testing132!@#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -149,7 +149,7 @@ struct AuthenticationTests {
                 displayName: "Credential Test User",
                 email: "credentials@example.com",
                 password: "K9#mP2$vL5nQ8*xZ@",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -186,7 +186,7 @@ struct AuthenticationTests {
                 displayName: "Rate Limit Test User",
                 email: "ratelimit@example.com",
                 password: "K9#mP2$vL5nQ8*xZ@",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -228,7 +228,7 @@ struct AuthenticationTests {
                 displayName: "Lockout Test User",
                 email: "lockout@example.com",
                 password: "K9#mP2$vL5nQ8*xZ@",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",

@@ -21,7 +21,7 @@ struct TOTPTests {
                 displayName: "TOTP Test User",
                 email: "totp_test_123@example.com",
                 password: "P@th3r#Bk9$mN",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -62,7 +62,7 @@ struct TOTPTests {
                 uri: "/api/v1/auth/totp/enable",
                 method: .post,
                 auth: .bearer(authResponse.accessToken),
-                body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: "000000"), allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: "000100"), allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .unauthorized)
             }
@@ -101,7 +101,7 @@ struct TOTPTests {
                 displayName: "TOTP Test User 2",
                 email: "totp_test_456@example.com",
                 password: "P@th3r#Bk9$mN",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -195,7 +195,7 @@ struct TOTPTests {
                 displayName: "TOTP Test User 3",
                 email: "totp_test_789@example.com",
                 password: "P@th3r#Bk9$mN",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -286,7 +286,7 @@ struct TOTPTests {
                 displayName: "TOTP Test User 4",
                 email: "totp_test_456@example.com",
                 password: "P@th3r#Bk9$mN!Z",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",

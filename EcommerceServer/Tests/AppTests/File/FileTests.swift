@@ -17,7 +17,7 @@ struct MultipartFormTests {
             displayName: "Test User",
             email: email,
             password: "TestingV@lid143!#",
-            avatar: "https://api.dicebear.com/7.x/avataaars/png"
+            profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
         )
 
         try await client.execute(

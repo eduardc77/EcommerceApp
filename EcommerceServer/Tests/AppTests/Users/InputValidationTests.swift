@@ -33,7 +33,7 @@ struct InputValidationTests {
                     displayName: "Email Test User",
                     email: invalidEmail,
                     password: "TestingValid143!@#",
-                    avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                    profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
                 )
                 try await client.execute(
                     uri: "/api/v1/auth/register",
@@ -61,7 +61,7 @@ struct InputValidationTests {
                     displayName: "Valid Email User",
                     email: validEmail,
                     password: "TestingV@lid143!#Z",
-                    avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                    profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
                 )
                 try await client.execute(
                     uri: "/api/v1/auth/register",
@@ -104,7 +104,7 @@ struct InputValidationTests {
                     displayName: "Username Test User",
                     email: "username.test@example.com",
                     password: "TestingValid143!@#",
-                    avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                    profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
                 )
                 try await client.execute(
                     uri: "/api/v1/auth/register",
@@ -133,7 +133,7 @@ struct InputValidationTests {
                     displayName: "Username Test User",
                     email: "\(validUsername)@example.com",
                     password: "TestingV@lid143!#Z",
-                    avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                    profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
                 )
                 try await client.execute(
                     uri: "/api/v1/auth/register",
@@ -160,7 +160,7 @@ struct InputValidationTests {
                 displayName: "Test User 1",
                 email: "test1@example.com",
                 password: "Sh0rt!",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -178,7 +178,7 @@ struct InputValidationTests {
                 displayName: "Test User 2",
                 email: "test2@example.com",
                 password: "nouppercase123!@#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -196,7 +196,7 @@ struct InputValidationTests {
                 displayName: "Test User 3",
                 email: "test3@example.com",
                 password: "Password123!@#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -214,7 +214,7 @@ struct InputValidationTests {
                 displayName: "Test User 4",
                 email: "test4@example.com",
                 password: "TestAAA123!!!@#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -232,7 +232,7 @@ struct InputValidationTests {
                 displayName: "Test User 5",
                 email: "test5@example.com",
                 password: "Test12345!@#$%",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -250,7 +250,7 @@ struct InputValidationTests {
                 displayName: "John Doe",
                 email: "john@example.com",
                 password: "johndoe123!@#ABC",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -268,7 +268,7 @@ struct InputValidationTests {
                 displayName: "Valid User",
                 email: "valid@example.com",
                 password: "V3ryStr0ng&Un!que#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",

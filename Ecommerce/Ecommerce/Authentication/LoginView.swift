@@ -34,17 +34,10 @@ struct LoginView: View {
                 }
                 .padding(.horizontal)
                 
-                Button(action: login) {
-                    if authManager.isLoading {
-                        ProgressView()
-                    } else {
-                        Text(showTOTPVerification ? "Verify" : "Sign In")
-                            .frame(maxWidth: .infinity)
-                    }
+                AsyncButton(showTOTPVerification ? "Verify" : "Sign In") {
+                    await login()
                 }
-                .buttonStyle(.borderedProminent)
                 .padding(.horizontal)
-                .disabled(authManager.isLoading)
                 
                 if !showTOTPVerification {
                     NavigationLink {
@@ -54,13 +47,14 @@ struct LoginView: View {
                     }
                 }
             }
-            .alert("Error", isPresented: .constant(authManager.error != nil)) {
-                Button("OK") { authManager.error = nil }
+            .alert("Sign In Error", isPresented: .constant(authManager.loginError != nil)) {
+                Button("OK") { authManager.loginError = nil }
             } message: {
-                Text(authManager.error?.localizedDescription ?? "")
+                Text(authManager.loginError?.localizedDescription ?? "")
             }
             .sheet(isPresented: $showEmailVerification) {
-                EmailVerificationView()
+                EmailVerificationView(source: .registration)
+                    .interactiveDismissDisabled()
             }
             .onChange(of: authManager.requires2FA) { _, requires2FA in
                 showTOTPVerification = requires2FA
@@ -69,18 +63,20 @@ struct LoginView: View {
                 }
             }
             .onChange(of: authManager.requiresEmailVerification) { _, requiresEmailVerification in
-                showEmailVerification = requiresEmailVerification
+                if requiresEmailVerification {
+                    showEmailVerification = true
+                } else {
+                    showEmailVerification = false
+                }
             }
         }
     }
     
-    private func login() {
-        Task {
-            if showTOTPVerification {
-                await authManager.signIn(identifier: identifier, password: password, totpCode: totpCode)
-            } else {
-                await authManager.signIn(identifier: identifier, password: password)
-            }
+    private func login() async {
+        if showTOTPVerification {
+            await authManager.signIn(identifier: identifier, password: password, totpCode: totpCode)
+        } else {
+            await authManager.signIn(identifier: identifier, password: password)
         }
     }
 } 

@@ -23,7 +23,7 @@ struct UserOperationsTests {
                 displayName: "Test User",
                 email: "testuser@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             var userId: String = ""
@@ -77,7 +77,7 @@ struct UserOperationsTests {
                 displayName: "User One",
                 email: "user1@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             var user1Id: String = ""
@@ -99,7 +99,7 @@ struct UserOperationsTests {
                 displayName: "User Two",
                 email: "user2@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             // Register second user
@@ -147,7 +147,7 @@ struct UserOperationsTests {
                 displayName: "Delete Test",
                 email: "deletetest@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             var userId: String = ""
@@ -206,7 +206,7 @@ struct UserOperationsTests {
                 displayName: "User One Delete",
                 email: "user1delete@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             var user1Id: String = ""
@@ -228,7 +228,7 @@ struct UserOperationsTests {
                 displayName: "User Two Delete",
                 email: "user2delete@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             // Register second user
@@ -276,7 +276,7 @@ struct UserOperationsTests {
                 displayName: "User One Public",
                 email: "user1public@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             var user1Id: String = ""
@@ -298,7 +298,7 @@ struct UserOperationsTests {
                 displayName: "User Two Public",
                 email: "user2public@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             // Register second user
@@ -362,7 +362,7 @@ struct UserOperationsTests {
                 displayName: "Admin User",
                 email: "admin@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             // Register admin
@@ -383,7 +383,7 @@ struct UserOperationsTests {
                 displayName: "Regular User",
                 email: "regular@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             var regularUserId: String = ""
@@ -423,7 +423,7 @@ struct UserOperationsTests {
                 #expect(userResponse.username == regularUser.username)
                 #expect(userResponse.email == regularUser.email)  // Admin can see email
                 #expect(userResponse.displayName == regularUser.displayName)
-                #expect(userResponse.avatar == regularUser.avatar)
+                #expect(userResponse.profilePicture == regularUser.profilePicture)
             }
         }
     }

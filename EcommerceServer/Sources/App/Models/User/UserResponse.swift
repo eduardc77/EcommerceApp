@@ -7,7 +7,7 @@ struct UserResponse: ResponseCodable, Sendable {
     let username: String
     let displayName: String
     let email: String
-    let avatar: String
+    let profilePicture: String
     let role: Role
     let createdAt: String
     let updatedAt: String
@@ -17,7 +17,7 @@ struct UserResponse: ResponseCodable, Sendable {
         self.username = user.username
         self.displayName = user.displayName
         self.email = user.email
-        self.avatar = user.avatar ?? "https://api.dicebear.com/7.x/avataaars/png"
+        self.profilePicture = user.profilePicture ?? "https://api.dicebear.com/7.x/avataaars/png"
         self.role = user.role
         self.createdAt = user.createdAt?.ISO8601Format() ?? ""
         self.updatedAt = user.updatedAt?.ISO8601Format() ?? ""
@@ -29,7 +29,7 @@ struct PublicUserResponse: ResponseCodable, Sendable {
     let id: String
     let username: String
     let displayName: String
-    let avatar: String?
+    let profilePicture: String
     let role: Role
     let createdAt: String
     let updatedAt: String
@@ -38,7 +38,7 @@ struct PublicUserResponse: ResponseCodable, Sendable {
         self.id = user.id?.uuidString ?? ""
         self.username = user.username
         self.displayName = user.displayName
-        self.avatar = user.avatar
+        self.profilePicture = user.profilePicture ?? "https://api.dicebear.com/7.x/avataaars/png"
         self.role = user.role
         self.createdAt = user.createdAt?.ISO8601Format() ?? ""
         self.updatedAt = user.updatedAt?.ISO8601Format() ?? ""

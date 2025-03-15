@@ -72,7 +72,7 @@ struct PreviewUserService: UserServiceProtocol {
             id: id,
             username: "johndoe",
             displayName: "John Doe",
-            avatar: "https://api.dicebear.com/7.x/avataaars/png",
+            profilePicture: "https://api.dicebear.com/7.x/avataaars/png",
             role: .customer,
             createdAt: "2025-02-23T21:51:49.000Z",
             updatedAt: "2025-02-23T21:51:49.000Z"
@@ -145,7 +145,7 @@ extension UserResponse {
         username: "johndoe",
         displayName: "John Doe",
         email: "john@example.com",
-        avatar: "https://api.dicebear.com/7.x/avataaars/png",
+        profilePicture: "https://api.dicebear.com/7.x/avataaars/png",
         role: .customer,
         createdAt: "2025-02-23T21:51:49.000Z",
         updatedAt: "2025-02-23T21:51:49.000Z"

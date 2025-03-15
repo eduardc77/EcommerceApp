@@ -7,7 +7,7 @@ struct TestCreateUserRequest: Encodable {
     let displayName: String
     let email: String
     let password: String
-    let avatar: String?
+    let profilePicture: String?
     let role: Role?
 
     init(
@@ -15,14 +15,14 @@ struct TestCreateUserRequest: Encodable {
         displayName: String,
         email: String,
         password: String,
-        avatar: String? = "https://api.dicebear.com/7.x/avataaars/png",
+        profilePicture: String? = "https://api.dicebear.com/7.x/avataaars/png",
         role: Role? = nil
     ) {
         self.username = username
         self.displayName = displayName
         self.email = email
         self.password = password
-        self.avatar = avatar
+        self.profilePicture = profilePicture
         self.role = role
     }
 }

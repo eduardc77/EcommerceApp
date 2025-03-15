@@ -19,7 +19,7 @@ struct UserRegistrationTests {
                 displayName: "Test User",
                 email: "testuser@example.com",
                 password: "TestingV@lid143!#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             // 1. Register user
@@ -60,7 +60,7 @@ struct UserRegistrationTests {
                 displayName: "First User",
                 email: "duplicate@example.com",
                 password: "TestingV@lid143!#Z",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -76,7 +76,7 @@ struct UserRegistrationTests {
                 displayName: "Second User",
                 email: "duplicate@example.com",
                 password: "TestingV@lid143!#Z",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -101,7 +101,7 @@ struct UserRegistrationTests {
                 displayName: "First User",
                 email: "first@example.com",
                 password: "TestingValid143!@#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -117,7 +117,7 @@ struct UserRegistrationTests {
                 displayName: "Second User",
                 email: "second@example.com",
                 password: "TestingValid143!@#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",

@@ -13,7 +13,7 @@ public extension Store {
         public var path: String {
             switch self {
             case .initialStatus:
-                return "/auth/email/status"
+                return "/auth/email/2fa/status"
             case .verifyInitial:
                 return "/auth/email/verify-initial"
             case .resend:

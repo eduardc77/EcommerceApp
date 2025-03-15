@@ -7,7 +7,7 @@ struct CreateUser: AsyncMigration {
             .field("username", .string, .required)
             .field("display_name", .string, .required)
             .field("email", .string, .required)
-            .field("avatar", .string, .sql(.default("https://api.dicebear.com/7.x/avataaars/png")))
+            .field("profile_picture", .string, .sql(.default("https://api.dicebear.com/7.x/avataaars/png")))
             .field("role", .string, .required)
             .field("password_hash", .string)
             .field("password_updated_at", .datetime)

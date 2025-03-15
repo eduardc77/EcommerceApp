@@ -7,7 +7,7 @@ struct UserCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            AsyncImage(url: URL(string: user.avatar ?? "")) { image in
+            AsyncImage(url: URL(string: user.profilePicture ?? "")) { image in
                 image
                     .resizable()
                     .frame(minWidth: 150, maxWidth: .infinity)

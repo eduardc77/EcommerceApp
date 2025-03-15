@@ -41,15 +41,10 @@ struct RegisterView: View {
                         .disabled(!isValid)
                 }
             }
-            .overlay {
-                if authManager.isLoading {
-                    ProgressView()
-                }
-            }
-            .alert("Registration Error", isPresented: .constant(authManager.error != nil)) {
-                Button("OK") { authManager.error = nil }
+            .alert("Registration Error", isPresented: .constant(authManager.registrationError != nil)) {
+                Button("OK") { authManager.registrationError = nil }
             } message: {
-                Text(authManager.error?.localizedDescription ?? "")
+                Text(authManager.registrationError?.localizedDescription ?? "")
             }
         }
     }

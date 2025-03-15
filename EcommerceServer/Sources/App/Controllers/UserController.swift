@@ -237,9 +237,9 @@ struct UserController {
             return .init(status: .ok, response: UserResponse(from: user))
         }
         
-        // Update avatar if provided
-        if let avatar = updateUser.avatar {
-            user.avatar = avatar
+        // Update profile picture if provided
+        if let profilePicture = updateUser.profilePicture {
+            user.profilePicture = profilePicture
         }
         
         try await user.save(on: db)
@@ -294,8 +294,8 @@ struct UserController {
             user.tokenVersion += 1
         }
         
-        if let avatar = updateUser.avatar {
-            user.avatar = avatar
+        if let profilePicture = updateUser.profilePicture {
+            user.profilePicture = profilePicture
         }
         
         try await user.save(on: fluent.db())
@@ -457,7 +457,7 @@ struct UpdateUserRequest: Codable, Sendable {
     let displayName: String?
     let email: String?
     let password: String?
-    let avatar: String?
+    let profilePicture: String?
     let role: Role?
 }
 

@@ -20,7 +20,7 @@ struct TokenManagementTests {
                 displayName: "Refresh Test User",
                 email: "refresh@example.com",
                 password: "K9#mP2$vL5nQ8*x",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -95,7 +95,7 @@ struct TokenManagementTests {
                 displayName: "Logout Test User",
                 email: "logout@example.com",
                 password: "K9#mP2$vL5nQ8*x",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -158,7 +158,7 @@ struct TokenManagementTests {
                 displayName: "Blacklist Test User",
                 email: "blacklist@example.com",
                 password: "K9#mP2$vL5nQ8*x",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -220,7 +220,7 @@ struct TokenManagementTests {
                 displayName: "Email Update User",
                 email: "original@example.com",
                 password: "K9#mP2$vL5nQ8*xZ@",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -247,7 +247,7 @@ struct TokenManagementTests {
                 displayName: nil,
                 email: "updated@example.com",
                 password: nil,
-                avatar: nil,
+                profilePicture: nil,
                 role: nil
             )
             try await client.execute(
@@ -283,7 +283,7 @@ struct TokenManagementTests {
                 displayName: "Expired Token User",
                 email: "expired@example.com",
                 password: "K9#mP2$vL5nQ8*x",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             let userResponse = try await client.execute(
                 uri: "/api/v1/auth/register",
@@ -331,7 +331,7 @@ struct TokenManagementTests {
                 displayName: "Version Test User",
                 email: "version@example.com",
                 password: "K9#mP2$vL5nQ8*x",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
                 uri: "/api/v1/auth/register",

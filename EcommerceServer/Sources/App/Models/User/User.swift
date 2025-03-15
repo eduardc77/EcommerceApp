@@ -25,8 +25,8 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
     @Field(key: "email")
     var email: String
     
-    @Field(key: "avatar")
-    var avatar: String?
+    @Field(key: "profile_picture")
+    var profilePicture: String?
     
     @Enum(key: "role")
     var role: Role
@@ -92,7 +92,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         username: String,
         displayName: String,
         email: String,
-        avatar: String? = nil,
+        profilePicture: String? = nil,
         role: Role = .customer,
         passwordHash: String?,
         emailVerified: Bool = false,
@@ -113,7 +113,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.username = username
         self.displayName = displayName
         self.email = email
-        self.avatar = avatar
+        self.profilePicture = profilePicture
         self.role = role
         self.passwordHash = passwordHash
         self.emailVerified = emailVerified
@@ -137,7 +137,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.username = name
         self.displayName = name
         self.email = Self.createSSOEmail(for: name)
-        self.avatar = nil
+        self.profilePicture = nil
         self.role = .customer
         self.passwordHash = nil
         self.emailVerified = true
@@ -181,7 +181,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.username = userRequest.username
         self.displayName = userRequest.displayName
         self.email = userRequest.email
-        self.avatar = userRequest.avatar ?? "https://api.dicebear.com/7.x/avataaars/png"
+        self.profilePicture = userRequest.profilePicture ?? "https://api.dicebear.com/7.x/avataaars/png"
         self.role = userRequest.role ?? .customer
         self.emailVerified = false
         self.failedLoginAttempts = 0
@@ -301,8 +301,8 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         return String(username.unicodeScalars.filter { allowedCharacters.contains($0) })
     }
     
-    /// Validate avatar URL
-    private static func validateAvatarURL(_ url: String?) -> String? {
+    /// Validate profilePicture URL
+    private static func validateProfilePictureURL(_ url: String?) -> String? {
         guard let url = url else { return nil }
         
         // Only allow HTTPS URLs
@@ -335,7 +335,7 @@ extension User {
         static let username: FluentKit.FieldKey = "username"
         static let displayName: FluentKit.FieldKey = "display_name"
         static let email: FluentKit.FieldKey = "email"
-        static let avatar: FluentKit.FieldKey = "avatar"
+        static let profilePicture: FluentKit.FieldKey = "profile_picture"
         static let role: FluentKit.FieldKey = "role"
         static let passwordHash: FluentKit.FieldKey = "password_hash"
         static let passwordUpdatedAt: FluentKit.FieldKey = "password_updated_at"
@@ -367,7 +367,7 @@ extension User {
                 .field(FieldKey.displayName, .string, .required)
                 .field(FieldKey.email, .string, .required)
                 .unique(on: FieldKey.email)
-                .field(FieldKey.avatar, .string)
+                .field(FieldKey.profilePicture, .string)
                 .field(FieldKey.role, .string, .required)
                 .field(FieldKey.passwordHash, .string)
                 .field(FieldKey.passwordUpdatedAt, .datetime)

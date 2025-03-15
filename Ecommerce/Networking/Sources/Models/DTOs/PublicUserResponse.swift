@@ -5,7 +5,7 @@ public struct PublicUserResponse: Codable, Identifiable, Sendable {
     public let id: String  // UUID as string
     public let username: String
     public let displayName: String
-    public let avatar: String?
+    public let profilePicture: String?
     public let role: Role
     public let createdAt: String
     public let updatedAt: String
@@ -14,7 +14,7 @@ public struct PublicUserResponse: Codable, Identifiable, Sendable {
         id: String,
         username: String,
         displayName: String,
-        avatar: String?,
+        profilePicture: String?,
         role: Role,
         createdAt: String,
         updatedAt: String
@@ -22,7 +22,7 @@ public struct PublicUserResponse: Codable, Identifiable, Sendable {
         self.id = id
         self.username = username
         self.displayName = displayName
-        self.avatar = avatar
+        self.profilePicture = profilePicture
         self.role = role
         self.createdAt = createdAt
         self.updatedAt = updatedAt

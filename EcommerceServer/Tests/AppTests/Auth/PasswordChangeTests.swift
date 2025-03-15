@@ -41,7 +41,7 @@ struct PasswordChangeTests {
                 displayName: "Password Test User",
                 email: "passwordtest@example.com",
                 password: "OldP@ssw0rd!9K#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             try await client.execute(
@@ -93,7 +93,7 @@ struct PasswordChangeTests {
                 displayName: "Password Test User 2",
                 email: "passwordtest2@example.com",
                 password: "OldP@ssw0rd!9K#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             try await client.execute(
@@ -145,7 +145,7 @@ struct PasswordChangeTests {
                 displayName: "Password Test User 3",
                 email: "passwordtest3@example.com",
                 password: "OldP@ssw0rd!9K#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             try await client.execute(
@@ -228,7 +228,7 @@ struct PasswordChangeTests {
                 displayName: "Password Test User 4",
                 email: "passwordtest4@example.com",
                 password: "OldP@ssw0rd!9K#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             try await client.execute(

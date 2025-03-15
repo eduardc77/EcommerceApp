@@ -5,7 +5,7 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
     public let username: String
     public let displayName: String
     public let email: String
-    public let avatar: String?
+    public let profilePicture: String?  // Optional since server might not have it
     public let role: Role
     public let createdAt: String
     public let updatedAt: String
@@ -15,7 +15,7 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
         username: String,
         displayName: String,
         email: String,
-        avatar: String?,
+        profilePicture: String? = nil,
         role: Role,
         createdAt: String,
         updatedAt: String
@@ -24,7 +24,7 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
         self.username = username
         self.displayName = displayName
         self.email = email
-        self.avatar = avatar
+        self.profilePicture = profilePicture
         self.role = role
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -49,7 +49,7 @@ extension UserResponse {
             id: id,
             username: username,
             displayName: displayName,
-            avatar: avatar,
+            profilePicture: profilePicture,
             role: role,
             createdAt: createdAt,
             updatedAt: updatedAt

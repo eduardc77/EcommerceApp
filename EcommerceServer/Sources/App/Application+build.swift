@@ -94,7 +94,11 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     await fluent.migrations.add(EmailVerificationCode.Migration())
     
     // migrate
-    if args.migrate || args.inMemoryDatabase {
+    let fileManager = FileManager.default
+    let serverDirectory = fileManager.currentDirectoryPath
+    let dbPath = serverDirectory + "/db.sqlite"
+    let shouldMigrate = args.migrate || args.inMemoryDatabase || !fileManager.fileExists(atPath: dbPath)
+    if shouldMigrate {
         logger.info("Running database migrations...")
         try await fluent.migrate()
         logger.info("Database migrations completed successfully")

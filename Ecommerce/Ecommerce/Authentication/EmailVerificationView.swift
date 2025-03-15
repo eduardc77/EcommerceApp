@@ -1,8 +1,16 @@
 import SwiftUI
 
+enum VerificationSource {
+    case registration    // During initial registration
+    case account        // From account settings
+    case emailUpdate    // After email update
+}
+
 struct EmailVerificationView: View {
     @Environment(AuthenticationManager.self) private var authManager
     @Environment(\.dismiss) private var dismiss
+    
+    let source: VerificationSource
     
     @State private var verificationCode = ""
     @State private var isShowingSkipAlert = false
@@ -23,9 +31,9 @@ struct EmailVerificationView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
+            VStack {
                 // Header Section
-                VStack(spacing: 16) {
+                VStack {
                     Image(systemName: "envelope.badge.shield")
                         .font(.system(size: 60))
                         .symbolEffect(.bounce, options: .repeating)
@@ -46,11 +54,18 @@ struct EmailVerificationView: View {
                 .padding(.top)
                 
                 // Code Input Section
-                VStack(spacing: 16) {
+                VStack {
                     OneTimeCodeInput(code: $verificationCode, codeLength: codeLength)
                         .focused($isCodeFieldFocused)
                     
-                    VStack(spacing: 8) {
+                    if showError {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                    }
+                    
+                    VStack {
                         if isExpirationTimerRunning {
                             Text("Code expires in \(formatTime(expirationTimer))")
                                 .font(.footnote)
@@ -62,10 +77,10 @@ struct EmailVerificationView: View {
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         } else {
-                            Button(action: resendCode) {
-                                Text("Resend Code")
-                                    .font(.footnote)
+                            AsyncButton("Resend Code") {
+                                await resendCode()
                             }
+                            .font(.footnote)
                             .disabled(isResendingCode)
                         }
                     }
@@ -80,12 +95,9 @@ struct EmailVerificationView: View {
                 
                 // Action Buttons
                 VStack(spacing: 12) {
-                    Button(action: verifyCode) {
-                        Text("Verify")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
+                    AsyncButton("Verify") {
+                        await verifyCode()
                     }
-                    .buttonStyle(.borderedProminent)
                     .disabled(verificationCode.count != codeLength || attempts >= maxAttempts)
                     
                     Button(action: { isShowingSkipAlert = true }) {
@@ -98,18 +110,21 @@ struct EmailVerificationView: View {
             }
             .padding()
             .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: verificationCode) { oldValue, newValue in
+                // Only clear error if user is actively typing a new code
+                if newValue.count > oldValue.count {
+                    showError = false
+                    errorMessage = ""
+                }
+            }
             .alert("Skip Verification?", isPresented: $isShowingSkipAlert) {
                 Button("Continue without verifying", role: .destructive) {
+                    authManager.skipEmailVerification()
                     dismiss()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("You can still use the app, but some features will be limited until you verify your email.")
-            }
-            .alert("Verification Error", isPresented: $showError) {
-                Button("OK") { }
-            } message: {
-                Text(errorMessage)
             }
             .overlay {
                 if authManager.isLoading {
@@ -120,51 +135,25 @@ struct EmailVerificationView: View {
         }
         .onAppear {
             isCodeFieldFocused = true
-            startExpirationTimer()
-            startResendCooldown()
-        }
-    }
-    
-    private func verifyCode() {
-        guard attempts < maxAttempts else {
-            errorMessage = "Too many attempts. Please request a new code."
-            showError = true
-            return
-        }
-        
-        Task {
-            attempts += 1
-            let success = await authManager.verifyEmail(code: verificationCode)
-            if success {
-                dismiss()
-            } else if let error = authManager.error {
-                errorMessage = error.localizedDescription
-                showError = true
-                
-                if attempts >= maxAttempts {
-                    verificationCode = ""
-                    isExpirationTimerRunning = false
-                }
-            }
-        }
-    }
-    
-    private func resendCode() {
-        Task {
-            isResendingCode = true
-            await authManager.resendVerificationEmail()
             
-            if authManager.error == nil {
-                attempts = 0
-                verificationCode = ""
+            switch source {
+            case .registration:
+                // Code already sent during registration, just start timers
                 startExpirationTimer()
                 startResendCooldown()
-            } else {
-                errorMessage = authManager.error?.localizedDescription ?? "Failed to resend code"
-                showError = true
+            case .account, .emailUpdate:
+                // Send new code and start timers
+                Task {
+                    await authManager.resendVerificationEmail()
+                    if authManager.verificationError == nil {
+                        startExpirationTimer()
+                        startResendCooldown()
+                    } else {
+                        errorMessage = authManager.verificationError?.localizedDescription ?? VerificationError.unknown("Failed to send verification code").localizedDescription
+                        showError = true
+                    }
+                }
             }
-            
-            isResendingCode = false
         }
     }
     
@@ -173,7 +162,7 @@ struct EmailVerificationView: View {
         isExpirationTimerRunning = true
         
         Task {
-            while expirationTimer > 0 {
+            while expirationTimer > 0 && !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 expirationTimer -= 1
             }
@@ -185,7 +174,7 @@ struct EmailVerificationView: View {
         resendCooldown = Self.resendCooldownTime
         
         Task {
-            while resendCooldown > 0 {
+            while resendCooldown > 0 && !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 resendCooldown -= 1
             }
@@ -196,6 +185,57 @@ struct EmailVerificationView: View {
         let minutes = seconds / 60
         let remainingSeconds = seconds % 60
         return String(format: "%d:%02d", minutes, remainingSeconds)
+    }
+    
+    private func verifyCode() async {
+        guard attempts < maxAttempts else {
+            withAnimation {
+                errorMessage = VerificationError.tooManyAttempts.localizedDescription
+                showError = true
+            }
+            return
+        }
+        
+        attempts += 1
+        let success = await authManager.verifyEmail(code: verificationCode)
+        
+        if success {
+            dismiss()
+        } else {
+            withAnimation {
+                errorMessage = authManager.verificationError?.localizedDescription ?? VerificationError.unknown("Verification failed").localizedDescription
+                showError = true
+                verificationCode = ""  // Clear code after setting error
+                
+                // If max attempts reached, stop the timer
+                if attempts >= maxAttempts {
+                    isExpirationTimerRunning = false
+                }
+            }
+        }
+    }
+    
+    private func resendCode() async {
+        isResendingCode = true
+        await authManager.resendVerificationEmail()
+        
+        if authManager.verificationError == nil {
+            withAnimation {
+                attempts = 0
+                showError = false
+                errorMessage = ""
+                verificationCode = ""
+                startExpirationTimer()
+                startResendCooldown()
+            }
+        } else {
+            withAnimation {
+                errorMessage = authManager.verificationError?.localizedDescription ?? VerificationError.unknown("Failed to resend code").localizedDescription
+                showError = true
+            }
+        }
+        
+        isResendingCode = false
     }
 }
 
@@ -241,7 +281,7 @@ struct OneTimeCodeInput: View {
 }
 
 #Preview {
-    EmailVerificationView()
+    EmailVerificationView(source: .registration)
         .environment(AuthenticationManager(
             authService: PreviewAuthenticationService(),
             userService: PreviewUserService(),

@@ -41,7 +41,7 @@ struct ForgotPasswordResetTests {
                 displayName: "Reset Test User",
                 email: "resettest@example.com",
                 password: "OldP@ssw0rd!9K#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             try await client.execute(
@@ -107,7 +107,7 @@ struct ForgotPasswordResetTests {
                 displayName: "Reset Test User 2",
                 email: "resettest2@example.com",
                 password: "OldP@ssw0rd!9K#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             try await client.execute(
@@ -168,7 +168,7 @@ struct ForgotPasswordResetTests {
                 displayName: "Reset Test User 3",
                 email: "resettest3@example.com",
                 password: "OldP@ssw0rd!9K#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             try await client.execute(
@@ -241,7 +241,7 @@ struct ForgotPasswordResetTests {
                 displayName: "Reset Test User 4",
                 email: "resettest4@example.com",
                 password: "OldP@ssw0rd!9K#",
-                avatar: "https://api.dicebear.com/7.x/avataaars/png"
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
             try await client.execute(

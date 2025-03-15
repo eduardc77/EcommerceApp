@@ -120,7 +120,7 @@ struct ProductCard: View {
                     username: "testusername",
                     displayName: "Test Seller",
                     email: "test@example.com",
-                    avatar: "",
+                    profilePicture: "",
                     role: .seller,
                     createdAt: "2025-02-23T21:51:49.000Z",
                     updatedAt: "2025-02-23T21:51:49.000Z"
