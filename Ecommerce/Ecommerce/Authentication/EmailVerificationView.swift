@@ -280,13 +280,25 @@ struct OneTimeCodeInput: View {
     }
 }
 
+#if DEBUG
+import Networking
+
 #Preview {
+    // Create shared dependencies
+    let tokenStore = PreviewTokenStore()
+    let refreshClient = PreviewRefreshAPIClient()
+    let authorizationManager = AuthorizationManager(
+        refreshClient: refreshClient,
+        tokenStore: tokenStore
+    )
+
     EmailVerificationView(source: .registration)
         .environment(AuthenticationManager(
             authService: PreviewAuthenticationService(),
             userService: PreviewUserService(),
-            tokenStore: PreviewTokenStore(),
             totpService: PreviewTOTPService(),
-            emailVerificationService: PreviewEmailVerificationService()
+            emailVerificationService: PreviewEmailVerificationService(),
+            authorizationManager: authorizationManager
         ))
 } 
+#endif

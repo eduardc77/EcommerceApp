@@ -22,16 +22,22 @@ struct EcommerceApp: App {
     init() {
         // Initialize core networking
         let tokenStore = TokenStore()
-        let authorizationManager = AuthorizationManager(tokenStore: tokenStore)
+        let refreshClient = RefreshAPIClient(environment: .develop)
+        
+        // Create authorization manager first
+        let authorizationManager = AuthorizationManager(
+            refreshClient: refreshClient,
+            tokenStore: tokenStore
+        )
+        
+        // Create API client with authorization manager
         let apiClient = DefaultAPIClient(authorizationManager: authorizationManager)
         
-        // Set the API client after creation for token refresh
-        Task {
-            await authorizationManager.setAPIClient(apiClient)
-        }
-        
         // Initialize available services
-        let authService = AuthenticationService(apiClient: apiClient)
+        let authService = AuthenticationService(
+            apiClient: apiClient,
+            authorizationManager: authorizationManager
+        )
         let userService = UserService(apiClient: apiClient)
         let totpService = TOTPService(apiClient: apiClient)
         let emailVerificationService = EmailVerificationService(apiClient: apiClient)
@@ -42,18 +48,24 @@ struct EcommerceApp: App {
         let auth = AuthenticationManager(
             authService: authService,
             userService: userService,
-            tokenStore: tokenStore,
             totpService: totpService,
-            emailVerificationService: emailVerificationService
+            emailVerificationService: emailVerificationService,
+            authorizationManager: authorizationManager
         )
-        _authManager = State(initialValue: auth)
         
+        // Initialize @State properties
+        _authManager = State(initialValue: auth)
         _userManager = State(initialValue: UserManager(userService: userService))
-        _productManager = State(initialValue: ProductManager(productService: productService, categoryService: categoryService))
+        _productManager = State(initialValue: ProductManager(
+            productService: productService,
+            categoryService: categoryService
+        ))
         _categoryManager = State(initialValue: CategoryManager(categoryService: categoryService))
         _permissionManager = State(initialValue: PermissionManager(authManager: auth))
         _totpManager = State(initialValue: TOTPManager(totpService: totpService))
-        _emailVerificationManager = State(initialValue: EmailVerificationManager(emailVerificationService: emailVerificationService))
+        _emailVerificationManager = State(initialValue: EmailVerificationManager(
+            emailVerificationService: emailVerificationService
+        ))
     }
     
     var body: some Scene {

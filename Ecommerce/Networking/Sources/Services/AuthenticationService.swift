@@ -3,7 +3,6 @@ import OSLog
 public protocol AuthenticationServiceProtocol {
     func login(dto: LoginRequest) async throws -> AuthResponse
     func register(dto: CreateUserRequest) async throws -> AuthResponse
-    func refreshToken(_ refreshToken: String) async throws -> AuthResponse
     func logout() async throws
     func me() async throws -> UserResponse
     func changePassword(current: String, new: String) async throws -> MessageResponse
@@ -15,11 +14,17 @@ public protocol AuthenticationServiceProtocol {
 public actor AuthenticationService: AuthenticationServiceProtocol {
     private let apiClient: APIClient
     private let environment: Store.Environment
+    private let authorizationManager: AuthorizationManagerProtocol
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Networking", category: "AuthenticationService")
 
-    public init(apiClient: APIClient) {
+    public init(
+        apiClient: APIClient,
+        authorizationManager: AuthorizationManagerProtocol,
+        environment: Store.Environment = .develop
+    ) {
         self.apiClient = apiClient
-        self.environment = .develop
+        self.authorizationManager = authorizationManager
+        self.environment = environment
     }
 
     public func login(dto: LoginRequest) async throws -> AuthResponse {
@@ -29,6 +34,17 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             allowRetry: false,
             requiresAuthorization: false
         )
+        
+        // Store the token
+        let token = Token(
+            accessToken: response.accessToken,
+            refreshToken: response.refreshToken,
+            tokenType: response.tokenType,
+            expiresIn: response.expiresIn,
+            expiresAt: response.expiresAt
+        )
+        await authorizationManager.storeToken(token)
+        
         logger.debug("Login successful: \(response.user.displayName)")
         return response
     }
@@ -40,18 +56,18 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             allowRetry: false,
             requiresAuthorization: false
         )
-        logger.debug("Registration successful: \(response.user.displayName)")
-        return response
-    }
-
-    public func refreshToken(_ refreshToken: String) async throws -> AuthResponse {
-        let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.refreshToken(refreshToken),
-            in: environment,
-            allowRetry: false,
-            requiresAuthorization: false
+        
+        // Store the token
+        let token = Token(
+            accessToken: response.accessToken,
+            refreshToken: response.refreshToken,
+            tokenType: response.tokenType,
+            expiresIn: response.expiresIn,
+            expiresAt: response.expiresAt
         )
-        logger.debug("Token refreshed successfully")
+        await authorizationManager.storeToken(token)
+        
+        logger.debug("Registration successful: \(response.user.displayName)")
         return response
     }
     
@@ -62,6 +78,10 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             allowRetry: false,
             requiresAuthorization: true
         )
+        
+        // Clear the token
+        try await authorizationManager.invalidateToken()
+        
         logger.debug("Logged out successfully")
     }
     

@@ -7,7 +7,7 @@ public actor NetworkManager {
     private let urlSession: URLSessionProtocol
     private let responseHandler: ResponseHandler
     private let cacheManager: CacheManager
-    private let authHandler: AuthorizationHandler
+    private let authManager: AuthorizationManagerProtocol
     private let retryHandler: RetryHandler
     
     public init(
@@ -21,10 +21,7 @@ public actor NetworkManager {
         self.urlSession = urlSession
         self.responseHandler = responseHandler
         self.cacheManager = cacheManager
-        self.authHandler = AuthorizationHandler(
-            authorizationManager: authorizationManager,
-            urlSession: urlSession
-        )
+        self.authManager = authorizationManager
         self.retryHandler = RetryHandler(retryPolicy: retryPolicy, rateLimiter: rateLimiter)
     }
 
@@ -46,18 +43,18 @@ private extension NetworkManager {
         isRefreshAttempt: Bool = false
     ) async throws -> (Data, HTTPURLResponse) {
         do {
-            var requestToSend = requiresAuthorization 
-                ? try await authHandler.authorizeRequest(request)
-                : request
+            var requestToSend = request
+            if requiresAuthorization {
+                let token = try await authManager.getValidToken()
+                requestToSend = RequestBuilder.addAuthorization(to: request, token: token.accessToken)
+            }
                 
             // Add cache control based on HTTP method
             switch request.httpMethod {
             case "GET":
-                // Always validate with server
                 requestToSend.cachePolicy = .reloadRevalidatingCacheData
                 requestToSend.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
             case "POST", "PUT", "DELETE":
-                // Never use cache for mutations
                 requestToSend.cachePolicy = .reloadIgnoringLocalCacheData
             default:
                 break
@@ -71,7 +68,6 @@ private extension NetworkManager {
             return try await handleResponse(request, data: data, response: httpResponse, isRefreshAttempt: isRefreshAttempt)
             
         } catch {
-            // First check if we should retry
             let shouldRetry = await retryHandler.shouldRetry(error: error, attempt: attempt)
             
             if !isRefreshAttempt && shouldRetry {
@@ -131,17 +127,16 @@ private extension NetworkManager {
         case 400:
             throw NetworkError.badRequest(description: "Bad Request: \(description)")
         case 401, 403:
-            if isRefreshAttempt {
-                // If we get 401/403 during a refresh attempt, let the AuthHandler handle the invalidation
-                return try await authHandler.handleTokenRefresh(for: request)
+            if !isRefreshAttempt {
+                // Try refresh once
+                return try await performRequestWithRetry(
+                    request: request,
+                    requiresAuthorization: true,
+                    attempt: 0,
+                    isRefreshAttempt: true
+                )
             }
-            // Try refresh once
-            return try await performRequestWithRetry(
-                request: request,
-                requiresAuthorization: true,
-                attempt: 0,
-                isRefreshAttempt: true
-            )
+            throw NetworkError.unauthorized(description: "Session expired. Please log in again.")
         case 404:
             throw NetworkError.notFound(description: "Not Found: \(description)")
         case 408:

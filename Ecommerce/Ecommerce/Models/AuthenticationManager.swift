@@ -92,10 +92,9 @@ public enum VerificationError: LocalizedError {
 public final class AuthenticationManager {
     private let authService: AuthenticationServiceProtocol
     private let userService: UserServiceProtocol
-    private let tokenStore: TokenStoreProtocol
     private let totpService: TOTPServiceProtocol
     private let emailVerificationService: EmailVerificationServiceProtocol
-    private let dateFormatter = ISO8601DateFormatter()
+    private let authorizationManager: AuthorizationManagerProtocol
     
     public var currentUser: UserResponse?
     public var isAuthenticated = false
@@ -110,15 +109,15 @@ public final class AuthenticationManager {
     public init(
         authService: AuthenticationServiceProtocol,
         userService: UserServiceProtocol,
-        tokenStore: TokenStoreProtocol,
         totpService: TOTPServiceProtocol,
-        emailVerificationService: EmailVerificationServiceProtocol
+        emailVerificationService: EmailVerificationServiceProtocol,
+        authorizationManager: AuthorizationManagerProtocol
     ) {
         self.authService = authService
         self.userService = userService
-        self.tokenStore = tokenStore
         self.totpService = totpService
         self.emailVerificationService = emailVerificationService
+        self.authorizationManager = authorizationManager
         
         // Check token validity on init
         Task {
@@ -126,57 +125,31 @@ public final class AuthenticationManager {
         }
     }
     
-    private func createToken(from response: AuthResponse) -> Token {
-        Token(
-            accessToken: response.accessToken,
-            refreshToken: response.refreshToken,
-            tokenType: response.tokenType,
-            expiresIn: response.expiresIn,
-            expiresAt: response.expiresAt
-        )
-    }
-    
     public func validateSession() async {
         isLoading = true
         
         do {
-            if let token = try await tokenStore.getToken() {
-                if token.isAccessTokenValid {
-                    // On initial load, we want to be strict about profile loading
-                    isAuthenticated = true
-                    do {
-                        // Load profile directly here since we want stricter error handling
-                        currentUser = try await userService.getProfile()
-                        await check2FAStatus()
-                        await checkEmailVerificationStatus()
-                    } catch {
-                        // On initial load, ANY profile error should reset auth state
-                        self.error = error
-                        isAuthenticated = false
-                        currentUser = nil
-                        await tokenStore.deleteToken()
-                    }
-                } else if !token.refreshToken.isEmpty {
-                    // Try to refresh the token
-                    let authResponse = try await authService.refreshToken(token.refreshToken)
-                    let newToken = createToken(from: authResponse)
-                    try await tokenStore.setToken(newToken)
-                    isAuthenticated = true
-                    currentUser = authResponse.user // Use user from refresh response
-                    await check2FAStatus()
-                    await checkEmailVerificationStatus()
-                } else {
-                    // Invalid token, clean up
-                    await tokenStore.deleteToken()
-                    isAuthenticated = false
-                    currentUser = nil
-                }
+            // Try to get a valid token (will refresh if needed)
+            _ = try await authorizationManager.getValidToken()
+            
+            // Token is valid, load profile
+            isAuthenticated = true
+            do {
+                currentUser = try await userService.getProfile()
+                await check2FAStatus()
+                await checkEmailVerificationStatus()
+            } catch {
+                // On initial load, ANY profile error should reset auth state
+                self.error = error
+                isAuthenticated = false
+                currentUser = nil
+                try? await authorizationManager.invalidateToken()
             }
         } catch {
             self.error = error
             isAuthenticated = false
             currentUser = nil
-            await tokenStore.deleteToken()
+            try? await authorizationManager.invalidateToken()
         }
         
         isLoading = false
@@ -185,7 +158,7 @@ public final class AuthenticationManager {
     @MainActor
     public func signIn(identifier: String, password: String, totpCode: String? = nil) async {
         isLoading = true
-        loginError = nil // Clear previous login errors
+        loginError = nil
         isAuthenticated = false
         
         do {
@@ -196,13 +169,9 @@ public final class AuthenticationManager {
                 emailCode: nil
             ))
             
-            let token = createToken(from: response)
-            try await tokenStore.setToken(token)
-            
             currentUser = response.user
             isAuthenticated = true
             
-            // No need to load profile here since we have it from login response
             await check2FAStatus()
             await checkEmailVerificationStatus()
             
@@ -245,9 +214,6 @@ public final class AuthenticationManager {
             )
             
             let authResponse = try await authService.register(dto: dto)
-            let token = createToken(from: authResponse)
-            try await tokenStore.setToken(token)
-            
             currentUser = authResponse.user
             requiresEmailVerification = authResponse.requiresEmailVerification
             
@@ -267,12 +233,12 @@ public final class AuthenticationManager {
             }
             isAuthenticated = false
             currentUser = nil
-            try? await tokenStore.invalidateToken()
+            try? await authorizationManager.invalidateToken()
         } catch {
             registrationError = .unknown(error.localizedDescription)
             isAuthenticated = false
             currentUser = nil
-            try? await tokenStore.invalidateToken()
+            try? await authorizationManager.invalidateToken()
         }
     }
     
@@ -290,7 +256,7 @@ public final class AuthenticationManager {
             requiresEmailVerification = false
             
             // Clear token and cached data
-            try await tokenStore.invalidateToken()
+            try await authorizationManager.invalidateToken()
             URLCache.shared.removeAllCachedResponses()
             
             // Call backend logout endpoint last
@@ -329,7 +295,7 @@ public final class AuthenticationManager {
                 // Reauthenticate to get new tokens with updated email
                 let loginDTO = LoginRequest(identifier: newEmail, password: "") // Password not needed as we're already authenticated
                 let response = try await authService.login(dto: loginDTO)
-                try await tokenStore.setToken(createToken(from: response))
+                currentUser = response.user
             }
             
             // Send verification email for new address
@@ -361,7 +327,7 @@ public final class AuthenticationManager {
             if case .unauthorized = networkError {
                 isAuthenticated = false
                 currentUser = nil
-                try? await tokenStore.invalidateToken()
+                try? await authorizationManager.invalidateToken()
             }
         } catch {
             // Keep existing profile data on other errors

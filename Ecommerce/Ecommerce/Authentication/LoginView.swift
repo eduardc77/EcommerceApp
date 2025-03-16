@@ -11,11 +11,7 @@ struct LoginView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                Text("Welcome Back")
-                    .font(.title)
-                    .fontWeight(.bold)
-                
+            Form {
                 VStack(spacing: 15) {
                     TextField("Email or Username", text: $identifier)
                         .textFieldStyle(.roundedBorder)
@@ -47,6 +43,7 @@ struct LoginView: View {
                     }
                 }
             }
+            .navigationTitle("Login")
             .alert("Sign In Error", isPresented: .constant(authManager.loginError != nil)) {
                 Button("OK") { authManager.loginError = nil }
             } message: {
