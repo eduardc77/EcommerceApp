@@ -2,78 +2,118 @@ import SwiftUI
 
 struct LoginView: View {
     @Environment(AuthenticationManager.self) private var authManager
-    @State private var identifier = ""
-    @State private var password = ""
-    @State private var totpCode = ""
-    @State private var showRegistration = false
-    @State private var showEmailVerification = false
-    @State private var showTOTPVerification = false
+    @State private var formState = LoginFormState()
+    @FocusState private var focusedField: Field?
+    @State private var showError = false
+    
+    private enum Field {
+        case email
+        case password
+    }
     
     var body: some View {
         NavigationStack {
-            Form {
-                VStack(spacing: 15) {
-                    TextField("Email or Username", text: $identifier)
-                        .textFieldStyle(.roundedBorder)
-                        .textContentType(.username)
-                        .autocapitalization(.none)
-                    
-                    SecureField("Password", text: $password)
-                        .textFieldStyle(.roundedBorder)
-                        .textContentType(.password)
-                    
-                    if showTOTPVerification {
-                        TextField("2FA Code", text: $totpCode)
-                            .textFieldStyle(.roundedBorder)
-                            .keyboardType(.numberPad)
-                    }
-                }
-                .padding(.horizontal)
+            VStack(spacing: 20) {
+                formFields
+                loginButton
                 
-                AsyncButton(showTOTPVerification ? "Verify" : "Sign In") {
-                    await login()
-                }
-                .padding(.horizontal)
-                
-                if !showTOTPVerification {
-                    NavigationLink {
-                        RegisterView()
-                    } label: {
-                        Text("Create Account")
-                    }
+                NavigationLink {
+                    RegisterView()
+                } label: {
+                    Text("Create Account")
                 }
             }
             .navigationTitle("Login")
-            .alert("Sign In Error", isPresented: .constant(authManager.loginError != nil)) {
-                Button("OK") { authManager.loginError = nil }
+            .padding()
+            .onChange(of: focusedField) { oldValue, newValue in
+                if let oldValue = oldValue {
+                    withAnimation(.smooth) {
+                        switch oldValue {
+                        case .email: formState.validateEmail(ignoreEmpty: true)
+                        case .password: formState.validatePassword(ignoreEmpty: true)
+                        }
+                    }
+                }
+            }
+            .onDisappear {
+                formState.reset()
+                focusedField = nil
+            }
+            .alert("Login Failed", isPresented: .init(
+                get: { authManager.loginError != nil },
+                set: { if !$0 { authManager.loginError = nil } }
+            )) {
+                Button("OK") {
+                    authManager.loginError = nil
+                }
             } message: {
-                Text(authManager.loginError?.localizedDescription ?? "")
-            }
-            .sheet(isPresented: $showEmailVerification) {
-                EmailVerificationView(source: .registration)
-                    .interactiveDismissDisabled()
-            }
-            .onChange(of: authManager.requires2FA) { _, requires2FA in
-                showTOTPVerification = requires2FA
-                if requires2FA {
-                    totpCode = ""
+                if let error = authManager.loginError {
+                    Text(error.localizedDescription)
                 }
             }
-            .onChange(of: authManager.requiresEmailVerification) { _, requiresEmailVerification in
-                if requiresEmailVerification {
-                    showEmailVerification = true
-                } else {
-                    showEmailVerification = false
-                }
+        }
+    }
+    
+    private var formFields: some View {
+        VStack(spacing: 20) {
+            ValidatedFormField(
+                title: "Email",
+                text: $formState.email,
+                field: Field.email,
+                focusedField: $focusedField,
+                error: formState.fieldErrors["email"],
+                validate: { formState.validateEmail() }
+            )
+            
+            ValidatedFormField(
+                title: "Password",
+                text: $formState.password,
+                field: Field.password,
+                focusedField: $focusedField,
+                error: formState.fieldErrors["password"],
+                validate: { formState.validatePassword() },
+                secureField: true
+            )
+        }
+    }
+    
+    private var loginButton: some View {
+        AsyncButton("Login") {
+            withAnimation(.smooth) {
+                formState.validateAll()
+            }
+            if formState.isValid {
+                await login()
             }
         }
     }
     
     private func login() async {
-        if showTOTPVerification {
-            await authManager.signIn(identifier: identifier, password: password, totpCode: totpCode)
-        } else {
-            await authManager.signIn(identifier: identifier, password: password)
-        }
+        await authManager.signIn(
+            identifier: formState.email,
+            password: formState.password
+        )
     }
-} 
+}
+
+#if DEBUG
+import Networking
+
+#Preview {
+    // Create shared dependencies
+    let tokenStore = PreviewTokenStore()
+    let refreshClient = PreviewRefreshAPIClient()
+    let authorizationManager = AuthorizationManager(
+        refreshClient: refreshClient,
+        tokenStore: tokenStore
+    )
+    LoginView()
+        .environment(AuthenticationManager(
+            authService: PreviewAuthenticationService(),
+            userService: PreviewUserService(),
+            totpService: PreviewTOTPService(),
+            emailVerificationService: PreviewEmailVerificationService(),
+            authorizationManager: authorizationManager
+        ))
+}
+#endif 

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum RegistrationError: LocalizedError {
+public enum RegistrationError: LocalizedError, Equatable {
     case weakPassword
     case invalidEmail
     case accountExists
@@ -19,6 +19,20 @@ public enum RegistrationError: LocalizedError {
             return "You must accept the terms and conditions"
         case .unknown(let message):
             return message
+        }
+    }
+    
+    public static func == (lhs: RegistrationError, rhs: RegistrationError) -> Bool {
+        switch (lhs, rhs) {
+        case (.weakPassword, .weakPassword),
+             (.invalidEmail, .invalidEmail),
+             (.accountExists, .accountExists),
+             (.termsNotAccepted, .termsNotAccepted):
+            return true
+        case (.unknown(let lhsMessage), .unknown(let rhsMessage)):
+            return lhsMessage == rhsMessage
+        default:
+            return false
         }
     }
 } 

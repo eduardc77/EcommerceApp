@@ -1,6 +1,6 @@
 import Foundation
 
-public enum LoginError: LocalizedError {
+public enum LoginError: LocalizedError, Equatable {
     case invalidCredentials
     case accountNotFound
     case accountLocked
@@ -28,6 +28,25 @@ public enum LoginError: LocalizedError {
             return "Server error: \(message)"
         case .unknown(let message):
             return message
+        }
+    }
+    
+    public static func == (lhs: LoginError, rhs: LoginError) -> Bool {
+        switch (lhs, rhs) {
+        case (.invalidCredentials, .invalidCredentials),
+             (.accountNotFound, .accountNotFound),
+             (.accountLocked, .accountLocked),
+             (.tooManyAttempts, .tooManyAttempts),
+             (.requiresMFA, .requiresMFA):
+            return true
+        case (.networkError(let lhsMessage), .networkError(let rhsMessage)):
+            return lhsMessage == rhsMessage
+        case (.serverError(let lhsMessage), .serverError(let rhsMessage)):
+            return lhsMessage == rhsMessage
+        case (.unknown(let lhsMessage), .unknown(let rhsMessage)):
+            return lhsMessage == rhsMessage
+        default:
+            return false
         }
     }
 } 

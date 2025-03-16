@@ -1,6 +1,6 @@
 import Foundation
 
-public enum VerificationError: LocalizedError {
+public enum VerificationError: LocalizedError, Equatable {
     case invalidCode
     case expiredCode
     case tooManyAttempts
@@ -25,6 +25,22 @@ public enum VerificationError: LocalizedError {
             return "Too many requests. Please try again later"
         case .unknown(let message):
             return message
+        }
+    }
+    
+    public static func == (lhs: VerificationError, rhs: VerificationError) -> Bool {
+        switch (lhs, rhs) {
+        case (.invalidCode, .invalidCode),
+             (.expiredCode, .expiredCode),
+             (.tooManyAttempts, .tooManyAttempts),
+             (.emailNotFound, .emailNotFound),
+             (.alreadyVerified, .alreadyVerified),
+             (.tooManyRequests, .tooManyRequests):
+            return true
+        case (.unknown(let lhsMessage), .unknown(let rhsMessage)):
+            return lhsMessage == rhsMessage
+        default:
+            return false
         }
     }
 } 

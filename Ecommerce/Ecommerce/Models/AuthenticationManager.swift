@@ -1,93 +1,6 @@
 import Foundation
 import Networking
 
-// Login specific errors
-public enum LoginError: LocalizedError {
-    case invalidCredentials
-    case accountNotFound
-    case accountLocked
-    case tooManyAttempts
-    case requiresMFA
-    case networkError(String)
-    case serverError(String)
-    case unknown(String)
-    
-    public var errorDescription: String? {
-        switch self {
-        case .invalidCredentials:
-            return "Invalid email or password"
-        case .accountNotFound:
-            return "No account found with this email"
-        case .accountLocked:
-            return "Your account has been locked. Please contact support"
-        case .tooManyAttempts:
-            return "Too many login attempts. Please try again later"
-        case .requiresMFA:
-            return "Multi-factor authentication is required"
-        case .networkError(let message):
-            return "Network error: \(message)"
-        case .serverError(let message):
-            return "Server error: \(message)"
-        case .unknown(let message):
-            return message
-        }
-    }
-}
-
-// Registration specific errors
-public enum RegistrationError: LocalizedError {
-    case weakPassword
-    case invalidEmail
-    case accountExists
-    case termsNotAccepted
-    case unknown(String)
-    
-    public var errorDescription: String? {
-        switch self {
-        case .weakPassword:
-            return "Password must be at least 8 characters and include a number and special character"
-        case .invalidEmail:
-            return "Please enter a valid email address"
-        case .accountExists:
-            return "An account with this email already exists"
-        case .termsNotAccepted:
-            return "You must accept the terms and conditions"
-        case .unknown(let message):
-            return message
-        }
-    }
-}
-
-// Email verification specific errors
-public enum VerificationError: LocalizedError {
-    case invalidCode
-    case expiredCode
-    case tooManyAttempts
-    case emailNotFound
-    case alreadyVerified
-    case tooManyRequests
-    case unknown(String)
-    
-    public var errorDescription: String? {
-        switch self {
-        case .invalidCode:
-            return "Invalid verification code"
-        case .expiredCode:
-            return "This code has expired. Please request a new one"
-        case .tooManyAttempts:
-            return "Too many invalid attempts. Please request a new code"
-        case .emailNotFound:
-            return "Email address not found"
-        case .alreadyVerified:
-            return "This email is already verified"
-        case .tooManyRequests:
-            return "Too many requests. Please try again later"
-        case .unknown(let message):
-            return message
-        }
-    }
-}
-
 @Observable
 public final class AuthenticationManager {
     private let authService: AuthenticationServiceProtocol
@@ -176,22 +89,59 @@ public final class AuthenticationManager {
             await checkEmailVerificationStatus()
             
         } catch let networkError as NetworkError {
-            if case .unauthorized(let description) = networkError {
-                if description.contains("2FA required") {
-                    loginError = .requiresMFA
-                    requires2FA = true
-                } else {
-                    loginError = .invalidCredentials
+            isAuthenticated = false
+            currentUser = nil
+            
+            loginError = {
+                switch networkError {
+                case .unauthorized(let description):
+                    if description.contains("2FA required") {
+                        requires2FA = true
+                        return .requiresMFA
+                    }
+                    return .invalidCredentials
+                    
+                case .notFound:
+                    return .accountNotFound
+                    
+                case .forbidden(let description):
+                    if description.contains("locked") {
+                        return .accountLocked
+                    }
+                    return .unknown(description)
+                    
+                case .clientError(let statusCode, let description):
+                    switch statusCode {
+                    case 429: return .tooManyAttempts
+                    case 423: return .accountLocked
+                    default: return .unknown(description)
+                    }
+                    
+                case .missingToken:
+                    return .invalidCredentials
+                    
+                case .networkConnectionLost,
+                     .dnsLookupFailed,
+                     .cannotFindHost,
+                     .cannotConnectToHost,
+                     .timeout:
+                    return .networkError("Please check your internet connection and try again")
+                    
+                case .internalServerError,
+                     .serviceUnavailable,
+                     .badGateway,
+                     .gatewayTimeout:
+                    return .serverError("Server is temporarily unavailable. Please try again later")
+                    
+                default:
+                    return .unknown(networkError.localizedDescription)
                 }
-            } else {
-                loginError = .networkError(networkError.localizedDescription)
-            }
-            isAuthenticated = false
-            currentUser = nil
+            }()
+            
         } catch {
-            loginError = .unknown(error.localizedDescription)
             isAuthenticated = false
             currentUser = nil
+            loginError = .unknown(error.localizedDescription)
         }
         
         isLoading = false
