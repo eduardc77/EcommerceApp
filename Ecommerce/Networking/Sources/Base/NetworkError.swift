@@ -5,7 +5,7 @@ public enum NetworkError: Error, Sendable {
     case unauthorized(description: String)
     case forbidden(description: String)
     case notFound(description: String)
-    case clientError(statusCode: Int, description: String)
+    case clientError(statusCode: Int, description: String, headers: [String: String] = [:])
     case internalServerError(description: String)
     case serviceUnavailable(description: String)
     case badGateway(description: String)
@@ -47,7 +47,7 @@ public enum NetworkError: Error, Sendable {
                 .badGateway(let description),
                 .gatewayTimeout(let description):
             return description
-        case .clientError(let statusCode, let description),
+        case .clientError(let statusCode, let description, _),
                 .unknownError(let statusCode, let description):
             return "Status Code: \(statusCode), Description: \(description)"
         }

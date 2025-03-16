@@ -142,7 +142,11 @@ private extension NetworkManager {
         case 408:
             throw NetworkError.timeout(description: "Request Timeout: \(description)")
         case 429:
-            throw NetworkError.clientError(statusCode: response.statusCode, description: "Too Many Requests: \(description)")
+            throw NetworkError.clientError(
+                statusCode: response.statusCode,
+                description: "Too Many Requests: \(description)",
+                headers: response.allHeaderFields as? [String: String] ?? [:]
+            )
         default:
             throw NetworkError.clientError(statusCode: response.statusCode, description: "Client Error: \(description)")
         }

@@ -106,26 +106,35 @@ public final class AuthenticationManager {
                     
                 case .forbidden(let description):
                     if description.contains("locked") {
-                        return .accountLocked
+                        return .accountLocked(retryAfter: nil)
                     }
                     return .unknown(description)
                     
-                case .clientError(let statusCode, let description):
+                case .clientError(let statusCode, let description, let headers):
                     switch statusCode {
-                    case 429: return .tooManyAttempts
-                    case 423: return .accountLocked
-                    default: return .unknown(description)
+                    case 429:
+                        if let retryAfterHeader = headers.first(where: { $0.key.lowercased() == "retry-after" })?.value,
+                           let retryAfter = Int(retryAfterHeader) {
+                            return .accountLocked(retryAfter: retryAfter)
+                        }
+                        return .tooManyAttempts // If no Retry-After header, show generic message
+                    case 423:
+                        return .accountLocked(retryAfter: nil)
+                    default:
+                        return .unknown(description)
                     }
                     
                 case .missingToken:
                     return .invalidCredentials
                     
+                case .timeout:
+                    return .networkError("Request timed out. Please check your connection and try again")
+                    
                 case .networkConnectionLost,
                      .dnsLookupFailed,
                      .cannotFindHost,
-                     .cannotConnectToHost,
-                     .timeout:
-                    return .networkError("Please check your internet connection and try again")
+                     .cannotConnectToHost:
+                    return .networkError("Cannot connect to server. Please check your internet connection")
                     
                 case .internalServerError,
                      .serviceUnavailable,
@@ -171,12 +180,9 @@ public final class AuthenticationManager {
             if !requiresEmailVerification {
                 isAuthenticated = true
             }
-            
-            // The initial verification code is already sent during registration
-            // DO NOT send another code here
-            
+
         } catch let networkError as NetworkError {
-            if case .clientError(let statusCode, _) = networkError, statusCode == 409 {
+            if case .clientError(let statusCode, _, _) = networkError, statusCode == 409 {
                 registrationError = .accountExists
             } else {
                 registrationError = .unknown(networkError.localizedDescription)
