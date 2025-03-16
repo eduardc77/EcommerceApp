@@ -16,15 +16,11 @@ struct RegisterView: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            formFields
-            registerButton
-            if showError {
-                registrationError
-            }
+        Form {
+            accountInfoFieldsSection
+            securityFieldsSection
         }
         .navigationTitle("Create Account")
-        .padding()
         .onChange(of: focusedField) { oldValue, newValue in
             if let oldValue = oldValue {
                 withAnimation(.smooth) {
@@ -34,6 +30,18 @@ struct RegisterView: View {
                     case .email: formState.validateEmail(ignoreEmpty: true)
                     case .password: formState.validatePassword(ignoreEmpty: true)
                     case .confirmPassword: formState.validateConfirmPassword(ignoreEmpty: true)
+                    }
+                }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Register") {
+                    formState.validateAll()
+                    if formState.isValid {
+                        Task {
+                            await register()
+                        }
                     }
                 }
             }
@@ -54,10 +62,11 @@ struct RegisterView: View {
                 Text(error.localizedDescription)
             }
         }
+
     }
 
-    private var formFields: some View {
-        VStack(spacing: 20) {
+    private var accountInfoFieldsSection: some View {
+        Section("Account Information") {
             ValidatedFormField(
                 title: "Username",
                 text: $formState.username,
@@ -67,7 +76,7 @@ struct RegisterView: View {
                 validate: { formState.validateUsername() },
                 capitalization: .never
             )
-            
+
             ValidatedFormField(
                 title: "Display Name",
                 text: $formState.displayName,
@@ -76,7 +85,7 @@ struct RegisterView: View {
                 error: formState.fieldErrors["displayName"],
                 validate: { formState.validateDisplayName() }
             )
-            
+
             ValidatedFormField(
                 title: "Email",
                 text: $formState.email,
@@ -86,7 +95,11 @@ struct RegisterView: View {
                 validate: { formState.validateEmail() },
                 capitalization: .never
             )
-            
+        }
+    }
+
+    private var securityFieldsSection: some View {
+        Section("Security") {
             ValidatedFormField(
                 title: "Password",
                 text: $formState.password,
@@ -94,9 +107,10 @@ struct RegisterView: View {
                 focusedField: $focusedField,
                 error: formState.fieldErrors["password"],
                 validate: { formState.validatePassword() },
-                secureField: true
+                secureField: true,
+                isNewPassword: true
             )
-            
+
             ValidatedFormField(
                 title: "Confirm Password",
                 text: $formState.confirmPassword,
@@ -104,38 +118,9 @@ struct RegisterView: View {
                 focusedField: $focusedField,
                 error: formState.fieldErrors["confirmPassword"],
                 validate: { formState.validateConfirmPassword() },
-                secureField: true,
-                isConfirmField: true
+                secureField: true
             )
         }
-    }
-
-    private var registerButton: some View {
-        AsyncButton("Register") {
-            withAnimation(.smooth) {
-                formState.validateAll()
-            }
-            if formState.isValid {
-                await register()
-            }
-        }
-    }
-
-    private var registrationError: some View {
-        Text("Registration failed. Please try again.")
-            .foregroundColor(.red)
-    }
-
-    private func errorMessage(_ error: String) -> some View {
-        Text(error)
-            .foregroundColor(.red)
-            .font(.caption)
-            .transition(
-                .asymmetric(
-                    insertion: .push(from: .top).combined(with: .opacity),
-                    removal: .push(from: .bottom).combined(with: .opacity)
-                )
-            )
     }
 
     private func register() async {

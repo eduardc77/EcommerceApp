@@ -109,7 +109,7 @@ final class RegisterFormState {
                 
                 // Check for repeated characters
                 let groups = Dictionary(grouping: password, by: { $0 })
-                if let (char, occurrences) = groups.first(where: { $0.value.count >= 3 }) {
+                if let (char, _) = groups.first(where: { $0.value.count >= 3 }) {
                     fieldErrors["password"] = "Password contains too many repeated characters ('\(char)')"
                     return
                 }

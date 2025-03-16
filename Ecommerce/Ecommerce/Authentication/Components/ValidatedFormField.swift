@@ -11,22 +11,25 @@ struct ValidatedFormField<Field: Hashable>: View {
     var keyboardType: UIKeyboardType = .default
     var capitalization: TextInputAutocapitalization = .sentences
     var secureField: Bool = false
-    var isConfirmField: Bool = false
-    
-    @State private var isSecure = true
-    
+    var isNewPassword: Bool = false
+
+    @State private var showSecureText = true
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if secureField {
                 ZStack(alignment: .trailing) {
                     Group {
                         SecureField(title, text: $text)
-                            .opacity(isSecure ? 1 : 0)
-                        
+                            .textContentType(!isNewPassword ? .password : .newPassword)
+                            .opacity(showSecureText ? 1 : 0)
+
                         TextField(title, text: $text)
-                            .opacity(isSecure ? 0 : 1)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .opacity(showSecureText ? 0 : 1)
                     }
-                    .textContentType(isConfirmField ? .password : .newPassword)
+                    .textFieldStyle(.plain)
                     .focused($focusedField, equals: field)
                     .onChange(of: text) { _, _ in
                         if error != nil {
@@ -35,23 +38,25 @@ struct ValidatedFormField<Field: Hashable>: View {
                             }
                         }
                     }
-                    
+
                     Button(action: {
                         withAnimation {
-                            isSecure.toggle()
+                            showSecureText.toggle()
                         }
                     }) {
-                        Image(systemName: isSecure ? "eye.fill" : "eye.slash.fill")
+                        Image(systemName: showSecureText ? "eye.fill" : "eye.slash.fill")
                             .foregroundColor(.gray)
                     }
                     .padding(.trailing, 8)
+                    .buttonStyle(.plain)
                 }
-                .textFieldStyle(.roundedBorder)
+
             } else {
                 TextField(title, text: $text)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .textContentType(contentType)
                     .textInputAutocapitalization(capitalization)
+                    .autocorrectionDisabled()
                     .keyboardType(keyboardType)
                     .focused($focusedField, equals: field)
                     .onChange(of: text) { _, _ in
@@ -62,23 +67,17 @@ struct ValidatedFormField<Field: Hashable>: View {
                         }
                     }
             }
-            
+
             if let error = error {
                 errorMessage(error)
             }
         }
         .clipped()
     }
-    
+
     private func errorMessage(_ error: String) -> some View {
         Text(error)
             .foregroundColor(.red)
             .font(.caption)
-            .transition(
-                .asymmetric(
-                    insertion: .push(from: .top).combined(with: .opacity),
-                    removal: .push(from: .bottom).combined(with: .opacity)
-                )
-            )
     }
-} 
+}

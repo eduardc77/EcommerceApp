@@ -13,25 +13,28 @@ struct LoginView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                formFields
-                loginButton
+            Form {
+                formFieldsSection
                 
-                NavigationLink {
-                    RegisterView()
-                } label: {
-                    Text("Create Account")
+                Section {
+                    loginButton
+                    
+                    NavigationLink {
+                        RegisterView()
+                    } label: {
+                        Text("Create Account")
+                    }
+                    .buttonStyle(.plain)
                 }
+                .listRowInsets(.init())
+                .listRowBackground(Color.clear)
             }
             .navigationTitle("Login")
-            .padding()
             .onChange(of: focusedField) { oldValue, newValue in
                 if let oldValue = oldValue {
-                    withAnimation(.smooth) {
-                        switch oldValue {
-                        case .email: formState.validateEmail(ignoreEmpty: true)
-                        case .password: formState.validatePassword(ignoreEmpty: true)
-                        }
+                    switch oldValue {
+                    case .email: formState.validateEmail(ignoreEmpty: true)
+                    case .password: formState.validatePassword(ignoreEmpty: true)
                     }
                 }
             }
@@ -54,8 +57,8 @@ struct LoginView: View {
         }
     }
     
-    private var formFields: some View {
-        VStack(spacing: 20) {
+    private var formFieldsSection: some View {
+        Section {
             ValidatedFormField(
                 title: "Email",
                 text: $formState.email,
@@ -79,9 +82,7 @@ struct LoginView: View {
     
     private var loginButton: some View {
         AsyncButton("Login") {
-            withAnimation(.smooth) {
-                formState.validateAll()
-            }
+            formState.validateAll()
             if formState.isValid {
                 await login()
             }
@@ -116,4 +117,4 @@ import Networking
             authorizationManager: authorizationManager
         ))
 }
-#endif 
+#endif

@@ -19,7 +19,7 @@ struct AccountView: View {
     
     var body: some View {
         NavigationStack {
-            List {
+            Form {
                 if let user = user {
                     profileSection(user)
                     accountInformationSection(user)

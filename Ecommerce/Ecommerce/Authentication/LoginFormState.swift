@@ -37,7 +37,7 @@ final class LoginFormState {
                 fieldErrors.removeValue(forKey: "password")
             }
         } else if password.count < 8 {
-            fieldErrors["password"] = "Password must be at least 8 characters"
+            fieldErrors["password"] = "Password must be at least 12 characters"
         } else {
             fieldErrors.removeValue(forKey: "password")
         }
