@@ -101,8 +101,8 @@ struct PreviewUserService: UserServiceProtocol {
     func getUserPublic(id: String) async throws -> Networking.PublicUserResponse {
         PublicUserResponse(
             id: id,
-            username: "johndoe",
-            displayName: "John Doe",
+            username: "john_appleseed",
+            displayName: "John Appleseed",
             profilePicture: "https://api.dicebear.com/7.x/avataaars/png",
             role: .customer,
             createdAt: "2025-02-23T21:51:49.000Z",
@@ -173,9 +173,9 @@ actor PreviewTokenStore: TokenStoreProtocol {
 extension UserResponse {
     static let previewUser = UserResponse(
         id: UUID().uuidString,
-        username: "johndoe",
-        displayName: "John Doe",
-        email: "john@example.com",
+        username: "john_appleseed",
+        displayName: "John Appleseed",
+        email: "appleseed@icloud.com",
         profilePicture: "https://api.dicebear.com/7.x/avataaars/png",
         role: .customer,
         createdAt: "2025-02-23T21:51:49.000Z",

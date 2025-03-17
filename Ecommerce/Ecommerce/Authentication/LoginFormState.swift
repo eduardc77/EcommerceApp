@@ -3,28 +3,28 @@ import Observation
 
 @Observable
 final class LoginFormState {
-    var email = ""
+    var identifier = ""
     var password = ""
     
     var fieldErrors: [String: String] = [:]
     var isValid = false
     
     func validateAll() {
-        validateEmail(ignoreEmpty: false)
+        validateIdentifier(ignoreEmpty: false)
         validatePassword(ignoreEmpty: false)
     }
     
-    func validateEmail(ignoreEmpty: Bool = true) {
-        if email.isEmpty {
+    func validateIdentifier(ignoreEmpty: Bool = true) {
+        if identifier.isEmpty {
             if !ignoreEmpty {
-                fieldErrors["email"] = "Email is required"
+                fieldErrors["identifier"] = "Username or email is required"
             } else {
-                fieldErrors.removeValue(forKey: "email")
+                fieldErrors.removeValue(forKey: "identifier")
             }
-        } else if !isValidEmail(email) {
-            fieldErrors["email"] = "Please enter a valid email"
+        } else if identifier.count < 3 {
+            fieldErrors["identifier"] = "Username or email must be at least 3 characters"
         } else {
-            fieldErrors.removeValue(forKey: "email")
+            fieldErrors.removeValue(forKey: "identifier")
         }
         updateValidState()
     }
@@ -45,7 +45,9 @@ final class LoginFormState {
     }
     
     private func updateValidState() {
-        isValid = isValidEmail(email) && password.count >= 8
+        isValid = identifier.count >= 3 &&
+                 !password.isEmpty &&
+                 fieldErrors.isEmpty
     }
     
     private func isValidEmail(_ email: String) -> Bool {
@@ -55,7 +57,7 @@ final class LoginFormState {
     }
     
     func reset() {
-        email = ""
+        identifier = ""
         password = ""
         fieldErrors = [:]
         isValid = false

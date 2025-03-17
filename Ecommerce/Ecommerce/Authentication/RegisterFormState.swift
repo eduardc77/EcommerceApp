@@ -143,10 +143,14 @@ final class RegisterFormState {
             } else {
                 fieldErrors.removeValue(forKey: "username")
             }
-        } else if username.count < 3 {
-            fieldErrors["username"] = "Username must be at least 3 characters"
         } else {
-            fieldErrors.removeValue(forKey: "username")
+            // Username can only contain letters, numbers, hyphens and underscores
+            let usernameRegex = "^[a-zA-Z0-9_-]+$"
+            if username.range(of: usernameRegex, options: .regularExpression) == nil {
+                fieldErrors["username"] = "Username can only contain letters, numbers, hyphens and underscores"
+            } else {
+                fieldErrors.removeValue(forKey: "username")
+            }
         }
         updateValidState()
     }

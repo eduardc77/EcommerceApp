@@ -5,6 +5,7 @@ public enum RegistrationError: LocalizedError, Equatable {
     case invalidEmail
     case accountExists
     case termsNotAccepted
+    case validationError(String)
     case unknown(String)
     
     public var errorDescription: String? {
@@ -14,9 +15,11 @@ public enum RegistrationError: LocalizedError, Equatable {
         case .invalidEmail:
             return "Please enter a valid email address"
         case .accountExists:
-            return "An account with this email already exists"
+            return "An account with this email or username already exists"
         case .termsNotAccepted:
             return "You must accept the terms and conditions"
+        case .validationError(let message):
+            return message
         case .unknown(let message):
             return message
         }
@@ -29,6 +32,8 @@ public enum RegistrationError: LocalizedError, Equatable {
              (.accountExists, .accountExists),
              (.termsNotAccepted, .termsNotAccepted):
             return true
+        case (.validationError(let lhsMessage), .validationError(let rhsMessage)):
+            return lhsMessage == rhsMessage
         case (.unknown(let lhsMessage), .unknown(let rhsMessage)):
             return lhsMessage == rhsMessage
         default:

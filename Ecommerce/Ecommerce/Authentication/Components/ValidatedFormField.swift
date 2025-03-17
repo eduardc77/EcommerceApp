@@ -47,7 +47,6 @@ struct ValidatedFormField<Field: Hashable>: View {
                         Image(systemName: showSecureText ? "eye.fill" : "eye.slash.fill")
                             .foregroundColor(.gray)
                     }
-                    .padding(.trailing, 8)
                     .buttonStyle(.plain)
                 }
 

@@ -2,45 +2,103 @@ import SwiftUI
 
 struct LoginView: View {
     @Environment(AuthenticationManager.self) private var authManager
+    @Environment(EmailVerificationManager.self) private var emailVerificationManager
     @State private var formState = LoginFormState()
     @FocusState private var focusedField: Field?
     @State private var showError = false
-    
+    @State private var lockedIdentifier: String?
+    @State private var remainingTime: Int?
+    @State private var lockoutStartTime: Date?
+    @State private var navigationPath = NavigationPath()
+
     private enum Field {
-        case email
+        case identifier
         case password
     }
-    
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             Form {
-                formFieldsSection
-                
+                loginFieldsSection
+
+                if let remainingTime = remainingTime, lockedIdentifier == formState.identifier {
+                    Section {
+                        HStack {
+                            Image(systemName: "lock.fill")
+                            Text("Account locked for ")
+                            Text(formatTime(remainingTime))
+                                .fontWeight(.medium)
+                        }
+                        .foregroundStyle(.red)
+                    }
+                }
+
                 Section {
                     loginButton
-                    
-                    NavigationLink {
-                        RegisterView()
-                    } label: {
-                        Text("Create Account")
+                } footer: {
+                    HStack {
+                        Button {
+                            navigationPath.append("register")
+                        } label: {
+                            Text("Create Account")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
+                        Button {
+                            navigationPath.append("forgot-password")
+                        } label: {
+                            Text("Forgot Password?")
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
                     }
                     .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
                 }
                 .listRowInsets(.init())
                 .listRowBackground(Color.clear)
             }
             .navigationTitle("Login")
+            .navigationDestination(for: String.self) { route in
+                switch route {
+                case "register":
+                    RegisterView()
+                case "forgot-password":
+                    Text("")
+                default:
+                    EmptyView()
+                }
+            }
             .onChange(of: focusedField) { oldValue, newValue in
                 if let oldValue = oldValue {
                     switch oldValue {
-                    case .email: formState.validateEmail(ignoreEmpty: true)
+                    case .identifier: formState.validateIdentifier(ignoreEmpty: true)
                     case .password: formState.validatePassword(ignoreEmpty: true)
                     }
+                }
+            }
+            .onChange(of: formState.identifier) { _, _ in
+                // Clear lockout if identifier changes
+                if formState.identifier != lockedIdentifier {
+                    lockedIdentifier = nil
+                    remainingTime = nil
+                    lockoutStartTime = nil
+                }
+            }
+            .onChange(of: authManager.loginError) { _, error in
+                if case .accountLocked(let retryAfter) = error,
+                   let retryAfter = retryAfter {
+                    lockoutStartTime = Date()
+                    lockedIdentifier = formState.identifier
+                    remainingTime = retryAfter
+                    startTimer()
                 }
             }
             .onDisappear {
                 formState.reset()
                 focusedField = nil
+                lockedIdentifier = nil
+                remainingTime = nil
+                lockoutStartTime = nil
             }
             .alert("Login Failed", isPresented: .init(
                 get: { authManager.loginError != nil },
@@ -56,16 +114,17 @@ struct LoginView: View {
             }
         }
     }
-    
-    private var formFieldsSection: some View {
+
+    private var loginFieldsSection: some View {
         Section {
             ValidatedFormField(
-                title: "Email",
-                text: $formState.email,
-                field: Field.email,
+                title: "Username or Email",
+                text: $formState.identifier,
+                field: Field.identifier,
                 focusedField: $focusedField,
-                error: formState.fieldErrors["email"],
-                validate: { formState.validateEmail() }
+                error: formState.fieldErrors["identifier"],
+                validate: { formState.validateIdentifier() },
+                capitalization: .never
             )
             
             ValidatedFormField(
@@ -79,7 +138,7 @@ struct LoginView: View {
             )
         }
     }
-    
+
     private var loginButton: some View {
         AsyncButton("Login") {
             formState.validateAll()
@@ -87,13 +146,44 @@ struct LoginView: View {
                 await login()
             }
         }
+        .buttonStyle(.bordered)
+        .disabled(lockedIdentifier == formState.identifier && remainingTime != nil)
     }
-    
+
     private func login() async {
         await authManager.signIn(
-            identifier: formState.email,
+            identifier: formState.identifier,
             password: formState.password
         )
+    }
+
+    private func startTimer() {
+        guard let startTime = lockoutStartTime,
+              let totalDuration = remainingTime else { return }
+
+        // Calculate actual remaining time based on how long it's been since we got the error
+        let elapsed = Int(-startTime.timeIntervalSinceNow)
+        remainingTime = max(0, totalDuration - elapsed)
+
+        Task {
+            while remainingTime ?? 0 > 0 {
+                try? await Task.sleep(for: .seconds(1))
+                await MainActor.run {
+                    remainingTime? -= 1
+                    if remainingTime == 0 {
+                        remainingTime = nil
+                        lockedIdentifier = nil
+                        lockoutStartTime = nil
+                    }
+                }
+            }
+        }
+    }
+
+    private func formatTime(_ seconds: Int) -> String {
+        let minutes = seconds / 60
+        let remainingSeconds = seconds % 60
+        return String(format: "%d:%02d", minutes, remainingSeconds)
     }
 }
 
@@ -108,13 +198,23 @@ import Networking
         refreshClient: refreshClient,
         tokenStore: tokenStore
     )
+    
+    let totpService = PreviewTOTPService()
+    let totpManager = TOTPManager(totpService: totpService)
+    let emailVerificationService = PreviewEmailVerificationService()
+    let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
+
+    let authManager = AuthenticationManager(
+        authService: PreviewAuthenticationService(),
+        userService: PreviewUserService(),
+        totpManager: totpManager,
+        emailVerificationManager: emailVerificationManager,
+        authorizationManager: authorizationManager
+    )
+
     LoginView()
-        .environment(AuthenticationManager(
-            authService: PreviewAuthenticationService(),
-            userService: PreviewUserService(),
-            totpService: PreviewTOTPService(),
-            emailVerificationService: PreviewEmailVerificationService(),
-            authorizationManager: authorizationManager
-        ))
+        .environment(authManager)
+        .environment(emailVerificationManager)
+        .environment(totpManager)
 }
 #endif

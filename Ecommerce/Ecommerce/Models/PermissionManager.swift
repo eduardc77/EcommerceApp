@@ -2,6 +2,7 @@ import Observation
 import Networking
 
 @Observable
+@MainActor
 public final class PermissionManager {
     private let authManager: AuthenticationManager
     

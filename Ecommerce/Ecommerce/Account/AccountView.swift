@@ -4,6 +4,7 @@ import PhotosUI
 
 struct AccountView: View {
     @Environment(AuthenticationManager.self) private var authManager
+    @Environment(EmailVerificationManager.self) private var emailVerificationManager
     @Environment(\.dismiss) private var dismiss
     @State private var isEditing = false
     @State private var editedName = ""
@@ -12,22 +13,21 @@ struct AccountView: View {
     @State private var showingEmailVerification = false
     @State private var selectedItem: PhotosPickerItem?
     @State private var selectedImageData: Data?
-    
+
     private var user: UserResponse? {
         authManager.currentUser
     }
-    
+
     var body: some View {
         NavigationStack {
             Form {
                 if let user = user {
                     profileSection(user)
                     accountInformationSection(user)
-                    
-                    if authManager.requiresEmailVerification {
+
+                    if emailVerificationManager.requiresEmailVerification {
                         emailVerificationSection
                     }
-                    
                     signOutSection
                 } else {
                     noProfileView
@@ -41,7 +41,7 @@ struct AccountView: View {
                 EmailVerificationView(source: .account)
                     .interactiveDismissDisabled()
             }
-            .onChange(of: authManager.requiresEmailVerification) { _, requiresEmailVerification in
+            .onChange(of: emailVerificationManager.requiresEmailVerification) { _, requiresEmailVerification in
                 if !requiresEmailVerification {
                     showingEmailVerification = false
                 }
@@ -66,21 +66,20 @@ struct AccountView: View {
             }
         }
     }
-    
+
     // MARK: - Sections
-    
+
     private func profileSection(_ user: UserResponse) -> some View {
         Section {
-            VStack(spacing: 16) {
+            VStack(spacing: 10) {
                 profileImage(user)
                 userInfo(user)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
             .listRowBackground(Color.clear)
         }
     }
-    
+
     private func accountInformationSection(_ user: UserResponse) -> some View {
         Section {
             if isEditing {
@@ -92,7 +91,7 @@ struct AccountView: View {
             Text("Account Information")
         }
     }
-    
+
     private var emailVerificationSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
@@ -100,7 +99,7 @@ struct AccountView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.yellow)
                         .font(.title2)
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Email Not Verified")
                             .font(.headline)
@@ -109,30 +108,31 @@ struct AccountView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                
-                Button("Verify Email") {
+
+                AsyncButton("Verify Email") {
                     showingEmailVerification = true
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
             }
             .padding(.vertical, 8)
         }
     }
-    
+
     private var signOutSection: some View {
         Section {
-            Button(role: .destructive) {
+            AsyncButton(role: .destructive) {
                 Task {
                     await authManager.signOut()
                 }
             } label: {
                 Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
-    
+
     // MARK: - Components
-    
+
     private func profileImage(_ user: UserResponse) -> some View {
         Group {
             if let pictureURL = URL(string: user.profilePicture ?? "https://api.dicebear.com/7.x/avataaars/png") {
@@ -166,39 +166,39 @@ struct AccountView: View {
             }
         }
     }
-    
+
     private func userInfo(_ user: UserResponse) -> some View {
         VStack(spacing: 4) {
             if isEditing {
                 TextField("Name", text: $editedName)
                     .textContentType(.name)
                     .multilineTextAlignment(.center)
-                    .font(.title2.bold())
+                    .font(.headline.bold())
             } else {
                 Text(user.displayName)
-                    .font(.title2.bold())
+                    .font(.headline.bold())
             }
-            
+
             Text("Joined \(user.createdAt.formattedAsDate())")
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
-    
+
     private var editableAccountInfo: some View {
         TextField("Email", text: $editedEmail)
             .textContentType(.emailAddress)
             .keyboardType(.emailAddress)
             .autocapitalization(.none)
     }
-    
+
     private func accountInfo(_ user: UserResponse) -> some View {
         Group {
             LabeledContent("Email", value: user.email)
             LabeledContent("Username", value: user.username)
         }
     }
-    
+
     private var noProfileView: some View {
         ContentUnavailableView {
             Label("No Profile", systemImage: "person.crop.circle.badge.exclamationmark")
@@ -212,20 +212,20 @@ struct AccountView: View {
             }
         }
     }
-    
+
     // MARK: - Toolbar
-    
+
     private struct AccountToolbarContent: ToolbarContent {
         let user: UserResponse?
         @Binding var isEditing: Bool
         @Binding var editedName: String
         @Binding var editedEmail: String
         let authManager: AuthenticationManager
-        
+
         var body: some ToolbarContent {
             if user != nil {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(isEditing ? "Done" : "Edit") {
+                    AsyncButton(isEditing ? "Done" : "Edit") {
                         withAnimation {
                             if isEditing {
                                 // Save changes
@@ -244,7 +244,7 @@ struct AccountView: View {
                         }
                     }
                 }
-                
+
                 if isEditing {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("Cancel") {
@@ -257,9 +257,9 @@ struct AccountView: View {
             }
         }
     }
-    
+
     // MARK: - Helpers
-    
+
     private func handleProfilePhotoSelection(_ item: PhotosPickerItem?) {
         Task {
             if let data = try? await item?.loadTransferable(type: Data.self) {
@@ -272,7 +272,7 @@ struct AccountView: View {
             }
         }
     }
-    
+
     private func updateEditingFields(user: UserResponse?) {
         if let user = user, !isEditing {
             editedName = user.displayName
@@ -280,6 +280,9 @@ struct AccountView: View {
         }
     }
 }
+
+#if DEBUG
+import Networking
 
 #Preview {
     // Create shared dependencies
@@ -289,15 +292,25 @@ struct AccountView: View {
         refreshClient: refreshClient,
         tokenStore: tokenStore
     )
+    
+    let totpService = PreviewTOTPService()
+    let totpManager = TOTPManager(totpService: totpService)
+    let emailVerificationService = PreviewEmailVerificationService()
+    let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
+
+    let authManager = AuthenticationManager(
+        authService: PreviewAuthenticationService(),
+        userService: PreviewUserService(),
+        totpManager: totpManager,
+        emailVerificationManager: emailVerificationManager,
+        authorizationManager: authorizationManager
+    )
 
     NavigationStack {
         AccountView()
-            .environment(AuthenticationManager(
-                authService: PreviewAuthenticationService(),
-                userService: PreviewUserService(),
-                totpService: PreviewTOTPService(),
-                emailVerificationService: PreviewEmailVerificationService(),
-                authorizationManager: authorizationManager
-            ))
+            .environment(authManager)
+            .environment(emailVerificationManager)
+            .environment(totpManager)
     }
-} 
+}
+#endif

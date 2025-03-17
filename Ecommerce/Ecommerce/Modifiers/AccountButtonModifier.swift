@@ -11,7 +11,6 @@ struct AccountButtonModifier: ViewModifier {
                         showAccount = true
                     } label: {
                         Image(systemName: "person.circle")
-                            .foregroundStyle(.primary)
                     }
                 }
             }

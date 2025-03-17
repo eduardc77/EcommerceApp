@@ -44,12 +44,18 @@ struct EcommerceApp: App {
         let productService = ProductService(apiClient: apiClient)
         let categoryService = CategoryService(apiClient: apiClient)
         
-        // Initialize managers
+        // Create managers that don't have dependencies
+        let totpManager = TOTPManager(totpService: totpService)
+        let emailVerificationManager = EmailVerificationManager(
+            emailVerificationService: emailVerificationService
+        )
+        
+        // Create auth manager with all dependencies
         let auth = AuthenticationManager(
             authService: authService,
             userService: userService,
-            totpService: totpService,
-            emailVerificationService: emailVerificationService,
+            totpManager: totpManager,
+            emailVerificationManager: emailVerificationManager,
             authorizationManager: authorizationManager
         )
         
@@ -61,11 +67,9 @@ struct EcommerceApp: App {
             categoryService: categoryService
         ))
         _categoryManager = State(initialValue: CategoryManager(categoryService: categoryService))
+        _totpManager = State(initialValue: totpManager)
+        _emailVerificationManager = State(initialValue: emailVerificationManager)
         _permissionManager = State(initialValue: PermissionManager(authManager: auth))
-        _totpManager = State(initialValue: TOTPManager(totpService: totpService))
-        _emailVerificationManager = State(initialValue: EmailVerificationManager(
-            emailVerificationService: emailVerificationService
-        ))
     }
     
     var body: some Scene {
@@ -73,11 +77,11 @@ struct EcommerceApp: App {
             ContentView()
                 .environment(authManager)
                 .environment(userManager)
-                .environment(permissionManager)
-                .environment(categoryManager)
                 .environment(productManager)
-                .environment(favoritesManager)
+                .environment(categoryManager)
+                .environment(permissionManager)
                 .environment(cartManager)
+                .environment(favoritesManager)
                 .environment(toastManager)
                 .environment(totpManager)
                 .environment(emailVerificationManager)

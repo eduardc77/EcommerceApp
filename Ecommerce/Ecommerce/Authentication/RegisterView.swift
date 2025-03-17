@@ -1,8 +1,8 @@
 import SwiftUI
-import Combine
 
 struct RegisterView: View {
     @Environment(AuthenticationManager.self) private var authManager
+    @Environment(EmailVerificationManager.self) private var emailVerificationManager
     @State private var formState = RegisterFormState()
     @FocusState private var focusedField: Field?
     @State private var showError = false
@@ -17,10 +17,20 @@ struct RegisterView: View {
 
     var body: some View {
         Form {
-            accountInfoFieldsSection
-            securityFieldsSection
+            registerFieldsSection
         }
         .navigationTitle("Create Account")
+        .sheet(isPresented: .init(
+            get: { emailVerificationManager.requiresEmailVerification },
+            set: { newValue in
+                if !newValue {
+                    emailVerificationManager.requiresEmailVerification = false
+                }
+            }
+        )) {
+            EmailVerificationView(source: .registration)
+                .interactiveDismissDisabled()
+        }
         .onChange(of: focusedField) { oldValue, newValue in
             if let oldValue = oldValue {
                 withAnimation(.smooth) {
@@ -44,6 +54,7 @@ struct RegisterView: View {
                         }
                     }
                 }
+                .fontWeight(.medium)
             }
         }
         .onDisappear {
@@ -62,11 +73,10 @@ struct RegisterView: View {
                 Text(error.localizedDescription)
             }
         }
-
     }
 
-    private var accountInfoFieldsSection: some View {
-        Section("Account Information") {
+    private var registerFieldsSection: some View {
+        Section {
             ValidatedFormField(
                 title: "Username",
                 text: $formState.username,
@@ -95,11 +105,7 @@ struct RegisterView: View {
                 validate: { formState.validateEmail() },
                 capitalization: .never
             )
-        }
-    }
 
-    private var securityFieldsSection: some View {
-        Section("Security") {
             ValidatedFormField(
                 title: "Password",
                 text: $formState.password,
@@ -124,7 +130,7 @@ struct RegisterView: View {
     }
 
     private func register() async {
-        await authManager.register(
+        _ = await authManager.register(
             username: formState.username,
             displayName: formState.displayName,
             email: formState.email,
@@ -144,14 +150,26 @@ import Networking
         refreshClient: refreshClient,
         tokenStore: tokenStore
     )
-    RegisterView()
-        .environment(AuthenticationManager(
-            authService: PreviewAuthenticationService(),
-            userService: PreviewUserService(),
-            totpService: PreviewTOTPService(),
-            emailVerificationService: PreviewEmailVerificationService(),
-            authorizationManager: authorizationManager
-        ))
+
+    let totpService = PreviewTOTPService()
+    let totpManager = TOTPManager(totpService: totpService)
+    let emailVerificationService = PreviewEmailVerificationService()
+    let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
+
+    let authManager = AuthenticationManager(
+        authService: PreviewAuthenticationService(),
+        userService: PreviewUserService(),
+        totpManager: totpManager,
+        emailVerificationManager: emailVerificationManager,
+        authorizationManager: authorizationManager
+    )
+
+    NavigationStack {
+        RegisterView()
+            .environment(authManager)
+            .environment(emailVerificationManager)
+            .environment(totpManager)
+    }
 }
 #endif
 
