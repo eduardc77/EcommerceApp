@@ -3,7 +3,7 @@ import Networking
 
 struct PreviewRefreshAPIClient: RefreshAPIClientProtocol {
     init() {}
-
+    
     func refreshToken(_ refreshToken: String) async throws -> OAuthToken {
         // Return a mock token for preview
         return Token(
@@ -18,16 +18,17 @@ struct PreviewRefreshAPIClient: RefreshAPIClientProtocol {
 
 // MARK: - Auth Service
 struct PreviewAuthenticationService: AuthenticationServiceProtocol {
+    
     private let authorizationManager: AuthorizationManagerProtocol
-
+    
     init(authorizationManager: AuthorizationManagerProtocol = AuthorizationManager(
         refreshClient: PreviewRefreshAPIClient(),
         tokenStore: PreviewTokenStore()
     )) {
         self.authorizationManager = authorizationManager
     }
-
-    func login(dto: LoginRequest) async throws -> AuthResponse {
+    
+    func login(request: LoginRequest) async throws -> AuthResponse {
         let token = Token(
             accessToken: "preview-access-token",
             refreshToken: "preview-refresh-token",
@@ -36,7 +37,7 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
             expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
         )
         await authorizationManager.storeToken(token)
-
+        
         return AuthResponse(
             accessToken: token.accessToken,
             refreshToken: token.refreshToken,
@@ -48,8 +49,8 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
             requiresEmailVerification: false
         )
     }
-
-    func register(dto: CreateUserRequest) async throws -> AuthResponse {
+    
+    func verifyTOTPLogin(tempToken: String, code: String) async throws -> AuthResponse {
         let token = Token(
             accessToken: "preview-access-token",
             refreshToken: "preview-refresh-token",
@@ -57,8 +58,9 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
             expiresIn: 3600,
             expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
         )
+        
         await authorizationManager.storeToken(token)
-
+        
         return AuthResponse(
             accessToken: token.accessToken,
             refreshToken: token.refreshToken,
@@ -70,27 +72,49 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
             requiresEmailVerification: false
         )
     }
-
+    
+    func register(request: CreateUserRequest) async throws -> AuthResponse {
+        let token = Token(
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+        )
+        await authorizationManager.storeToken(token)
+        
+        return AuthResponse(
+            accessToken: token.accessToken,
+            refreshToken: token.refreshToken,
+            tokenType: token.tokenType,
+            expiresIn: token.expiresIn,
+            expiresAt: token.expiresAt,
+            user: UserResponse.previewUser,
+            requiresTOTP: false,
+            requiresEmailVerification: false
+        )
+    }
+    
     func logout() async throws {
         try await authorizationManager.invalidateToken()
     }
-
+    
     func me() async throws -> UserResponse {
         return .previewUser
     }
-
+    
     func changePassword(current: String, new: String) async throws -> MessageResponse {
         return MessageResponse(message: "Password changed successfully", success: true)
     }
-
+    
     func requestEmailCode() async throws -> MessageResponse {
         return MessageResponse(message: "Email code sent successfully", success: true)
     }
-
+    
     func forgotPassword(email: String) async throws -> MessageResponse {
         return MessageResponse(message: "Password reset email sent", success: true)
     }
-
+    
     func resetPassword(email: String, code: String, newPassword: String) async throws -> MessageResponse {
         return MessageResponse(message: "Password reset successfully", success: true)
     }
@@ -109,35 +133,35 @@ struct PreviewUserService: UserServiceProtocol {
             updatedAt: "2025-02-23T21:51:49.000Z"
         )
     }
-
+    
     func register(_ dto: Networking.CreateUserRequest) async throws -> Networking.UserResponse {
         .previewUser
     }
-
+    
     func deleteUser(id: String) async throws -> Networking.MessageResponse {
         MessageResponse(message: "User deleted successfully", success: true)
     }
-
+    
     func updateRole(userId: String, request: Networking.UpdateRoleRequest) async throws -> Networking.UserResponse {
         .previewUser
     }
-
+    
     func getAllUsers() async throws -> [UserResponse] {
         [.previewUser]
     }
-
+    
     func getUser(id: String) async throws -> UserResponse {
         .previewUser
     }
-
+    
     func createUser(_ dto: CreateUserRequest) async throws -> UserResponse {
         .previewUser
     }
-
+    
     func updateProfile(id: String, dto: UpdateUserRequest) async throws -> UserResponse {
         .previewUser
     }
-
+    
     func checkAvailability(_ type: AvailabilityType) async throws -> AvailabilityResponse {
         switch type {
         case .username(let value):
@@ -146,7 +170,7 @@ struct PreviewUserService: UserServiceProtocol {
             return AvailabilityResponse(available: true, identifier: value, type: "email")
         }
     }
-
+    
     func getProfile() async throws -> UserResponse {
         .previewUser
     }
@@ -163,7 +187,7 @@ actor PreviewTokenStore: TokenStoreProtocol {
             expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
         )
     }
-
+    
     func setToken(_ token: OAuthToken) async throws {}
     func deleteToken() async {}
     func invalidateToken() async throws {}
@@ -184,7 +208,7 @@ extension UserResponse {
 }
 
 struct PreviewAPIClient: APIClient {
-
+    
     func performRequest<T: Decodable & Sendable>(
         from endpoint: APIEndpoint,
         in environment: APIEnvironment,
@@ -248,7 +272,7 @@ extension ProductResponse {
         createdAt: "2025-02-23T21:51:49.000Z",
         updatedAt: "2025-02-23T21:51:49.000Z"
     )
-
+    
     static let previewProduct2 = ProductResponse(
         id: "2",
         title: "MacBook Pro",
@@ -260,7 +284,7 @@ extension ProductResponse {
         createdAt: "2025-02-23T21:51:49.000Z",
         updatedAt: "2025-02-23T21:51:49.000Z"
     )
-
+    
     static let previewProduct3 = ProductResponse(
         id: "3",
         title: "iPad Pro",
@@ -284,7 +308,7 @@ extension CategoryResponse {
         updatedAt: "2025-02-23T21:51:49.000Z",
         productCount: 3
     )
-
+    
     static let previewCategory2 = CategoryResponse(
         id: "2",
         name: "Accessories",
@@ -301,27 +325,27 @@ struct PreviewEmailVerificationService: EmailVerificationServiceProtocol {
     func getInitialStatus() async throws -> Networking.EmailVerificationStatusResponse {
         EmailVerificationStatusResponse(enabled: false, verified: true)
     }
-
+    
     func get2FAStatus() async throws -> Networking.EmailVerificationStatusResponse {
         EmailVerificationStatusResponse(enabled: false, verified: true)
     }
-
+    
     func setup2FA() async throws -> Networking.MessageResponse {
         MessageResponse(message: "Verification code sent", success: true)
     }
-
+    
     func verify2FA(code: String) async throws -> Networking.MessageResponse {
         MessageResponse(message: "2FA enabled successfully", success: true)
     }
-
+    
     func disable2FA() async throws -> Networking.MessageResponse {
         MessageResponse(message: "2FA disabled successfully", success: true)
     }
-
+    
     func verifyInitialEmail(email: String, code: String) async throws -> Networking.MessageResponse {
         MessageResponse(message: "Initial email verified successfully", success: true)
     }
-
+    
     func resendVerificationEmail(email: String) async throws -> Networking.MessageResponse {
         MessageResponse(message: "Verification email resent", success: true)
     }
@@ -335,19 +359,19 @@ struct PreviewTOTPService: TOTPServiceProtocol {
             qrCodeUrl: "otpauth://totp/Preview:user@example.com?secret=ABCDEFGHIJKLMNOP&issuer=Preview"
         )
     }
-
+    
     func verify(code: String) async throws -> Networking.MessageResponse {
         MessageResponse(message: "TOTP code verified", success: true)
     }
-
+    
     func enable(code: String) async throws -> Networking.MessageResponse {
         MessageResponse(message: "TOTP enabled", success: true)
     }
-
+    
     func disable(code: String) async throws -> Networking.MessageResponse {
         MessageResponse(message: "TOTP disabled", success: true)
     }
-
+    
     func getStatus() async throws -> Networking.TOTPStatusResponse {
         TOTPStatusResponse(enabled: false)
     }

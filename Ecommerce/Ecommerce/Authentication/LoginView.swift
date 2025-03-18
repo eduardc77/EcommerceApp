@@ -10,6 +10,7 @@ struct LoginView: View {
     @State private var remainingTime: Int?
     @State private var lockoutStartTime: Date?
     @State private var navigationPath = NavigationPath()
+    @State private var showingTOTPVerification = false
 
     private enum Field {
         case identifier
@@ -68,6 +69,9 @@ struct LoginView: View {
                     EmptyView()
                 }
             }
+            .sheet(isPresented: $showingTOTPVerification) {
+                TOTPVerificationView()
+            }
             .onChange(of: focusedField) { oldValue, newValue in
                 if let oldValue = oldValue {
                     switch oldValue {
@@ -91,6 +95,11 @@ struct LoginView: View {
                     lockedIdentifier = formState.identifier
                     remainingTime = retryAfter
                     startTimer()
+                }
+            }
+            .onChange(of: authManager.requiresTOTPVerification) { _, requiresTOTP in
+                if requiresTOTP {
+                    showingTOTPVerification = true
                 }
             }
             .onDisappear {

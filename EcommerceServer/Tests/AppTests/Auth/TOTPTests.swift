@@ -188,7 +188,7 @@ struct TOTPTests {
     @Test("Login flow with TOTP works correctly")
     func testLoginWithTOTP() async throws {
         let app = try await buildApplication(TestAppArguments())
-        let (_, _) = try await app.test(.router) { client in
+        try await app.test(.router) { client in
             // Create and login user
             let requestBody = TestCreateUserRequest(
                 username: "totp_test_789",
@@ -239,7 +239,7 @@ struct TOTPTests {
             }
             
             // Try login without TOTP code
-            try await client.execute(
+            let initialLoginResponse = try await client.execute(
                 uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
@@ -247,32 +247,39 @@ struct TOTPTests {
                 #expect(response.status == .unauthorized)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(authResponse.requiresTOTP)
+                #expect(authResponse.accessToken.isEmpty)
+                #expect(authResponse.tempToken != nil)
+                return authResponse
+            }
+            
+            // Login with invalid TOTP code
+            try await client.execute(
+                uri: "/api/v1/auth/login/verify-totp",
+                method: .post,
+                body: JSONEncoder().encodeAsByteBuffer(
+                    TOTPVerificationRequest(tempToken: initialLoginResponse.tempToken!, code: "000000"),
+                    allocator: ByteBufferAllocator()
+                )
+            ) { response in
+                #expect(response.status == .unauthorized)
             }
             
             // Login with valid TOTP code
             let loginCode = try TOTP.generateTestCode(from: setupResponse.secret)
             try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/login/verify-totp",
                 method: .post,
-                headers: [HTTPField.Name("x-totp-code")!: loginCode],
-                auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
+                body: JSONEncoder().encodeAsByteBuffer(
+                    TOTPVerificationRequest(tempToken: initialLoginResponse.tempToken!, code: loginCode),
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .created)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(!authResponse.requiresTOTP)
+                #expect(!authResponse.accessToken.isEmpty)
+                #expect(authResponse.tempToken == nil)
             }
-            
-            // Try login with invalid TOTP code
-            try await client.execute(
-                uri: "/api/v1/auth/login",
-                method: .post,
-                headers: [HTTPField.Name("x-totp-code")!: "001000"],
-                auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN!Z")
-            ) { response in
-                #expect(response.status == .unauthorized)
-            }
-            
-            return (setupResponse.secret, authResponse.accessToken)
         }
     }
     

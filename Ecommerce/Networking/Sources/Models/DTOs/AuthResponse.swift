@@ -10,6 +10,7 @@ public struct AuthResponse: Codable, Sendable {
     public let user: UserResponse
     public let requiresTOTP: Bool
     public let requiresEmailVerification: Bool
+    public let tempToken: String?    // Temporary token for TOTP verification
     
     public init(
         accessToken: String,
@@ -19,7 +20,8 @@ public struct AuthResponse: Codable, Sendable {
         expiresAt: String,
         user: UserResponse,
         requiresTOTP: Bool = false,
-        requiresEmailVerification: Bool = false
+        requiresEmailVerification: Bool = false,
+        tempToken: String? = nil
     ) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
@@ -29,6 +31,7 @@ public struct AuthResponse: Codable, Sendable {
         self.user = user
         self.requiresTOTP = requiresTOTP
         self.requiresEmailVerification = requiresEmailVerification
+        self.tempToken = tempToken
     }
     
     /// Helper to get expiration date from ISO8601 string

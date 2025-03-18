@@ -13,6 +13,11 @@ struct AccountView: View {
     @State private var showingEmailVerification = false
     @State private var selectedItem: PhotosPickerItem?
     @State private var selectedImageData: Data?
+    @State private var showingTOTPSetup = false
+    @State private var showingDisableTOTPConfirmation = false
+    @State private var showingDisableTOTPVerification = false
+    @State private var disableTOTPCode = ""
+    @State private var disableTOTPError: Error?
 
     private var user: UserResponse? {
         authManager.currentUser
@@ -24,6 +29,7 @@ struct AccountView: View {
                 if let user = user {
                     profileSection(user)
                     accountInformationSection(user)
+                    twoFactorSection
 
                     if emailVerificationManager.requiresEmailVerification {
                         emailVerificationSection
@@ -40,6 +46,79 @@ struct AccountView: View {
             .sheet(isPresented: $showingEmailVerification) {
                 EmailVerificationView(source: .account)
                     .interactiveDismissDisabled()
+            }
+            .sheet(isPresented: $showingTOTPSetup) {
+                TOTPSetupView()
+            }
+            .alert("Disable Two-Factor Authentication", isPresented: $showingDisableTOTPConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Continue", role: .destructive) {
+                    showingDisableTOTPVerification = true
+                }
+            } message: {
+                Text("This will remove an important security feature from your account. You'll need to verify your identity to continue.")
+            }
+            .sheet(isPresented: $showingDisableTOTPVerification) {
+                NavigationStack {
+                    Form {
+                        Section {
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Enter the 6-digit verification code from your authenticator app")
+                                    .font(.headline)
+                                
+                                TextField("Verification Code", text: $disableTOTPCode)
+                                    .keyboardType(.numberPad)
+                                    .textContentType(.oneTimeCode)
+                                    .font(.system(.title2, design: .monospaced))
+                                    .multilineTextAlignment(.center)
+                                    .onChange(of: disableTOTPCode) { oldValue, newValue in
+                                        // Limit to 6 digits
+                                        if newValue.count > 6 {
+                                            disableTOTPCode = String(newValue.prefix(6))
+                                        }
+                                        // Remove non-digits
+                                        disableTOTPCode = newValue.filter { $0.isNumber }
+                                    }
+                                
+                                AsyncButton {
+                                    do {
+                                        try await authManager.totpManager.disableTOTP(code: disableTOTPCode)
+                                        showingDisableTOTPVerification = false
+                                    } catch {
+                                        disableTOTPError = error
+                                    }
+                                } label: {
+                                    Text("Verify and Disable")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(disableTOTPCode.count != 6)
+                            }
+                            .padding(.vertical, 8)
+                        }
+                    }
+                    .navigationTitle("Verify Identity")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") {
+                                showingDisableTOTPVerification = false
+                            }
+                        }
+                    }
+                    .alert("Verification Failed", isPresented: .init(
+                        get: { disableTOTPError != nil },
+                        set: { if !$0 { disableTOTPError = nil } }
+                    )) {
+                        Button("OK") {
+                            disableTOTPError = nil
+                        }
+                    } message: {
+                        if let error = disableTOTPError {
+                            Text(error.localizedDescription)
+                        }
+                    }
+                }
             }
             .onChange(of: emailVerificationManager.requiresEmailVerification) { _, requiresEmailVerification in
                 if !requiresEmailVerification {
@@ -89,6 +168,121 @@ struct AccountView: View {
             }
         } header: {
             Text("Account Information")
+        }
+    }
+
+    private var twoFactorSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "lock.shield")
+                        .font(.title2)
+                        .foregroundStyle(authManager.totpManager.isEnabled ? .green : .secondary)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Two-Factor Authentication")
+                            .font(.headline)
+                        Text(authManager.totpManager.isEnabled ? "Enabled" : "Not enabled")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                if !authManager.totpManager.isEnabled {
+                    Text("Add an extra layer of security to your account by requiring both your password and an authentication code from your phone.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    Button {
+                        showingTOTPSetup = true
+                    } label: {
+                        Label("Enable 2FA", systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Button(role: .destructive) {
+                        showingDisableTOTPConfirmation = true
+                    } label: {
+                        Label("Disable 2FA", systemImage: "minus.circle.fill")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            .padding(.vertical, 8)
+        } header: {
+            Text("Security")
+        }
+        .alert("Disable Two-Factor Authentication", isPresented: $showingDisableTOTPConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Continue", role: .destructive) {
+                showingDisableTOTPVerification = true
+            }
+        } message: {
+            Text("This will remove an important security feature from your account. You'll need to verify your identity to continue.")
+        }
+        .sheet(isPresented: $showingDisableTOTPVerification) {
+            NavigationStack {
+                Form {
+                    Section {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Enter the 6-digit verification code from your authenticator app")
+                                .font(.headline)
+                            
+                            TextField("Verification Code", text: $disableTOTPCode)
+                                .keyboardType(.numberPad)
+                                .textContentType(.oneTimeCode)
+                                .font(.system(.title2, design: .monospaced))
+                                .multilineTextAlignment(.center)
+                                .onChange(of: disableTOTPCode) { oldValue, newValue in
+                                    // Limit to 6 digits
+                                    if newValue.count > 6 {
+                                        disableTOTPCode = String(newValue.prefix(6))
+                                    }
+                                    // Remove non-digits
+                                    disableTOTPCode = newValue.filter { $0.isNumber }
+                                }
+                            
+                            AsyncButton {
+                                do {
+                                    try await authManager.totpManager.disableTOTP(code: disableTOTPCode)
+                                    showingDisableTOTPVerification = false
+                                } catch {
+                                    disableTOTPError = error
+                                }
+                            } label: {
+                                Text("Verify and Disable")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(disableTOTPCode.count != 6)
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+                .navigationTitle("Verify Identity")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            showingDisableTOTPVerification = false
+                        }
+                    }
+                }
+                .alert("Verification Failed", isPresented: .init(
+                    get: { disableTOTPError != nil },
+                    set: { if !$0 { disableTOTPError = nil } }
+                )) {
+                    Button("OK") {
+                        disableTOTPError = nil
+                    }
+                } message: {
+                    if let error = disableTOTPError {
+                        Text(error.localizedDescription)
+                    }
+                }
+            }
         }
     }
 
@@ -265,7 +459,7 @@ struct AccountView: View {
             if let data = try? await item?.loadTransferable(type: Data.self) {
                 // Here you would typically upload the image data and get back a URL
                 // For now, we'll just use the default avatar
-                await authManager.updateProfile(
+                _ = await authManager.updateProfile(
                     displayName: user?.displayName ?? "",
                     profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
                 )

@@ -1,8 +1,9 @@
 import OSLog
 
 public protocol AuthenticationServiceProtocol {
-    func login(dto: LoginRequest) async throws -> AuthResponse
-    func register(dto: CreateUserRequest) async throws -> AuthResponse
+    func login(request: LoginRequest) async throws -> AuthResponse
+    func verifyTOTPLogin(tempToken: String, code: String) async throws -> AuthResponse
+    func register(request: CreateUserRequest) async throws -> AuthResponse
     func logout() async throws
     func me() async throws -> UserResponse
     func changePassword(current: String, new: String) async throws -> MessageResponse
@@ -27,15 +28,39 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         self.environment = environment
     }
 
-    public func login(dto: LoginRequest) async throws -> AuthResponse {
+    public func login(request: LoginRequest) async throws -> AuthResponse {
         let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.login(dto: dto),
+            from: Store.Authentication.login(dto: request),
             in: environment,
             allowRetry: false,
             requiresAuthorization: false
         )
         
-        // Store the token
+        // Only store tokens if this is not a TOTP required response
+        if !response.requiresTOTP {
+            let token = Token(
+                accessToken: response.accessToken,
+                refreshToken: response.refreshToken,
+                tokenType: response.tokenType,
+                expiresIn: response.expiresIn,
+                expiresAt: response.expiresAt
+            )
+            await authorizationManager.storeToken(token)
+        }
+        
+        logger.debug("Login successful: \(response.user.displayName)")
+        return response
+    }
+
+    public func verifyTOTPLogin(tempToken: String, code: String) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.verifyTOTPLogin(tempToken: tempToken, code: code),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        
+        // Store the tokens after successful verification
         let token = Token(
             accessToken: response.accessToken,
             refreshToken: response.refreshToken,
@@ -45,13 +70,13 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         )
         await authorizationManager.storeToken(token)
         
-        logger.debug("Login successful: \(response.user.displayName)")
+        logger.debug("TOTP verification successful: \(response.user.displayName)")
         return response
     }
 
-    public func register(dto: CreateUserRequest) async throws -> AuthResponse {
+    public func register(request: CreateUserRequest) async throws -> AuthResponse {
         let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.register(dto: dto),
+            from: Store.Authentication.register(dto: request),
             in: environment,
             allowRetry: false,
             requiresAuthorization: false
@@ -138,5 +163,10 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         )
         logger.debug("Password reset successfully")
         return response
+    }
+
+    public func refreshToken(_ token: String) async throws -> AuthResponse {
+        // Implementation needed
+        fatalError("Method not implemented")
     }
 }

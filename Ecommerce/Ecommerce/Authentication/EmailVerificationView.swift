@@ -240,6 +240,10 @@ struct EmailVerificationView: View {
         let success = await emailVerificationManager.verifyEmail(email: authManager.currentUser?.email ?? "", code: verificationCode)
 
         if success {
+            // Only set authenticated if this is from registration
+            if source == .registration {
+                authManager.isAuthenticated = true
+            }
             dismiss()
         } else {
             withAnimation {

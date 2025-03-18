@@ -33,7 +33,7 @@ public final class EmailVerificationManager {
     
     /// Skips the email verification requirement
     public func skipEmailVerification() {
-        requiresEmailVerification = false
+        requiresEmailVerification = true
     }
     
     /// Fetches the initial verification status from the server
@@ -72,6 +72,7 @@ public final class EmailVerificationManager {
             return true
         } catch let networkError as NetworkError {
             error = networkError
+            
             verificationError = {
                 switch networkError {
                 case .unauthorized:
@@ -80,7 +81,7 @@ public final class EmailVerificationManager {
                     return .emailNotFound
                 case .forbidden:
                     return .tooManyAttempts
-                case .clientError(let statusCode, let description, _):
+                case let .clientError(statusCode, description, _, _):
                     switch statusCode {
                     case 400:
                         return .invalidCode

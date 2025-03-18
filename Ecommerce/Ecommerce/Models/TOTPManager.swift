@@ -1,5 +1,42 @@
+import Foundation
 import Observation
 import Networking
+
+/// Represents the data needed for TOTP setup
+public struct TOTPSetupData {
+    public let qrCode: String
+    public let secret: String
+}
+
+/// Errors that can occur during TOTP operations
+public enum TOTPError: LocalizedError {
+    case invalidCode
+    case setupFailed
+    case verificationFailed
+    case alreadyEnabled
+    case notEnabled
+    case networkError(Error)
+    case unknown(Error)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .invalidCode:
+            return "Invalid verification code. Please try again."
+        case .setupFailed:
+            return "Failed to set up two-factor authentication. Please try again."
+        case .verificationFailed:
+            return "Verification failed. Please make sure you entered the correct code."
+        case .alreadyEnabled:
+            return "Two-factor authentication is already enabled."
+        case .notEnabled:
+            return "Two-factor authentication is not enabled."
+        case .networkError(let error):
+            return "Network error: \(error.localizedDescription)"
+        case .unknown(let error):
+            return "An unexpected error occurred: \(error.localizedDescription)"
+        }
+    }
+}
 
 /// Manages Two-Factor Authentication (2FA) using Time-based One-Time Passwords (TOTP)
 @Observable
@@ -27,81 +64,160 @@ public final class TOTPManager {
         isEnabled = false
     }
     
-    /// Sets up TOTP 2FA and returns the QR code URL for initial setup
-    /// - Returns: QR code URL for scanning with authenticator app, nil if setup fails
-    public func setupTOTP() async -> String? {
+    /// Sets up TOTP 2FA and returns the setup data
+    /// - Returns: Setup data containing QR code and secret
+    /// - Throws: TOTPError if setup fails
+    public func setupTOTP() async throws -> TOTPSetupData {
         isLoading = true
         error = nil
+        defer { isLoading = false }
+        
         do {
+            if isEnabled {
+                throw TOTPError.alreadyEnabled
+            }
+            
             let response = try await totpService.setup()
-            return response.qrCodeUrl
-        } catch {
+
+            return TOTPSetupData(qrCode: response.qrCodeUrl, secret: response.secret)
+        } catch let error as TOTPError {
             self.error = error
-            return nil
+            throw error
+        } catch let error as NetworkError {
+            let wrappedError = TOTPError.networkError(error)
+            self.error = wrappedError
+            throw wrappedError
+        } catch {
+            let wrappedError = TOTPError.unknown(error)
+            self.error = wrappedError
+            throw wrappedError
         }
-        isLoading = false
+    }
+    
+    /// Verifies and enables TOTP 2FA
+    /// - Parameter code: The 6-digit verification code
+    /// - Throws: TOTPError if verification fails
+    public func verifyAndEnableTOTP(code: String) async throws {
+        isLoading = true
+        error = nil
+        defer { isLoading = false }
+        
+        do {
+            if isEnabled {
+                throw TOTPError.alreadyEnabled
+            }
+            
+            // First verify the code
+            _ = try await totpService.verify(code: code)
+
+            // Then enable 2FA
+            _ = try await totpService.enable(code: code)
+            isEnabled = true
+        } catch let error as TOTPError {
+            self.error = error
+            throw error
+        } catch let error as NetworkError {
+            let wrappedError = TOTPError.networkError(error)
+            self.error = wrappedError
+            throw wrappedError
+        } catch {
+            let wrappedError = TOTPError.unknown(error)
+            self.error = wrappedError
+            throw wrappedError
+        }
     }
     
     /// Verifies a TOTP code
-    /// - Parameter code: The 6-digit TOTP code to verify
-    /// - Returns: Whether the verification was successful
-    public func verifyTOTP(_ code: String) async -> Bool {
+    /// - Parameter code: The 6-digit verification code
+    /// - Throws: TOTPError if verification fails
+    public func verifyTOTP(_ code: String) async throws {
         isLoading = true
         error = nil
+        defer { isLoading = false }
+        
+        do {
+            if !isEnabled {
+                throw TOTPError.notEnabled
+            }
+            _ = try await totpService.verify(code: code)
+        } catch let error as TOTPError {
+            self.error = error
+            throw error
+        } catch let error as NetworkError {
+            let wrappedError = TOTPError.networkError(error)
+            self.error = wrappedError
+            throw wrappedError
+        } catch {
+            let wrappedError = TOTPError.unknown(error)
+            self.error = wrappedError
+            throw wrappedError
+        }
+    }
+    
+    /// Verifies a TOTP code during login
+    /// - Parameter code: The 6-digit verification code
+    /// - Throws: TOTPError if verification fails
+    public func verifyTOTPForLogin(_ code: String) async throws {
+        isLoading = true
+        error = nil
+        defer { isLoading = false }
+        
         do {
             _ = try await totpService.verify(code: code)
-            return true
-        } catch {
+        } catch let error as TOTPError {
             self.error = error
-            return false
+            throw error
+        } catch let error as NetworkError {
+            let wrappedError = TOTPError.networkError(error)
+            self.error = wrappedError
+            throw wrappedError
+        } catch {
+            let wrappedError = TOTPError.unknown(error)
+            self.error = wrappedError
+            throw wrappedError
         }
-        isLoading = false
     }
     
     /// Fetches the current TOTP status from the server
     public func getTOTPStatus() async {
         isLoading = true
         error = nil
+        defer { isLoading = false }
+        
         do {
             let status = try await totpService.getStatus()
             isEnabled = status.enabled
         } catch {
             self.error = error
         }
-        isLoading = false
     }
     
-    /// Enables TOTP 2FA with a verification code
-    /// - Parameter code: The 6-digit TOTP code to verify and enable
-    /// - Returns: Whether enabling was successful
-    public func enableTOTP(_ code: String) async -> Bool {
+    /// Disables TOTP 2FA
+    /// - Parameter code: The 6-digit verification code to confirm disabling 2FA
+    /// - Throws: TOTPError if disabling fails
+    public func disableTOTP(code: String) async throws {
         isLoading = true
         error = nil
+        defer { isLoading = false }
+        
         do {
-            _ = try await totpService.enable(code: code)
-            isEnabled = true
-            return true
-        } catch {
-            self.error = error
-            return false
-        }
-        isLoading = false
-    }
-    
-    /// Disables TOTP 2FA with a verification code
-    /// - Parameter code: The 6-digit TOTP code to verify and disable
-    /// - Returns: Whether disabling was successful
-    public func disableTOTP(_ code: String) async -> Bool {
-        isLoading = true
-        error = nil
-        do {
+            if !isEnabled {
+                throw TOTPError.notEnabled
+            }
+            
             _ = try await totpService.disable(code: code)
             isEnabled = false
-            return true
-        } catch {
+        } catch let error as TOTPError {
             self.error = error
-            return false
+            throw error
+        } catch let error as NetworkError {
+            let wrappedError = TOTPError.networkError(error)
+            self.error = wrappedError
+            throw wrappedError
+        } catch {
+            let wrappedError = TOTPError.unknown(error)
+            self.error = wrappedError
+            throw wrappedError
         }
-        isLoading = false
     }
 } 

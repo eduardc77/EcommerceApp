@@ -1,13 +1,22 @@
 import Foundation
 import Networking
 
+enum AuthenticationError: Error {
+    case noLoginInProgress
+    case invalidTOTPToken
+    case invalidCredentials
+    case networkError(Error)
+    case invalidResponse
+    case serverError(String)
+}
+
 @Observable
 @MainActor
 public final class AuthenticationManager {
     private let authService: AuthenticationServiceProtocol
     private let userService: UserServiceProtocol
     private let authorizationManager: AuthorizationManagerProtocol
-    private let totpManager: TOTPManager
+    public let totpManager: TOTPManager
     private let emailVerificationManager: EmailVerificationManager
     
     public var currentUser: UserResponse?
@@ -16,7 +25,10 @@ public final class AuthenticationManager {
     public var error: Error?
     public var loginError: LoginError?
     public var registrationError: RegistrationError?
-
+    public var requiresTOTPVerification = false
+    private var pendingLoginResponse: AuthResponse?
+    private var pendingCredentials: (identifier: String, password: String)?
+    
     public init(
         authService: AuthenticationServiceProtocol,
         userService: UserServiceProtocol,
@@ -67,7 +79,6 @@ public final class AuthenticationManager {
         isLoading = false
     }
     
-    @MainActor
     public func register(username: String, displayName: String, email: String, password: String) async -> Bool {
         isLoading = true
         defer { isLoading = false }
@@ -82,20 +93,18 @@ public final class AuthenticationManager {
                 password: password
             )
             
-            let authResponse = try await authService.register(dto: dto)
+            let authResponse = try await authService.register(request: dto)
             currentUser = authResponse.user
             
             // Set email verification state
             let requiresVerification = authResponse.requiresEmailVerification
             emailVerificationManager.requiresEmailVerification = requiresVerification
             
-            // Set authenticated since registration was successful
-            isAuthenticated = true
-            
             return requiresVerification
             
         } catch let networkError as NetworkError {
-            if case .clientError(let statusCode, let description, _) = networkError {
+            switch networkError {
+            case let .clientError(statusCode, description, _, _):
                 switch statusCode {
                 case 409:
                     registrationError = .accountExists
@@ -104,7 +113,7 @@ public final class AuthenticationManager {
                 default:
                     registrationError = .unknown(description)
                 }
-            } else {
+            default:
                 registrationError = .unknown(networkError.localizedDescription)
             }
             isAuthenticated = false
@@ -120,7 +129,6 @@ public final class AuthenticationManager {
         }
     }
     
-    @MainActor
     public func signOut() async {
         isLoading = true
         error = nil
@@ -144,28 +152,33 @@ public final class AuthenticationManager {
         isLoading = false
     }
     
-    @MainActor
     public func signIn(identifier: String, password: String) async {
         isLoading = true
         defer { isLoading = false }
         loginError = nil // Clear previous login errors
         isAuthenticated = false
+        pendingLoginResponse = nil
         
         do {
             let dto = LoginRequest(identifier: identifier, password: password)
-            let response = try await authService.login(dto: dto)
-            currentUser = response.user
+            let response = try await authService.login(request: dto)
             
-            // Set authenticated since login was successful
-            isAuthenticated = true
-            
-            // Check verification and TOTP status in background
-            Task {
-                await emailVerificationManager.getInitialStatus()
-                await totpManager.getTOTPStatus()
+            // Check if TOTP verification is required
+            if response.requiresTOTP {
+                requiresTOTPVerification = true
+                pendingLoginResponse = response
+                // Store credentials for TOTP verification
+                self.pendingCredentials = (identifier: identifier, password: password)
+                return
             }
+            
+            // Complete login if no TOTP required
+            requiresTOTPVerification = false
+            await completeLogin(response: response)
+            
         } catch let networkError as NetworkError {
-            if case .clientError(let statusCode, _, let headers) = networkError {
+            switch networkError {
+            case let .clientError(statusCode, _, headers, data):
                 switch statusCode {
                 case 423:
                     loginError = .accountLocked(retryAfter: nil)
@@ -176,11 +189,21 @@ public final class AuthenticationManager {
                         loginError = .accountLocked(retryAfter: 900) // Default to 15 minutes
                     }
                 case 401:
-                    loginError = .invalidCredentials
+                    // Check if this is a TOTP required response
+                    if let data = data,
+                       let response = try? JSONDecoder().decode(AuthResponse.self, from: data),
+                       response.requiresTOTP {
+                        // Handle TOTP requirement without setting error state
+                        requiresTOTPVerification = true
+                        pendingLoginResponse = response
+                        return
+                    } else {
+                        loginError = .invalidCredentials
+                    }
                 default:
                     loginError = .unknown(networkError.localizedDescription)
                 }
-            } else {
+            default:
                 loginError = .unknown(networkError.localizedDescription)
             }
             isAuthenticated = false
@@ -194,9 +217,45 @@ public final class AuthenticationManager {
         }
     }
     
+    public func verifyTOTPForLogin(code: String) async throws {
+        guard let pendingLoginResponse = pendingLoginResponse else {
+            throw AuthenticationError.noLoginInProgress
+        }
+        
+        guard let tempToken = pendingLoginResponse.tempToken else {
+            throw AuthenticationError.invalidTOTPToken
+        }
+        
+        let response = try await authService.verifyTOTPLogin(
+            tempToken: tempToken,
+            code: code
+        )
+        
+        // Clear pending state
+        self.pendingLoginResponse = nil
+        
+        // Update login state with verified response
+        updateLoginState(response: response)
+    }
+    
+    private func completeLogin(response: AuthResponse) async {
+        currentUser = response.user
+        isAuthenticated = true
+        
+        // Check verification and TOTP status in background
+        Task {
+            await emailVerificationManager.getInitialStatus()
+            await totpManager.getTOTPStatus()
+        }
+    }
+    
+    private func updateLoginState(response: AuthResponse) {
+        currentUser = response.user
+        isAuthenticated = true
+    }
+    
     // MARK: - Profile Management
     
-    @MainActor
     public func updateProfile(displayName: String, email: String? = nil, profilePicture: String? = nil) async -> String? {
         guard let id = currentUser?.id else { return nil }
         isLoading = true
@@ -215,7 +274,7 @@ public final class AuthenticationManager {
             if let newEmail = email {
                 // Reauthenticate to get new tokens with updated email
                 let loginDTO = LoginRequest(identifier: newEmail, password: "") // Password not needed as we're already authenticated
-                let response = try await authService.login(dto: loginDTO)
+                let response = try await authService.login(request: loginDTO)
                 currentUser = response.user
                 return newEmail // Return the new email if it was updated
             }
@@ -226,7 +285,6 @@ public final class AuthenticationManager {
         }
     }
     
-    @MainActor
     public func refreshProfile() async {
         guard isAuthenticated else { return }
         

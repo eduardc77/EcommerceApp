@@ -11,8 +11,9 @@ struct AuthResponse: Codable, Sendable {
     let user: UserResponse
     let requiresTOTP: Bool
     let requiresEmailVerification: Bool
+    let tempToken: String?
     
-    init(accessToken: String, refreshToken: String, tokenType: String = "Bearer", expiresIn: UInt, expiresAt: String, user: UserResponse, requiresTOTP: Bool = false, requiresEmailVerification: Bool = false) {
+    init(accessToken: String, refreshToken: String, tokenType: String = "Bearer", expiresIn: UInt, expiresAt: String, user: UserResponse, requiresTOTP: Bool = false, requiresEmailVerification: Bool = false, tempToken: String? = nil) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.tokenType = tokenType
@@ -21,6 +22,7 @@ struct AuthResponse: Codable, Sendable {
         self.user = user
         self.requiresTOTP = requiresTOTP
         self.requiresEmailVerification = requiresEmailVerification
+        self.tempToken = tempToken
     }
 }
 

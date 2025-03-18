@@ -97,6 +97,7 @@ struct AuthController {
         group.add(middleware: SecurityHeadersMiddleware())
 
         group.post("login", use: self.login)
+            .post("login/verify-totp", use: self.verifyTOTPLogin)
             .post("register", use: self.register)
             .post("email-code", use: self.requestEmailCode)
             .post("forgot-password", use: self.forgotPassword)
@@ -211,107 +212,40 @@ struct AuthController {
         user.updateLastLogin()
         try await user.save(on: fluent.db())
 
-        // Check if any 2FA is enabled
-        if user.twoFactorEnabled || user.emailVerificationEnabled {
-            // For TOTP-enabled users, we need the code in the X-TOTP-Code header
-            if user.twoFactorEnabled {
-                guard let totpCodeField = request.headers.first(where: { $0.name.canonicalName == "x-totp-code" }) else {
-                    return .init(
-                        status: .unauthorized,
-                        response: AuthResponse(
-                            accessToken: "",
-                            refreshToken: "",
-                            expiresIn: 0,
-                            expiresAt: "",
-                            user: UserResponse(from: user),
-                            requiresTOTP: true,
-                            requiresEmailVerification: false
-                        )
-                    )
-                }
-                
-                // Verify TOTP code
-                guard try await user.verifyTOTPCode(totpCodeField.value) else {
-                    throw HTTPError(.unauthorized, message: "Invalid TOTP code")
-                }
-            }
+        // Check if TOTP is enabled
+        if user.twoFactorEnabled {
+            // Generate temporary token for TOTP verification
+            let tempTokenExpiration = Date(timeIntervalSinceNow: 300) // 5 minutes
+            let tempTokenPayload = JWTPayloadData(
+                subject: SubjectClaim(value: try user.requireID().uuidString),
+                expiration: ExpirationClaim(value: tempTokenExpiration),
+                type: "totp_verification",
+                issuer: jwtConfig.issuer,
+                audience: jwtConfig.audience,
+                issuedAt: Date(),
+                id: UUID().uuidString,
+                role: user.role.rawValue,
+                tokenVersion: user.tokenVersion
+            )
             
-            // For email verification enabled users, we need the code in the X-Email-Code header
-            if user.emailVerificationEnabled {
-                // First check if email is verified
-                if !user.emailVerified {
-                    throw HTTPError(.unauthorized, message: "Email verification required")
-                }
-
-                // Then handle 2FA via email if needed
-                guard let emailCodeField = request.headers.first(where: { $0.name.canonicalName == "x-email-code" }) else {
-                    // Generate and send verification code
-                    let userID = try user.requireID()
-                    try await EmailVerificationCode.query(on: fluent.db())
-                        .filter(\.$user.$id == userID)
-                        .filter(\.$type == "2fa_login")
-                        .delete()
-                    
-                    let code = EmailVerificationCode.generateCode()
-                    let verificationCode = EmailVerificationCode(
-                        userID: userID,
-                        code: code,
-                        type: "2fa_login",
-                        expiresAt: Date().addingTimeInterval(300) // 5 minutes
-                    )
-                    try await verificationCode.save(on: fluent.db())
-                    
-                    // Send verification email
-                    try await emailService.send2FALoginEmail(to: user.email, code: code)
-                    
-                    return .init(
-                        status: .unauthorized,
-                        response: AuthResponse(
-                            accessToken: "",
-                            refreshToken: "",
-                            expiresIn: 0,
-                            expiresAt: "",
-                            user: UserResponse(from: user),
-                            requiresTOTP: false,
-                            requiresEmailVerification: true
-                        )
-                    )
-                }
-                
-                // Find and verify the email code
-                let userID = try user.requireID()
-                guard let verificationCode = try await EmailVerificationCode.query(on: fluent.db())
-                    .filter(\.$user.$id == userID)
-                    .filter(\.$type == "2fa_login")
-                    .sort(\.$createdAt, .descending)
-                    .first() else {
-                    throw HTTPError(.unauthorized, message: "No verification code found")
-                }
-                
-                // Check if code is expired
-                if verificationCode.isExpired {
-                    try await verificationCode.delete(on: fluent.db())
-                    throw HTTPError(.unauthorized, message: "Verification code has expired")
-                }
-                
-                // Check attempts
-                if verificationCode.hasExceededAttempts {
-                    try await verificationCode.delete(on: fluent.db())
-                    throw HTTPError(.tooManyRequests, message: "Too many attempts. Please request a new code.")
-                }
-                
-                // Verify the code
-                if verificationCode.code != emailCodeField.value {
-                    verificationCode.incrementAttempts()
-                    try await verificationCode.save(on: fluent.db())
-                    throw HTTPError(.unauthorized, message: "Invalid verification code")
-                }
-                
-                // Delete the verification code after successful verification
-                try await verificationCode.delete(on: fluent.db())
-            }
+            let tempToken = try await self.jwtKeyCollection.sign(tempTokenPayload, kid: self.kid)
+            
+            return .init(
+                status: .unauthorized,
+                response: AuthResponse(
+                    accessToken: "",
+                    refreshToken: "",
+                    expiresIn: 0,
+                    expiresAt: "",
+                    user: UserResponse(from: user),
+                    requiresTOTP: true,
+                    requiresEmailVerification: false,
+                    tempToken: tempToken
+                )
+            )
         }
 
+        // For users without TOTP, proceed with normal login
         let expiresIn = Int(jwtConfig.accessTokenExpiration)
         let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
         let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
@@ -346,15 +280,87 @@ struct AuthController {
         let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
 
-        // Reset failed login attempts on successful login
-        if user.failedLoginAttempts > 0 {
-            user.failedLoginAttempts = 0
-            user.lastFailedLogin = nil
-            try await user.save(on: fluent.db())
-        }
+        let dateFormatter = ISO8601DateFormatter()
+        return .init(
+            status: .created,
+            response: AuthResponse(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                expiresIn: UInt(expiresIn),
+                expiresAt: dateFormatter.string(from: accessExpirationDate),
+                user: UserResponse(from: user),
+                requiresTOTP: false,
+                requiresEmailVerification: false
+            )
+        )
+    }
 
-        // Log successful login
-        context.logger.info("User logged in successfully: \(user.email)")
+    /// Verify TOTP code and complete login
+    @Sendable func verifyTOTPLogin(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<AuthResponse> {
+        // Decode the verification request
+        let verifyRequest = try await request.decode(as: TOTPVerificationRequest.self, context: context)
+        
+        // Verify and decode temporary token
+        let tempTokenPayload = try await self.jwtKeyCollection.verify(verifyRequest.tempToken, as: JWTPayloadData.self)
+        
+        // Ensure it's a TOTP verification token
+        guard tempTokenPayload.type == "totp_verification" else {
+            throw HTTPError(.unauthorized, message: "Invalid token type")
+        }
+        
+        // Get user from database
+        guard let user = try await User.find(UUID(uuidString: tempTokenPayload.subject.value), on: fluent.db()) else {
+            throw HTTPError(.unauthorized, message: "User not found")
+        }
+        
+        // Verify token version
+        guard let tokenVersion = tempTokenPayload.tokenVersion,
+              tokenVersion == user.tokenVersion else {
+            throw HTTPError(.unauthorized, message: "Invalid token version")
+        }
+        
+        // Verify TOTP code
+        guard try await user.verifyTOTPCode(verifyRequest.code) else {
+            throw HTTPError(.unauthorized, message: "Invalid TOTP code")
+        }
+        
+        // Generate new access and refresh tokens
+        let expiresIn = Int(jwtConfig.accessTokenExpiration)
+        let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
+        let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
+        let issuedAt = Date()
+        
+        // Create access token
+        let accessPayload = JWTPayloadData(
+            subject: SubjectClaim(value: try user.requireID().uuidString),
+            expiration: ExpirationClaim(value: accessExpirationDate),
+            type: "access",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: issuedAt,
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+
+        // Create refresh token with same version
+        let refreshPayload = JWTPayloadData(
+            subject: SubjectClaim(value: try user.requireID().uuidString),
+            expiration: ExpirationClaim(value: refreshExpirationDate),
+            type: "refresh",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: issuedAt,
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+
+        let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
+        let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
 
         let dateFormatter = ISO8601DateFormatter()
         return .init(

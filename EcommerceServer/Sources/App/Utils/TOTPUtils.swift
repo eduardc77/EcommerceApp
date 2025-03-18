@@ -79,6 +79,6 @@ enum TOTPUtils {
     /// - Returns: URL string for QR code
     static func generateQRCodeURL(secret: String, label: String, issuer: String) -> String {
         let totp = TOTP(secret: secret)
-        return totp.createAuthenticatorURL(label: label)
+        return totp.createAuthenticatorURL(label: label, issuer: issuer)
     }
 }

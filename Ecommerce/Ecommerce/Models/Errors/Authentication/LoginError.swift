@@ -6,6 +6,7 @@ public enum LoginError: LocalizedError, Equatable {
     case accountLocked(retryAfter: Int?)
     case tooManyAttempts
     case requiresMFA
+    case invalidTOTPCode
     case networkError(String)
     case serverError(String)
     case unknown(String)
@@ -26,6 +27,8 @@ public enum LoginError: LocalizedError, Equatable {
             return "Too many login attempts. Please try again later"
         case .requiresMFA:
             return "Multi-factor authentication is required"
+        case .invalidTOTPCode:
+            return "Invalid verification code. Please try again"
         case .networkError(let message):
             return "Network error: \(message)"
         case .serverError(let message):
@@ -40,7 +43,8 @@ public enum LoginError: LocalizedError, Equatable {
         case (.invalidCredentials, .invalidCredentials),
              (.accountNotFound, .accountNotFound),
              (.tooManyAttempts, .tooManyAttempts),
-             (.requiresMFA, .requiresMFA):
+             (.requiresMFA, .requiresMFA),
+             (.invalidTOTPCode, .invalidTOTPCode):
             return true
         case (.accountLocked(let lhsRetry), .accountLocked(let rhsRetry)):
             return lhsRetry == rhsRetry
