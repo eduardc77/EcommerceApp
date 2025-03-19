@@ -127,14 +127,13 @@ private extension NetworkManager {
         case 400:
             throw NetworkError.badRequest(description: "Bad Request: \(description)")
         case 401, 403:
-            // Check if this is a TOTP required response
+            // Check if this is a TOTP required response or email verification after TOTP
             if response.statusCode == 401,
                let contentType = response.allHeaderFields["Content-Type"] as? String,
                contentType.contains("application/json"),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let requiresTOTP = json["requiresTOTP"] as? Bool,
-               requiresTOTP {
-                // Return the original data to let the caller handle TOTP verification
+               (json["requiresTOTP"] as? Bool == true || json["requiresEmailVerification"] as? Bool == true) {
+                // Return the original data to let the caller handle TOTP/email verification
                 return (data, response)
             }
             

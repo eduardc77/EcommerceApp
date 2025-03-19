@@ -18,6 +18,11 @@ struct AccountView: View {
     @State private var showingDisableTOTPVerification = false
     @State private var disableTOTPCode = ""
     @State private var disableTOTPError: Error?
+    @State private var showingDisableEmail2FAConfirmation = false
+    @State private var showingDisableEmail2FAVerification = false
+    @State private var disableEmail2FACode = ""
+    @State private var disableEmail2FAError: Error?
+    @State private var showingEnableEmail2FAVerification = false
 
     private var user: UserResponse? {
         authManager.currentUser
@@ -30,10 +35,6 @@ struct AccountView: View {
                     profileSection(user)
                     accountInformationSection(user)
                     twoFactorSection
-
-                    if emailVerificationManager.requiresEmailVerification {
-                        emailVerificationSection
-                    }
                     signOutSection
                 } else {
                     noProfileView
@@ -59,66 +60,23 @@ struct AccountView: View {
                 Text("This will remove an important security feature from your account. You'll need to verify your identity to continue.")
             }
             .sheet(isPresented: $showingDisableTOTPVerification) {
-                NavigationStack {
-                    Form {
-                        Section {
-                            VStack(alignment: .leading, spacing: 16) {
-                                Text("Enter the 6-digit verification code from your authenticator app")
-                                    .font(.headline)
-                                
-                                TextField("Verification Code", text: $disableTOTPCode)
-                                    .keyboardType(.numberPad)
-                                    .textContentType(.oneTimeCode)
-                                    .font(.system(.title2, design: .monospaced))
-                                    .multilineTextAlignment(.center)
-                                    .onChange(of: disableTOTPCode) { oldValue, newValue in
-                                        // Limit to 6 digits
-                                        if newValue.count > 6 {
-                                            disableTOTPCode = String(newValue.prefix(6))
-                                        }
-                                        // Remove non-digits
-                                        disableTOTPCode = newValue.filter { $0.isNumber }
-                                    }
-                                
-                                AsyncButton {
-                                    do {
-                                        try await authManager.totpManager.disableTOTP(code: disableTOTPCode)
-                                        showingDisableTOTPVerification = false
-                                    } catch {
-                                        disableTOTPError = error
-                                    }
-                                } label: {
-                                    Text("Verify and Disable")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.bordered)
-                                .disabled(disableTOTPCode.count != 6)
-                            }
-                            .padding(.vertical, 8)
-                        }
-                    }
-                    .navigationTitle("Verify Identity")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") {
-                                showingDisableTOTPVerification = false
-                            }
-                        }
-                    }
-                    .alert("Verification Failed", isPresented: .init(
-                        get: { disableTOTPError != nil },
-                        set: { if !$0 { disableTOTPError = nil } }
-                    )) {
-                        Button("OK") {
-                            disableTOTPError = nil
-                        }
-                    } message: {
-                        if let error = disableTOTPError {
-                            Text(error.localizedDescription)
-                        }
+                TOTPDisableView()
+            }
+            .alert("Disable Email Verification", isPresented: $showingDisableEmail2FAConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Continue", role: .destructive) {
+                    Task {
+                        await handleDisableEmail2FA()
                     }
                 }
+            } message: {
+                Text("This will remove email verification as a security feature from your account. You'll need to verify your identity to continue.")
+            }
+            .sheet(isPresented: $showingDisableEmail2FAVerification) {
+                EmailVerificationDisableView()
+            }
+            .sheet(isPresented: $showingEnableEmail2FAVerification) {
+                EmailVerificationSetupView()
             }
             .onChange(of: emailVerificationManager.requiresEmailVerification) { _, requiresEmailVerification in
                 if !requiresEmailVerification {
@@ -142,6 +100,7 @@ struct AccountView: View {
             }
             .task {
                 await authManager.refreshProfile()
+                try? await emailVerificationManager.get2FAStatus()
             }
         }
     }
@@ -173,142 +132,128 @@ struct AccountView: View {
 
     private var twoFactorSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: "lock.shield")
-                        .font(.title2)
-                        .foregroundStyle(authManager.totpManager.isEnabled ? .green : .secondary)
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Two-Factor Authentication")
-                            .font(.headline)
-                        Text(authManager.totpManager.isEnabled ? "Enabled" : "Not enabled")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                
-                if !authManager.totpManager.isEnabled {
-                    Text("Add an extra layer of security to your account by requiring both your password and an authentication code from your phone.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    Button {
-                        showingTOTPSetup = true
-                    } label: {
-                        Label("Enable 2FA", systemImage: "plus.circle.fill")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.bordered)
-                } else {
-                    Button(role: .destructive) {
-                        showingDisableTOTPConfirmation = true
-                    } label: {
-                        Label("Disable 2FA", systemImage: "minus.circle.fill")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-            .padding(.vertical, 8)
-        } header: {
-            Text("Security")
-        }
-        .alert("Disable Two-Factor Authentication", isPresented: $showingDisableTOTPConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Continue", role: .destructive) {
-                showingDisableTOTPVerification = true
-            }
-        } message: {
-            Text("This will remove an important security feature from your account. You'll need to verify your identity to continue.")
-        }
-        .sheet(isPresented: $showingDisableTOTPVerification) {
-            NavigationStack {
-                Form {
-                    Section {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Enter the 6-digit verification code from your authenticator app")
+            if emailVerificationManager.requiresEmailVerification {
+                // Show only email verification cell if email is not verified
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.yellow)
+                            .font(.title2)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Email Not Verified")
                                 .font(.headline)
-                            
-                            TextField("Verification Code", text: $disableTOTPCode)
-                                .keyboardType(.numberPad)
-                                .textContentType(.oneTimeCode)
-                                .font(.system(.title2, design: .monospaced))
-                                .multilineTextAlignment(.center)
-                                .onChange(of: disableTOTPCode) { oldValue, newValue in
-                                    // Limit to 6 digits
-                                    if newValue.count > 6 {
-                                        disableTOTPCode = String(newValue.prefix(6))
-                                    }
-                                    // Remove non-digits
-                                    disableTOTPCode = newValue.filter { $0.isNumber }
-                                }
-                            
-                            AsyncButton {
-                                do {
-                                    try await authManager.totpManager.disableTOTP(code: disableTOTPCode)
-                                    showingDisableTOTPVerification = false
-                                } catch {
-                                    disableTOTPError = error
-                                }
-                            } label: {
-                                Text("Verify and Disable")
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(disableTOTPCode.count != 6)
-                        }
-                        .padding(.vertical, 8)
-                    }
-                }
-                .navigationTitle("Verify Identity")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            showingDisableTOTPVerification = false
+                            Text("Verify your email to access all features")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                }
-                .alert("Verification Failed", isPresented: .init(
-                    get: { disableTOTPError != nil },
-                    set: { if !$0 { disableTOTPError = nil } }
-                )) {
-                    Button("OK") {
-                        disableTOTPError = nil
-                    }
-                } message: {
-                    if let error = disableTOTPError {
-                        Text(error.localizedDescription)
-                    }
-                }
-            }
-        }
-    }
 
-    private var emailVerificationSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.yellow)
-                        .font(.title2)
+                    Button {
+                        showingEmailVerification = true
+                    } label: {
+                        Text("Verify Email")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.vertical, 8)
+            } else {
+                // Show TOTP and Email 2FA options when email is verified
+                // TOTP Cell
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "lock.shield")
+                            .font(.title2)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(authManager.totpManager.isEnabled ? .green : .secondary)
+                            .frame(width: 32)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Email Not Verified")
-                            .font(.headline)
-                        Text("Verify your email to access all features")
-                            .font(.subheadline)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Authenticator App")
+                                .font(.headline)
+                            Text(authManager.totpManager.isEnabled ? "Enabled" : "Not enabled")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if !authManager.totpManager.isEnabled {
+                        Text("Use an authenticator app to generate verification codes for additional security.")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
+
+                        Button {
+                            showingTOTPSetup = true
+                        } label: {
+                            Label("Enable Authenticator", systemImage: "plus.circle.fill")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.bordered)
+                    } else {
+                        Button(role: .destructive) {
+                            showingDisableTOTPConfirmation = true
+                        } label: {
+                            Label("Disable Authenticator", systemImage: "minus.circle.fill")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
+                .padding(.vertical, 8)
 
-                AsyncButton("Verify Email") {
-                    showingEmailVerification = true
+                // Email 2FA Cell
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "envelope.badge.shield.half.filled.fill")
+                            .font(.title2)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(emailVerificationManager.is2FAEnabled ? .green : .secondary)
+                            .frame(width: 32)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Email Verification")
+                                .font(.headline)
+                            Text(emailVerificationManager.is2FAEnabled ? "Enabled" : "Not enabled")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if !emailVerificationManager.is2FAEnabled {
+                        Text("Receive a verification code by email when signing in from a new device.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Button {
+                            showingEnableEmail2FAVerification = true
+                        } label: {
+                            Label("Enable Email Verification", systemImage: "plus.circle.fill")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.bordered)
+                    } else {
+                        Button(role: .destructive) {
+                            showingDisableEmail2FAConfirmation = true
+                        } label: {
+                            Label("Disable Email Verification", systemImage: "minus.circle.fill")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
-                .buttonStyle(.bordered)
+                .padding(.vertical, 8)
             }
-            .padding(.vertical, 8)
+        } header: {
+            Text("Two-Factor Authentication")
+        } footer: {
+            if !emailVerificationManager.requiresEmailVerification && 
+               !authManager.totpManager.isEnabled && 
+               !emailVerificationManager.is2FAEnabled {
+                Text("We recommend enabling at least one form of two-factor authentication to better protect your account.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -473,6 +418,17 @@ struct AccountView: View {
             editedEmail = user.email
         }
     }
+
+    // MARK: - Event Handlers
+
+    private func handleDisableEmail2FA() async {
+        do {
+            try await emailVerificationManager.setup2FA()
+            showingDisableEmail2FAVerification = true
+        } catch {
+            // Handle error
+        }
+    }
 }
 
 #if DEBUG
@@ -490,7 +446,7 @@ import Networking
     let totpService = PreviewTOTPService()
     let totpManager = TOTPManager(totpService: totpService)
     let emailVerificationService = PreviewEmailVerificationService()
-    let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
+    let emailVerificationManager = EmailVerificationManager(emailVerificationService:emailVerificationService)
 
     let authManager = AuthenticationManager(
         authService: PreviewAuthenticationService(),

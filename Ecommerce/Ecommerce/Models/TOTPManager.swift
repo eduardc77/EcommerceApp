@@ -107,11 +107,8 @@ public final class TOTPManager {
                 throw TOTPError.alreadyEnabled
             }
             
-            // First verify the code
+            // Single call to verify and enable
             _ = try await totpService.verify(code: code)
-
-            // Then enable 2FA
-            _ = try await totpService.enable(code: code)
             isEnabled = true
         } catch let error as TOTPError {
             self.error = error

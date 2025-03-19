@@ -2,7 +2,7 @@ import Foundation
 import Hummingbird
 
 /// Response for successful login containing JWT token and user info
-struct AuthResponse: Codable, Sendable {
+struct AuthResponse: Codable {
     let accessToken: String
     let refreshToken: String
     let tokenType: String
@@ -13,7 +13,17 @@ struct AuthResponse: Codable, Sendable {
     let requiresEmailVerification: Bool
     let tempToken: String?
     
-    init(accessToken: String, refreshToken: String, tokenType: String = "Bearer", expiresIn: UInt, expiresAt: String, user: UserResponse, requiresTOTP: Bool = false, requiresEmailVerification: Bool = false, tempToken: String? = nil) {
+    init(
+        accessToken: String,
+        refreshToken: String,
+        tokenType: String = "Bearer",
+        expiresIn: UInt,
+        expiresAt: String,
+        user: UserResponse,
+        requiresTOTP: Bool = false,
+        requiresEmailVerification: Bool = false,
+        tempToken: String? = nil
+    ) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.tokenType = tokenType

@@ -7,7 +7,7 @@ public extension Store {
         case resend(email: String)
         case setup2FA
         case verify2FA(code: String)
-        case disable2FA
+        case disable2FA(code: String)
         case get2FAStatus
         
         public var path: String {
@@ -51,6 +51,15 @@ public extension Store {
                 ]
             case .resend(let email):
                 return ["email": email]
+            default:
+                return nil
+            }
+        }
+        
+        public var headers: [String: String]? {
+            switch self {
+            case .disable2FA(let code):
+                return ["x-email-code": code]
             default:
                 return nil
             }

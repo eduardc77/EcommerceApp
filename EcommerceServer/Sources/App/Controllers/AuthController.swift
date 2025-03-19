@@ -98,11 +98,11 @@ struct AuthController {
 
         group.post("login", use: self.login)
             .post("login/verify-totp", use: self.verifyTOTPLogin)
+            .post("login/verify-email", use: self.verifyEmailLogin)
             .post("register", use: self.register)
             .post("email-code", use: self.requestEmailCode)
             .post("forgot-password", use: self.forgotPassword)
             .post("reset-password", use: self.resetPassword)
-            .post("email/verify", use: self.verifyEmailLogin)
 
         // Refresh token doesn't use JWT middleware since it's validated differently
         group.post("refresh", use: self.refreshToken)
@@ -263,19 +263,16 @@ struct AuthController {
             
             let tempToken = try await self.jwtKeyCollection.sign(tempTokenPayload, kid: self.kid)
             
-            // Send verification code
-            let userID = try user.requireID()
-            context.logger.info("Deleting existing verification codes for user \(userID)")
+            // Delete any existing verification codes
             try await EmailVerificationCode.query(on: fluent.db())
-                .filter(\.$user.$id == userID)
-                .filter(\.$type == "2fa_login")
+                .filter(\.$user.$id, .equal, try user.requireID())
+                .filter(\.$type, .equal, "2fa_login")
                 .delete()
             
-            // Generate and store verification code
+            // Create and store verification code
             let code = EmailVerificationCode.generateCode()
-            context.logger.info("Generated new verification code")
             let verificationCode = EmailVerificationCode(
-                userID: userID,
+                userID: try user.requireID(),
                 code: code,
                 type: "2fa_login",
                 expiresAt: Date().addingTimeInterval(300) // 5 minutes
@@ -385,8 +382,67 @@ struct AuthController {
         guard try await user.verifyTOTPCode(verifyRequest.code) else {
             throw HTTPError(.unauthorized, message: "Invalid TOTP code")
         }
+
+        // Check if email verification is required
+        if user.emailVerificationEnabled {
+            // Generate temporary token for email verification
+            let tempTokenPayload = JWTPayloadData(
+                subject: SubjectClaim(value: try user.requireID().uuidString),
+                expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 300)), // 5 minutes
+                type: "email_verification",
+                issuer: jwtConfig.issuer,
+                audience: jwtConfig.audience,
+                issuedAt: Date(),
+                id: UUID().uuidString,
+                role: user.role.rawValue,
+                tokenVersion: user.tokenVersion
+            )
+            
+            let tempToken = try await self.jwtKeyCollection.sign(tempTokenPayload, kid: self.kid)
+            
+            // Delete any existing verification codes
+            try await EmailVerificationCode.query(on: fluent.db())
+                .filter(\.$user.$id, .equal, try user.requireID())
+                .filter(\.$type, .equal, "2fa_login")
+                .delete()
+            
+            // Create and store verification code
+            let code = EmailVerificationCode.generateCode()
+            let verificationCode = EmailVerificationCode(
+                userID: try user.requireID(),
+                code: code,
+                type: "2fa_login",
+                expiresAt: Date().addingTimeInterval(300) // 5 minutes
+            )
+            try await verificationCode.save(on: fluent.db())
+            
+            // Send verification email
+            try await emailService.send2FALoginEmail(
+                to: user.email,
+                code: code
+            )
+            
+            context.logger.info("[App] TOTP verified successfully, proceeding with email verification")
+            
+            let dateFormatter = ISO8601DateFormatter()
+            let expirationDate = Date().addingTimeInterval(300)
+            
+            return .init(
+                status: .unauthorized,
+                response: AuthResponse(
+                    accessToken: "",
+                    refreshToken: "",
+                    expiresIn: 300,
+                    expiresAt: dateFormatter.string(from: expirationDate),
+                    user: UserResponse(from: user),
+                    requiresTOTP: false,
+                    requiresEmailVerification: true,
+                    tempToken: tempToken
+                )
+            )
+        }
         
-        // Generate new access and refresh tokens
+        // If no email verification needed, complete login
         let expiresIn = Int(jwtConfig.accessTokenExpiration)
         let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
         let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
@@ -404,8 +460,8 @@ struct AuthController {
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-
-        // Create refresh token with same version
+        
+        // Create refresh token
         let refreshPayload = JWTPayloadData(
             subject: SubjectClaim(value: try user.requireID().uuidString),
             expiration: ExpirationClaim(value: refreshExpirationDate),
@@ -744,6 +800,7 @@ struct AuthController {
             .filter(\.$type == "2fa_login")
             .delete()
         
+        
         // Generate and store verification code
         let code = EmailVerificationCode.generateCode()
         let verificationCode = EmailVerificationCode(
@@ -844,16 +901,13 @@ struct AuthController {
             .filter(\.$type == "password_reset")
             .sort(\.$createdAt, .descending)
             .first() else {
-            context.logger.error("No verification code found for user \(userID)")
-            throw HTTPError(.unauthorized, message: "No verification code found")
+            throw HTTPError(.badRequest, message: "Invalid or expired reset code")
         }
-        context.logger.info("Found verification code created at: \(verificationCode.createdAt)")
         
         // Check if code is expired
         if verificationCode.isExpired {
-            context.logger.error("Verification code has expired")
             try await verificationCode.delete(on: fluent.db())
-            throw HTTPError(.unauthorized, message: "Verification code has expired")
+            throw HTTPError(.badRequest, message: "Reset code has expired")
         }
         
         // Check attempts
@@ -1102,15 +1156,15 @@ struct AuthController {
             .sort(\.$createdAt, .descending)
             .first() else {
             context.logger.error("No verification code found for user \(userID)")
-            throw HTTPError(.unauthorized, message: "No verification code found")
+            throw HTTPError(.badRequest, message: "No verification code found")
         }
         context.logger.info("Found verification code created at: \(verificationCode.createdAt)")
-        
+
         // Check if code is expired
         if verificationCode.isExpired {
             context.logger.error("Verification code has expired")
             try await verificationCode.delete(on: fluent.db())
-            throw HTTPError(.unauthorized, message: "Verification code has expired")
+            throw HTTPError(.badRequest, message: "Verification code has expired")
         }
         
         // Check attempts

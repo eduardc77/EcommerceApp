@@ -84,8 +84,9 @@ struct TOTPController {
             throw HTTPError(.unauthorized, message: "Invalid verification code")
         }
         
-        // Enable 2FA
+        // Enable 2FA and invalidate all tokens
         user.twoFactorEnabled = true
+         user.tokenVersion += 1 
         try await user.save(on: fluent.db())
         
         return .init(

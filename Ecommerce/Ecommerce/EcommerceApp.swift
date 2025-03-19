@@ -46,10 +46,8 @@ struct EcommerceApp: App {
         
         // Create managers that don't have dependencies
         let totpManager = TOTPManager(totpService: totpService)
-        let emailVerificationManager = EmailVerificationManager(
-            emailVerificationService: emailVerificationService
-        )
-        
+        let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
+
         // Create auth manager with all dependencies
         let auth = AuthenticationManager(
             authService: authService,

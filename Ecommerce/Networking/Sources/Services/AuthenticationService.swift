@@ -2,7 +2,8 @@ import OSLog
 
 public protocol AuthenticationServiceProtocol {
     func login(request: LoginRequest) async throws -> AuthResponse
-    func verifyTOTPLogin(tempToken: String, code: String) async throws -> AuthResponse
+    func verifyEmail2FALogin(code: String, tempToken: String) async throws -> AuthResponse
+    func verifyTOTPLogin(code: String, tempToken: String) async throws -> AuthResponse
     func register(request: CreateUserRequest) async throws -> AuthResponse
     func logout() async throws
     func me() async throws -> UserResponse
@@ -36,8 +37,20 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             requiresAuthorization: false
         )
         
-        // Only store tokens if this is not a TOTP required response
-        if !response.requiresTOTP {
+        if response.requiresEmailVerification {
+            // Store temporary token for email verification
+            let dateFormatter = ISO8601DateFormatter()
+            let expirationDate = Date().addingTimeInterval(300) // 5 minutes
+            let tempToken = Token(
+                accessToken: response.tempToken ?? "",
+                refreshToken: "",
+                tokenType: "Bearer",
+                expiresIn: 300, // 5 minutes
+                expiresAt: dateFormatter.string(from: expirationDate)
+            )
+            await authorizationManager.storeToken(tempToken)
+        } else if !response.requiresTOTP {
+            // Only store permanent tokens if no verification is required
             let token = Token(
                 accessToken: response.accessToken,
                 refreshToken: response.refreshToken,
@@ -52,9 +65,9 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         return response
     }
 
-    public func verifyTOTPLogin(tempToken: String, code: String) async throws -> AuthResponse {
+    public func verifyEmail2FALogin(code: String, tempToken: String) async throws -> AuthResponse {
         let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.verifyTOTPLogin(tempToken: tempToken, code: code),
+            from: Store.Authentication.verifyEmail2FALogin(code: code, tempToken: tempToken),
             in: environment,
             allowRetry: false,
             requiresAuthorization: false
@@ -69,6 +82,30 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             expiresAt: response.expiresAt
         )
         await authorizationManager.storeToken(token)
+        
+        logger.debug("Email verification successful: \(response.user.displayName)")
+        return response
+    }
+
+    public func verifyTOTPLogin(code: String, tempToken: String) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.verifyTOTPLogin(code: code, tempToken: tempToken),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        
+        // Only store permanent tokens if no email verification is required
+        if !response.requiresEmailVerification {
+            let token = Token(
+                accessToken: response.accessToken,
+                refreshToken: response.refreshToken,
+                tokenType: response.tokenType,
+                expiresIn: response.expiresIn,
+                expiresAt: response.expiresAt
+            )
+            await authorizationManager.storeToken(token)
+        }
         
         logger.debug("TOTP verification successful: \(response.user.displayName)")
         return response

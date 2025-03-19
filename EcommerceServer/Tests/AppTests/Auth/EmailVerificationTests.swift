@@ -132,7 +132,7 @@ struct EmailVerificationTests {
 
             // 7. Try login with invalid 2FA code
             try await client.execute(
-                uri: "/api/v1/auth/email/verify",
+                uri: "/api/v1/auth/login/verify-email",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
                     EmailLoginVerifyRequest(tempToken: initialLoginResponse.tempToken!, code: "000000"),
@@ -144,7 +144,7 @@ struct EmailVerificationTests {
 
             // 8. Try login with correct 2FA code (using test environment code)
             let finalAuthResponse = try await client.execute(
-                uri: "/api/v1/auth/email/verify",
+                uri: "/api/v1/auth/login/verify-email",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
                     EmailLoginVerifyRequest(tempToken: initialLoginResponse.tempToken!, code: "123456"),

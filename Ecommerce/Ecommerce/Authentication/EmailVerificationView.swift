@@ -1,9 +1,10 @@
 import SwiftUI
 
-enum VerificationSource {
+public enum VerificationSource {
     case registration    // During initial registration
     case account        // From account settings
     case emailUpdate    // After email update
+    case login2FA       // During login with 2FA
 }
 
 struct EmailVerificationView: View {
@@ -12,6 +13,12 @@ struct EmailVerificationView: View {
     @Environment(\.dismiss) private var dismiss
 
     let source: VerificationSource
+    let tempToken: String?
+    
+    init(source: VerificationSource, tempToken: String? = nil) {
+        self.source = source
+        self.tempToken = tempToken
+    }
 
     @State private var verificationCode = ""
     @State private var isShowingSkipAlert = false
@@ -59,16 +66,14 @@ struct EmailVerificationView: View {
                     .foregroundStyle(.tint)
 
                 VStack(spacing: 10) {
-                    Text("Verify Your Email")
+                    Text(headerTitle)
                         .font(.title)
                         .fontWeight(.bold)
 
-                    if let email = authManager.currentUser?.email {
-                        Text("We've sent a verification code to **\(email)**. Please enter it below to verify your account.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
+                    Text(headerMessage)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
             }
         } footer: {
@@ -84,10 +89,37 @@ struct EmailVerificationView: View {
         .listRowBackground(Color.clear)
     }
 
+    private var headerTitle: String {
+        switch source {
+        case .login2FA:
+            return "Two-Factor Authentication"
+        default:
+            return "Verify Your Email"
+        }
+    }
+
+    private func markdownString(_ text: String) -> AttributedString {
+        (try? AttributedString(markdown: text)) ?? AttributedString(text)
+    }
+
+    private var headerMessage: AttributedString {
+        switch source {
+        case .login2FA:
+            return markdownString("Please enter the verification code sent to your email to complete login.")
+        default:
+            if let email = authManager.currentUser?.email {
+                return markdownString("We've sent a verification code to **\(email)**. Please enter it below to verify your account.")
+            }
+            return markdownString("We've sent a verification code to your email. Please enter it below to verify your account.")
+        }
+    }
+
     private var codeInputSection: some View {
         Section {
             OneTimeCodeInput(code: $verificationCode, codeLength: codeLength)
                 .focused($isCodeFieldFocused)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
         } footer: {
             if showError {
                 Text(errorMessage)
@@ -114,18 +146,29 @@ struct EmailVerificationView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Button(action: { isShowingSkipAlert = true }) {
-                    Text("Skip for now")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                if shouldShowSkipButton {
+                    Button(action: { isShowingSkipAlert = true }) {
+                        Text("Skip for now")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 5)
                 }
-                .padding(.top, 5)
             }
         }
         .frame(maxWidth: .infinity)
         .listRowSeparator(.hidden)
         .listRowInsets(.init())
         .listRowBackground(Color.clear)
+    }
+
+    private var shouldShowSkipButton: Bool {
+        switch source {
+        case .login2FA:
+            return false
+        default:
+            return true
+        }
     }
 
     private var resendButton: some View {
@@ -156,6 +199,9 @@ struct EmailVerificationView: View {
     private var skipVerificationAlert: some View {
         Group {
             Button("Continue without verifying", role: .destructive) {
+                if source == .registration {
+                    authManager.isAuthenticated = true
+                }
                 emailVerificationManager.skipEmailVerification()
                 dismiss()
             }
@@ -177,7 +223,7 @@ struct EmailVerificationView: View {
         isCodeFieldFocused = true
 
         switch source {
-        case .registration:
+        case .login2FA, .registration:
             // Code already sent during registration, just start timers
             startExpirationTimer()
             startResendCooldown()
@@ -185,12 +231,12 @@ struct EmailVerificationView: View {
             // Send new code and start timers
             Task {
                 if let email = authManager.currentUser?.email {
-                    await emailVerificationManager.resendVerificationEmail(email: email)
-                    if emailVerificationManager.verificationError == nil {
+                    do {
+                        try await emailVerificationManager.resendVerificationEmail(email: email)
                         startExpirationTimer()
                         startResendCooldown()
-                    } else {
-                        errorMessage = emailVerificationManager.verificationError?.localizedDescription ?? VerificationError.unknown("Failed to send verification code").localizedDescription
+                    } catch {
+                        errorMessage = error.localizedDescription
                         showError = true
                     }
                 }
@@ -237,34 +283,46 @@ struct EmailVerificationView: View {
             return
         }
         attempts += 1
-        let success = await emailVerificationManager.verifyEmail(email: authManager.currentUser?.email ?? "", code: verificationCode)
-
-        if success {
-            // Only set authenticated if this is from registration
-            if source == .registration {
+        
+        do {
+            switch source {
+            case .login2FA:
+                guard let tempToken = tempToken else { return }
+                try await authManager.verifyEmail2FALogin(code: verificationCode, tempToken: tempToken)
                 authManager.isAuthenticated = true
+                dismiss()
+            case .registration:
+                try await emailVerificationManager.verifyInitialEmail(email: authManager.currentUser?.email ?? "", code: verificationCode)
+                authManager.isAuthenticated = true
+                dismiss()
+            default:
+                try await emailVerificationManager.verifyInitialEmail(email: authManager.currentUser?.email ?? "", code: verificationCode)
+                dismiss()
             }
-            dismiss()
-        } else {
-            withAnimation {
-                errorMessage = emailVerificationManager.verificationError?.localizedDescription ?? VerificationError.unknown("Verification failed").localizedDescription
-                showError = true
-                verificationCode = ""  // Clear code after setting error
+        } catch {
+            handleVerificationError(error)
+        }
+    }
+    
+    private func handleVerificationError(_ error: Error) {
+        withAnimation {
+            errorMessage = error.localizedDescription
+            showError = true
+            verificationCode = ""
 
-                // If max attempts reached, stop the timer
-                if attempts >= maxAttempts {
-                    isExpirationTimerRunning = false
-                }
+            if attempts >= maxAttempts {
+                isExpirationTimerRunning = false
             }
         }
     }
 
     private func resendCode() async {
         isResendingCode = true
+        defer { isResendingCode = false }
+        
         if let email = authManager.currentUser?.email {
-            await emailVerificationManager.resendVerificationEmail(email: email)
-
-            if emailVerificationManager.verificationError == nil {
+            do {
+                try await emailVerificationManager.resendVerificationEmail(email: email)
                 withAnimation {
                     attempts = 0
                     showError = false
@@ -273,14 +331,13 @@ struct EmailVerificationView: View {
                     startExpirationTimer()
                     startResendCooldown()
                 }
-            } else {
+            } catch {
                 withAnimation {
-                    errorMessage = emailVerificationManager.verificationError?.localizedDescription ?? VerificationError.unknown("Failed to resend code").localizedDescription
+                    errorMessage = error.localizedDescription
                     showError = true
                 }
             }
         }
-        isResendingCode = false
     }
 }
 

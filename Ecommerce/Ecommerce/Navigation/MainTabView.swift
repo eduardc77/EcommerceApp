@@ -76,16 +76,14 @@ struct MainTabView: View {
     let tokenStore = PreviewTokenStore()
     let totpService = PreviewTOTPService()
     let emailVerificationService = PreviewEmailVerificationService()
-
     // Initialize managers
     let totpManager = TOTPManager(totpService: totpService)
-    let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
-
     let refreshClient = PreviewRefreshAPIClient()
     let authorizationManager = AuthorizationManager(
         refreshClient: refreshClient,
         tokenStore: tokenStore
     )
+    let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
 
     // Initialize auth manager with services
     let authManager = AuthenticationManager(
@@ -96,7 +94,7 @@ struct MainTabView: View {
         authorizationManager: authorizationManager
     )
 
-    return MainTabView()
+    MainTabView()
         .environment(ProductManager(
             productService: ProductService(apiClient: previewAPIClient),
             categoryService: CategoryService(apiClient: previewAPIClient)

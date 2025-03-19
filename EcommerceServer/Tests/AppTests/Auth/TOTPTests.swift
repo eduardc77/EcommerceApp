@@ -257,7 +257,7 @@ struct TOTPTests {
                 uri: "/api/v1/auth/login/verify-totp",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
-                    TOTPVerificationRequest(tempToken: initialLoginResponse.tempToken!, code: "000000"),
+                    TOTPVerificationRequest(tempToken: initialLoginResponse.tempToken!, code: "000100"),
                     allocator: ByteBufferAllocator()
                 )
             ) { response in

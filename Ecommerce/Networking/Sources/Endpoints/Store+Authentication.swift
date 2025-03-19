@@ -12,8 +12,9 @@ extension Store {
         case requestEmailCode
         case forgotPassword(email: String)
         case resetPassword(email: String, code: String, newPassword: String)
-        case verifyTOTPLogin(tempToken: String, code: String)
-        
+        case verifyTOTPLogin(code: String, tempToken: String)
+        case verifyEmail2FALogin(code: String, tempToken: String)
+
         public var path: String {
             switch self {
                 case .login:
@@ -36,13 +37,16 @@ extension Store {
                     return "/auth/reset-password"
                 case .verifyTOTPLogin:
                     return "/auth/login/verify-totp"
+                case .verifyEmail2FALogin:
+                    return "/auth/login/verify-email"
             }
         }
         
         public var httpMethod: HTTPMethod {
             switch self {
                 case .login, .register, .refreshToken, .logout, .changePassword,
-                     .requestEmailCode, .forgotPassword, .resetPassword, .verifyTOTPLogin:
+                     .requestEmailCode, .forgotPassword, .resetPassword, .verifyTOTPLogin,
+                     .verifyEmail2FALogin:
                     return .post
                 case .me:
                     return .get
@@ -96,10 +100,15 @@ extension Store {
                     "code": code,
                     "newPassword": newPassword
                 ]
-            case .verifyTOTPLogin(let tempToken, let code):
+            case .verifyTOTPLogin(let code, let tempToken):
                 return [
-                    "tempToken": tempToken,
-                    "code": code
+                    "code": code,
+                    "tempToken": tempToken
+                ]
+            case .verifyEmail2FALogin(let code, let tempToken):
+                return [
+                    "code": code,
+                    "tempToken": tempToken
                 ]
             case .logout, .me, .requestEmailCode:
                 return nil

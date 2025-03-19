@@ -3,9 +3,11 @@ import SwiftUI
 struct TOTPVerificationView: View {
     @Environment(AuthenticationManager.self) private var authManager
     @Environment(\.dismiss) private var dismiss
+    let tempToken: String
     @State private var verificationCode = ""
     @State private var error: Error?
     @State private var isLoading = false
+    @FocusState private var isCodeFieldFocused: Bool
     
     var body: some View {
         NavigationStack {
@@ -15,19 +17,10 @@ struct TOTPVerificationView: View {
                         Text("Enter the 6-digit verification code from your authenticator app")
                             .font(.headline)
                         
-                        TextField("Verification Code", text: $verificationCode)
-                            .keyboardType(.numberPad)
-                            .textContentType(.oneTimeCode)
-                            .font(.system(.title2, design: .monospaced))
-                            .multilineTextAlignment(.center)
-                            .onChange(of: verificationCode) { oldValue, newValue in
-                                // Limit to 6 digits
-                                if newValue.count > 6 {
-                                    verificationCode = String(newValue.prefix(6))
-                                }
-                                // Remove non-digits
-                                verificationCode = newValue.filter { $0.isNumber }
-                            }
+                        OneTimeCodeInput(code: $verificationCode, codeLength: 6)
+                            .focused($isCodeFieldFocused)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
                         
                         AsyncButton {
                             await verify()
@@ -36,13 +29,20 @@ struct TOTPVerificationView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
-                        .disabled(verificationCode.count != 6)
+                        .disabled(verificationCode.count != 6 || isLoading)
                     }
                     .padding(.vertical, 8)
                 }
             }
             .navigationTitle("Two-Factor Authentication")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
             .disabled(isLoading)
             .overlay {
                 if isLoading {
@@ -61,20 +61,26 @@ struct TOTPVerificationView: View {
                     Text(error.localizedDescription)
                 }
             }
+            .onAppear {
+                isCodeFieldFocused = true
+            }
         }
     }
     
     private func verify() async {
         isLoading = true
         do {
-            if authManager.requiresTOTPVerification {
-                // We're verifying during login
-                _ = try await authManager.verifyTOTPForLogin(code: verificationCode)
-            } else {
-                // We're verifying during normal TOTP operations
-                try await authManager.totpManager.verifyTOTP(verificationCode)
+            try await authManager.verifyTOTPForLogin(code: verificationCode, tempToken: tempToken)
+            
+            // Wait a moment for state to update before dismissing
+            try? await Task.sleep(for: .milliseconds(100))
+            
+            await MainActor.run {
+                // Only dismiss if we don't need email verification
+                if !authManager.requires2FAEmailVerification {
+                    dismiss()
+                }
             }
-            dismiss() // Success, close the sheet
         } catch {
             self.error = error
         }
@@ -98,7 +104,7 @@ import Networking
     let totpManager = TOTPManager(totpService: totpService)
     let emailVerificationService = PreviewEmailVerificationService()
     let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
-    
+
     let authManager = AuthenticationManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
@@ -107,7 +113,7 @@ import Networking
         authorizationManager: authorizationManager
     )
     
-    TOTPVerificationView()
+    TOTPVerificationView(tempToken: "preview-token")
         .environment(authManager)
 }
 #endif

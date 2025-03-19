@@ -152,7 +152,7 @@ struct ForgotPasswordResetTests {
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(resetRequest, allocator: ByteBufferAllocator())
             ) { response in
-                #expect(response.status == .unauthorized)
+                #expect(response.status == .badRequest)
             }
         }
     }
@@ -292,7 +292,7 @@ struct ForgotPasswordResetTests {
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(reusedRequest, allocator: ByteBufferAllocator())
             ) { response in
-                #expect(response.status == .unauthorized)
+                #expect(response.status == .badRequest)
             }
         }
     }

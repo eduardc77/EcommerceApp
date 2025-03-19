@@ -82,9 +82,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     } else {
         // Use absolute path to the database file in the server directory
         let fileManager = FileManager.default
-        let serverDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath)
-            .appendingPathComponent("EcommerceServer")
-            .path
+        let serverDirectory = fileManager.currentDirectoryPath
         let dbPath = serverDirectory + "/db.sqlite"
         logger.info("Using database at path: \(dbPath)")
         fluent.databases.use(.sqlite(.file(dbPath)), as: .sqlite)

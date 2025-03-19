@@ -10,6 +10,7 @@ import SwiftUI
 struct OneTimeCodeInput: View {
     @Binding var code: String
     let codeLength: Int
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -38,12 +39,23 @@ struct OneTimeCodeInput: View {
             TextField("", text: $code)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)
-                .allowsHitTesting(true)
+                .focused($isFocused)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .opacity(0.001)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isFocused = true
         }
         .onChange(of: code) { _, newValue in
             // Ensure only numbers and limit length
             code = String(newValue.filter { $0.isNumber }.prefix(codeLength))
         }
     }
+}
+
+#Preview {
+    @State var code = ""
+    return OneTimeCodeInput(code: $code, codeLength: 6)
+        .padding()
 }

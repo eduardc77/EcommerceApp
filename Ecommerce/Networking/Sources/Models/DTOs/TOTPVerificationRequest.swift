@@ -1,14 +1,17 @@
 import Foundation
 
-/// Request for verifying a TOTP code
+/// Request for verifying a TOTP code during login
 public struct TOTPVerificationRequest: Codable, Sendable {
+    public let tempToken: String
     public let code: String
     
-    public init(code: String) {
+    public init(tempToken: String, code: String) {
+        self.tempToken = tempToken
         self.code = code
     }
     
     private enum CodingKeys: String, CodingKey {
-        case code = "totp_code"
+        case tempToken
+        case code
     }
 } 

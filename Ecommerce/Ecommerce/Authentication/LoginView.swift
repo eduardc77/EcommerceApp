@@ -10,11 +10,23 @@ struct LoginView: View {
     @State private var remainingTime: Int?
     @State private var lockoutStartTime: Date?
     @State private var navigationPath = NavigationPath()
-    @State private var showingTOTPVerification = false
+    @State private var authFlow: AuthFlow?
 
     private enum Field {
         case identifier
         case password
+    }
+
+    private enum AuthFlow: Identifiable {
+        case totpVerification(tempToken: String)
+        case emailVerification(tempToken: String)
+        
+        var id: String {
+            switch self {
+            case .totpVerification: return "totp"
+            case .emailVerification: return "email"
+            }
+        }
     }
 
     var body: some View {
@@ -69,8 +81,13 @@ struct LoginView: View {
                     EmptyView()
                 }
             }
-            .sheet(isPresented: $showingTOTPVerification) {
-                TOTPVerificationView()
+            .sheet(item: $authFlow) { flow in
+                switch flow {
+                case .totpVerification(let token):
+                    TOTPVerificationView(tempToken: token)
+                case .emailVerification(let token):
+                    EmailVerificationView(source: .login2FA, tempToken: token)
+                }
             }
             .onChange(of: focusedField) { oldValue, newValue in
                 if let oldValue = oldValue {
@@ -98,8 +115,13 @@ struct LoginView: View {
                 }
             }
             .onChange(of: authManager.requiresTOTPVerification) { _, requiresTOTP in
-                if requiresTOTP {
-                    showingTOTPVerification = true
+                if requiresTOTP, let token = authManager.pendingLoginResponse?.tempToken {
+                    authFlow = .totpVerification(tempToken: token)
+                }
+            }
+            .onChange(of: authManager.requires2FAEmailVerification) { _, requiresEmail in
+                if requiresEmail, let token = authManager.pendingLoginResponse?.tempToken {
+                    authFlow = .emailVerification(tempToken: token)
                 }
             }
             .onDisappear {

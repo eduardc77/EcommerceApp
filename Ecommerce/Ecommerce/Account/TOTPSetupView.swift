@@ -185,7 +185,19 @@ struct TOTPSetupView: View {
         isLoading = true
         do {
             try await authManager.totpManager.verifyAndEnableTOTP(code: verificationCode)
-            dismiss() // Success, close the sheet
+            // If we get here, TOTP was enabled successfully
+            // Sign out immediately since the server has invalidated our tokens
+            await authManager.signOut()
+            dismiss()
+        } catch let error as NetworkError {
+            // If we get a 401, it means TOTP was enabled but our token was invalidated
+            if case .unauthorized = error {
+                await authManager.signOut()
+                dismiss()
+                return
+            }
+            self.error = error
+            isLoading = false
         } catch {
             self.error = error
             isLoading = false
