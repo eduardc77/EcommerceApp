@@ -102,6 +102,7 @@ struct AuthController {
             .post("email-code", use: self.requestEmailCode)
             .post("forgot-password", use: self.forgotPassword)
             .post("reset-password", use: self.resetPassword)
+            .post("email/verify", use: self.verifyEmailLogin)
 
         // Refresh token doesn't use JWT middleware since it's validated differently
         group.post("refresh", use: self.refreshToken)
@@ -215,10 +216,9 @@ struct AuthController {
         // Check if TOTP is enabled
         if user.twoFactorEnabled {
             // Generate temporary token for TOTP verification
-            let tempTokenExpiration = Date(timeIntervalSinceNow: 300) // 5 minutes
             let tempTokenPayload = JWTPayloadData(
                 subject: SubjectClaim(value: try user.requireID().uuidString),
-                expiration: ExpirationClaim(value: tempTokenExpiration),
+                expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 300)), // 5 minutes
                 type: "totp_verification",
                 issuer: jwtConfig.issuer,
                 audience: jwtConfig.audience,
@@ -244,8 +244,67 @@ struct AuthController {
                 )
             )
         }
+        
+        // Check if email verification is enabled for 2FA
+        if user.emailVerificationEnabled {
+            context.logger.info("User has email verification enabled. Setting up 2FA flow")
+            // Generate temporary token for email verification
+            let tempTokenPayload = JWTPayloadData(
+                subject: SubjectClaim(value: try user.requireID().uuidString),
+                expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 300)), // 5 minutes
+                type: "email_verification",
+                issuer: jwtConfig.issuer,
+                audience: jwtConfig.audience,
+                issuedAt: Date(),
+                id: UUID().uuidString,
+                role: user.role.rawValue,
+                tokenVersion: user.tokenVersion
+            )
+            
+            let tempToken = try await self.jwtKeyCollection.sign(tempTokenPayload, kid: self.kid)
+            
+            // Send verification code
+            let userID = try user.requireID()
+            context.logger.info("Deleting existing verification codes for user \(userID)")
+            try await EmailVerificationCode.query(on: fluent.db())
+                .filter(\.$user.$id == userID)
+                .filter(\.$type == "2fa_login")
+                .delete()
+            
+            // Generate and store verification code
+            let code = EmailVerificationCode.generateCode()
+            context.logger.info("Generated new verification code")
+            let verificationCode = EmailVerificationCode(
+                userID: userID,
+                code: code,
+                type: "2fa_login",
+                expiresAt: Date().addingTimeInterval(300) // 5 minutes
+            )
+            try await verificationCode.save(on: fluent.db())
+            
+            // Send verification email
+            context.logger.info("Sending 2FA login email to \(user.email)")
+            try await emailService.send2FALoginEmail(to: user.email, code: code)
+            
+            context.logger.info("Returning unauthorized response with requiresEmailVerification=true")
+            return .init(
+                status: .unauthorized,
+                response: AuthResponse(
+                    accessToken: "",
+                    refreshToken: "",
+                    expiresIn: 0,
+                    expiresAt: "",
+                    user: UserResponse(from: user),
+                    requiresTOTP: false,
+                    requiresEmailVerification: true,
+                    tempToken: tempToken
+                )
+            )
+        } else {
+            context.logger.info("User does not have email verification enabled. Proceeding with normal login")
+        }
 
-        // For users without TOTP, proceed with normal login
+        // For users without 2FA, proceed with normal login
         let expiresIn = Int(jwtConfig.accessTokenExpiration)
         let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
         let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
@@ -785,13 +844,16 @@ struct AuthController {
             .filter(\.$type == "password_reset")
             .sort(\.$createdAt, .descending)
             .first() else {
-            throw HTTPError(.badRequest, message: "Invalid or expired reset code")
+            context.logger.error("No verification code found for user \(userID)")
+            throw HTTPError(.unauthorized, message: "No verification code found")
         }
+        context.logger.info("Found verification code created at: \(verificationCode.createdAt)")
         
         // Check if code is expired
         if verificationCode.isExpired {
+            context.logger.error("Verification code has expired")
             try await verificationCode.delete(on: fluent.db())
-            throw HTTPError(.badRequest, message: "Reset code has expired")
+            throw HTTPError(.unauthorized, message: "Verification code has expired")
         }
         
         // Check attempts
@@ -985,6 +1047,140 @@ struct AuthController {
                 user: UserResponse(from: user),
                 requiresTOTP: false,
                 requiresEmailVerification: true
+            )
+        )
+    }
+
+    /// Verify email code during login
+    @Sendable func verifyEmailLogin(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<AuthResponse> {
+        context.logger.info("Starting email verification process")
+        // Decode the verification request
+        struct EmailVerifyRequest: Codable {
+            let tempToken: String
+            let code: String
+        }
+        let verifyRequest = try await request.decode(as: EmailVerifyRequest.self, context: context)
+        context.logger.info("Successfully decoded request with code: \(verifyRequest.code)")
+        
+        // Verify and decode temporary token
+        context.logger.info("Attempting to verify temp token")
+        let tempTokenPayload = try await self.jwtKeyCollection.verify(verifyRequest.tempToken, as: JWTPayloadData.self)
+        context.logger.info("Successfully verified temp token with type: \(tempTokenPayload.type)")
+        
+        // Ensure it's an email verification token
+        guard tempTokenPayload.type == "email_verification" else {
+            context.logger.error("Invalid token type: \(tempTokenPayload.type)")
+            throw HTTPError(.unauthorized, message: "Invalid token type")
+        }
+        
+        // Get user from database
+        context.logger.info("Looking up user with ID: \(tempTokenPayload.subject.value)")
+        guard let user = try await User.find(UUID(uuidString: tempTokenPayload.subject.value), on: fluent.db()) else {
+            context.logger.error("User not found with ID: \(tempTokenPayload.subject.value)")
+            throw HTTPError(.unauthorized, message: "User not found")
+        }
+        context.logger.info("Found user: \(user.email)")
+        
+        // Verify token version
+        guard let tokenVersion = tempTokenPayload.tokenVersion,
+              tokenVersion == user.tokenVersion else {
+            context.logger.error("Token version mismatch. Token: \(String(describing: tempTokenPayload.tokenVersion)), User: \(user.tokenVersion)")
+            throw HTTPError(.unauthorized, message: "Invalid token version")
+        }
+        
+        // Get user ID for filtering
+        let userID = try user.requireID()
+        
+        // Find the most recent verification code
+        context.logger.info("Looking for verification code for user \(userID)")
+        guard let verificationCode = try await EmailVerificationCode.query(on: fluent.db())
+            .filter(\.$user.$id == userID)
+            .filter(\.$type == "2fa_login")
+            .sort(\.$createdAt, .descending)
+            .first() else {
+            context.logger.error("No verification code found for user \(userID)")
+            throw HTTPError(.unauthorized, message: "No verification code found")
+        }
+        context.logger.info("Found verification code created at: \(verificationCode.createdAt)")
+        
+        // Check if code is expired
+        if verificationCode.isExpired {
+            context.logger.error("Verification code has expired")
+            try await verificationCode.delete(on: fluent.db())
+            throw HTTPError(.unauthorized, message: "Verification code has expired")
+        }
+        
+        // Check attempts
+        if verificationCode.hasExceededAttempts {
+            context.logger.error("Too many verification attempts")
+            try await verificationCode.delete(on: fluent.db())
+            throw HTTPError(.tooManyRequests, message: "Too many attempts. Please request a new code.")
+        }
+        
+        // Verify the code
+        if verificationCode.code != verifyRequest.code {
+            context.logger.error("Invalid verification code. Expected: \(verificationCode.code), Got: \(verifyRequest.code)")
+            verificationCode.incrementAttempts()
+            try await verificationCode.save(on: fluent.db())
+            throw HTTPError(.unauthorized, message: "Invalid verification code")
+        }
+        
+        context.logger.info("Code verification successful")
+        // Delete the verification code
+        try await verificationCode.delete(on: fluent.db())
+        
+        // Generate new access and refresh tokens
+        let expiresIn = Int(jwtConfig.accessTokenExpiration)
+        let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
+        let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
+        let issuedAt = Date()
+        
+        // Create access token
+        let accessPayload = JWTPayloadData(
+            subject: SubjectClaim(value: try user.requireID().uuidString),
+            expiration: ExpirationClaim(value: accessExpirationDate),
+            type: "access",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: issuedAt,
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+        
+        let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
+        
+        // Create refresh token
+        let refreshPayload = JWTPayloadData(
+            subject: SubjectClaim(value: try user.requireID().uuidString),
+            expiration: ExpirationClaim(value: refreshExpirationDate),
+            type: "refresh",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: issuedAt,
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+        
+        let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
+        
+        let dateFormatter = ISO8601DateFormatter()
+        context.logger.info("Successfully completed email verification and generated new tokens")
+        return .init(
+            status: .created,
+            response: AuthResponse(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                expiresIn: UInt(expiresIn),
+                expiresAt: dateFormatter.string(from: accessExpirationDate),
+                user: UserResponse(from: user),
+                requiresTOTP: false,
+                requiresEmailVerification: false,
+                tempToken: nil
             )
         )
     }

@@ -6,6 +6,11 @@ import HummingbirdAuthTesting
 import Testing
 import HTTPTypes
 
+struct EmailLoginVerifyRequest: Codable {
+    let tempToken: String
+    let code: String
+}
+
 @Suite("Email Verification Tests")
 struct EmailVerificationTests {
     @Test("User can register and complete email verification")
@@ -113,7 +118,7 @@ struct EmailVerificationTests {
             }
 
             // 6. Try login - this should trigger automatic 2FA code sending
-            try await client.execute(
+            let initialLoginResponse = try await client.execute(
                 uri: "/api/v1/auth/login",
                 method: .post,
                 auth: .basic(username: requestBody.email, password: requestBody.password)
@@ -121,28 +126,46 @@ struct EmailVerificationTests {
                 #expect(response.status == .unauthorized)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(authResponse.requiresEmailVerification)
+                #expect(authResponse.tempToken != nil)
+                return authResponse
             }
 
             // 7. Try login with invalid 2FA code
             try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/email/verify",
                 method: .post,
-                headers: [HTTPField.Name("x-email-code")!: "000000"],
-                auth: .basic(username: requestBody.email, password: requestBody.password)
+                body: JSONEncoder().encodeAsByteBuffer(
+                    EmailLoginVerifyRequest(tempToken: initialLoginResponse.tempToken!, code: "000000"),
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .unauthorized)
             }
 
             // 8. Try login with correct 2FA code (using test environment code)
-            try await client.execute(
-                uri: "/api/v1/auth/login",
+            let finalAuthResponse = try await client.execute(
+                uri: "/api/v1/auth/email/verify",
                 method: .post,
-                headers: [HTTPField.Name("x-email-code")!: "123456"],
-                auth: .basic(username: requestBody.email, password: requestBody.password)
+                body: JSONEncoder().encodeAsByteBuffer(
+                    EmailLoginVerifyRequest(tempToken: initialLoginResponse.tempToken!, code: "123456"),
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .created)
-                let finalAuthResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
-                #expect(!finalAuthResponse.requiresEmailVerification)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(!authResponse.requiresEmailVerification)
+                #expect(authResponse.accessToken != "")
+                #expect(authResponse.refreshToken != "")
+                return authResponse
+            }
+
+            // 9. Verify we can access protected routes with the new token
+            try await client.execute(
+                uri: "/api/v1/auth/me",
+                method: .get,
+                auth: .bearer(finalAuthResponse.accessToken)
+            ) { response in
+                #expect(response.status == .ok)
             }
         }
     }
