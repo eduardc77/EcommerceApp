@@ -9,7 +9,7 @@ extension Store {
         case logout
         case me
         case changePassword(current: String, new: String)
-        case requestEmailCode
+        case requestEmailCode(tempToken: String)
         case forgotPassword(email: String)
         case resetPassword(email: String, code: String, newPassword: String)
         case verifyTOTPLogin(code: String, tempToken: String)
@@ -74,6 +74,8 @@ extension Store {
                     
                 case .refreshToken(let token):
                     return ["Authorization": "Bearer \(token)"]
+                case .requestEmailCode(let tempToken):
+                    return ["Authorization": "Bearer \(tempToken)"]
                 default:
                     return nil
             }
@@ -110,7 +112,9 @@ extension Store {
                     "code": code,
                     "tempToken": tempToken
                 ]
-            case .logout, .me, .requestEmailCode:
+            case .requestEmailCode:
+                return nil  // No body needed
+            case .logout, .me:
                 return nil
             }
         }

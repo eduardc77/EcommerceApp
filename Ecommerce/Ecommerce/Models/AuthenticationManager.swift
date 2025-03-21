@@ -332,6 +332,9 @@ public final class AuthenticationManager {
             pendingLoginResponse = response
             requires2FAEmailVerification = true
             isAuthenticated = false
+            
+            // Request initial email code using the new temp token
+            try await requestEmailCode(tempToken: response.tempToken ?? "")
         } else {
             // Complete authentication if no email verification needed
             pendingLoginResponse = nil
@@ -342,7 +345,7 @@ public final class AuthenticationManager {
     }
     
     public func verifyEmail2FALogin(code: String, tempToken: String) async throws {
-        guard let pendingLoginResponse = pendingLoginResponse else {
+        guard pendingLoginResponse != nil else {
             throw AuthenticationError.noLoginInProgress
         }
         
@@ -361,5 +364,34 @@ public final class AuthenticationManager {
         requires2FAEmailVerification = false
         
         await storeTokenAndUpdateStatus(response)
+    }
+
+    /// Request a new email verification code during login
+    public func requestEmailCode(tempToken: String) async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            _ = try await authService.requestEmailCode(tempToken: tempToken)
+        } catch let networkError as NetworkError {
+            switch networkError {
+            case .clientError(429, _, let headers, _):
+                // Handle rate limit with retry-after
+                if let retryAfter = headers["Retry-After"].flatMap(Int.init) {
+                    throw NetworkError.clientError(
+                        statusCode: 429,
+                        description: "Please wait \(retryAfter) seconds before requesting another code",
+                        headers: headers
+                    )
+                }
+                throw NetworkError.clientError(
+                    statusCode: 429,
+                    description: "Please wait before requesting another code",
+                    headers: headers
+                )
+            default:
+                throw networkError
+            }
+        }
     }
 }

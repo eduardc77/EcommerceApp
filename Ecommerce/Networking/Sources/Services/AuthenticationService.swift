@@ -8,7 +8,7 @@ public protocol AuthenticationServiceProtocol {
     func logout() async throws
     func me() async throws -> UserResponse
     func changePassword(current: String, new: String) async throws -> MessageResponse
-    func requestEmailCode() async throws -> MessageResponse
+    func requestEmailCode(tempToken: String) async throws -> MessageResponse
     func forgotPassword(email: String) async throws -> MessageResponse
     func resetPassword(email: String, code: String, newPassword: String) async throws -> MessageResponse
 }
@@ -36,7 +36,7 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             allowRetry: false,
             requiresAuthorization: false
         )
-        
+
         if response.requiresEmailVerification {
             // Store temporary token for email verification
             let dateFormatter = ISO8601DateFormatter()
@@ -60,7 +60,7 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             )
             await authorizationManager.storeToken(token)
         }
-        
+
         logger.debug("Login successful: \(response.user.displayName)")
         return response
     }
@@ -72,7 +72,7 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             allowRetry: false,
             requiresAuthorization: false
         )
-        
+
         // Store the tokens after successful verification
         let token = Token(
             accessToken: response.accessToken,
@@ -82,7 +82,7 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             expiresAt: response.expiresAt
         )
         await authorizationManager.storeToken(token)
-        
+
         logger.debug("Email verification successful: \(response.user.displayName)")
         return response
     }
@@ -94,7 +94,7 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             allowRetry: false,
             requiresAuthorization: false
         )
-        
+
         // Only store permanent tokens if no email verification is required
         if !response.requiresEmailVerification {
             let token = Token(
@@ -106,7 +106,7 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             )
             await authorizationManager.storeToken(token)
         }
-        
+
         logger.debug("TOTP verification successful: \(response.user.displayName)")
         return response
     }
@@ -118,7 +118,7 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             allowRetry: false,
             requiresAuthorization: false
         )
-        
+
         // Store the token
         let token = Token(
             accessToken: response.accessToken,
@@ -128,11 +128,11 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             expiresAt: response.expiresAt
         )
         await authorizationManager.storeToken(token)
-        
+
         logger.debug("Registration successful: \(response.user.displayName)")
         return response
     }
-    
+
     public func logout() async throws {
         let _: EmptyResponse = try await apiClient.performRequest(
             from: Store.Authentication.logout,
@@ -140,13 +140,13 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
             allowRetry: false,
             requiresAuthorization: true
         )
-        
+
         // Clear the token
         try await authorizationManager.invalidateToken()
-        
+
         logger.debug("Logged out successfully")
     }
-    
+
     public func me() async throws -> UserResponse {
         let response: UserResponse = try await apiClient.performRequest(
             from: Store.Authentication.me,
@@ -157,7 +157,7 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         logger.debug("Retrieved user profile: \(response.displayName)")
         return response
     }
-    
+
     public func changePassword(current: String, new: String) async throws -> MessageResponse {
         let response: MessageResponse = try await apiClient.performRequest(
             from: Store.Authentication.changePassword(current: current, new: new),
@@ -168,18 +168,18 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         logger.debug("Password changed successfully")
         return response
     }
-    
-    public func requestEmailCode() async throws -> MessageResponse {
+
+    public func requestEmailCode(tempToken: String) async throws -> MessageResponse {
         let response: MessageResponse = try await apiClient.performRequest(
-            from: Store.Authentication.requestEmailCode,
+            from: Store.Authentication.requestEmailCode(tempToken: tempToken),
             in: environment,
             allowRetry: false,
-            requiresAuthorization: true
+            requiresAuthorization: false
         )
-        logger.debug("Email code requested successfully")
+        logger.debug("2FA Email verification code requested")
         return response
     }
-    
+
     public func forgotPassword(email: String) async throws -> MessageResponse {
         let response: MessageResponse = try await apiClient.performRequest(
             from: Store.Authentication.forgotPassword(email: email),
@@ -190,7 +190,7 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         logger.debug("Password reset requested for email")
         return response
     }
-    
+
     public func resetPassword(email: String, code: String, newPassword: String) async throws -> MessageResponse {
         let response: MessageResponse = try await apiClient.performRequest(
             from: Store.Authentication.resetPassword(email: email, code: code, newPassword: newPassword),

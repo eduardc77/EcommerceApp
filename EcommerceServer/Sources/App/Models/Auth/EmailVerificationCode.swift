@@ -24,6 +24,9 @@ final class EmailVerificationCode: Model, @unchecked Sendable {
     @Field(key: "expires_at")
     var expiresAt: Date
     
+    @Field(key: "last_requested_at")
+    var lastRequestedAt: Date?
+    
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
     
@@ -36,6 +39,7 @@ final class EmailVerificationCode: Model, @unchecked Sendable {
         self.type = type
         self.attempts = 0
         self.expiresAt = expiresAt
+        self.lastRequestedAt = Date()
     }
     
     /// Generate a random 6-digit code
@@ -61,12 +65,31 @@ final class EmailVerificationCode: Model, @unchecked Sendable {
     
     /// Check if too many attempts have been made
     var hasExceededAttempts: Bool {
-        attempts >= 5
+        attempts >= 3
+    }
+    
+    /// Check if we're within the cooldown period (120 seconds)
+    var isWithinCooldown: Bool {
+        guard let lastRequested = lastRequestedAt else { return false }
+        return Date().timeIntervalSince(lastRequested) < 120
+    }
+    
+    /// Get remaining cooldown time in seconds
+    var remainingCooldown: Int {
+        guard let lastRequested = lastRequestedAt else { return 0 }
+        let elapsed = Date().timeIntervalSince(lastRequested)
+        let remaining = 120 - Int(elapsed)
+        return max(0, remaining)
     }
     
     /// Increment the number of attempts
     func incrementAttempts() {
         attempts += 1
+    }
+    
+    /// Update the last requested time
+    func updateLastRequested() {
+        lastRequestedAt = Date()
     }
 }
 
@@ -81,6 +104,7 @@ extension EmailVerificationCode {
                 .field("type", .string, .required)
                 .field("attempts", .int, .required)
                 .field("expires_at", .datetime, .required)
+                .field("last_requested_at", .datetime)
                 .field("created_at", .datetime)
                 .unique(on: "user_id", "type", name: "user_type_idx")
                 .create()

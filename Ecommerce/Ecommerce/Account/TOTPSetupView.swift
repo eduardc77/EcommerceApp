@@ -9,11 +9,11 @@ struct TOTPSetupView: View {
     @State private var verificationCode = ""
     @State private var error: Error?
     @State private var isLoading = false
+    @State private var showVerification = false
     
     private enum SetupStep {
         case intro
         case qrCode
-        case verification
     }
     
     var body: some View {
@@ -26,8 +26,6 @@ struct TOTPSetupView: View {
                     if let qrCode = qrCode, let secret = secret {
                         qrCodeSection(qrCode: qrCode, secret: secret)
                     }
-                case .verification:
-                    verificationSection
                 }
             }
             .navigationTitle("Set Up Two-Factor")
@@ -62,6 +60,9 @@ struct TOTPSetupView: View {
                 if currentStep == .intro {
                     await startSetup()
                 }
+            }
+            .sheet(isPresented: $showVerification) {
+                VerificationView(type: .setupTOTP)
             }
         }
     }
@@ -120,9 +121,7 @@ struct TOTPSetupView: View {
                     .font(.headline)
                 
                 Button {
-                    withAnimation {
-                        currentStep = .verification
-                    }
+                    showVerification = true
                 } label: {
                     Text("Continue")
                         .frame(maxWidth: .infinity)
@@ -135,68 +134,12 @@ struct TOTPSetupView: View {
         }
     }
     
-    private var verificationSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Enter the 6-digit verification code from your authenticator app")
-                    .font(.headline)
-                
-                TextField("Verification Code", text: $verificationCode)
-                    .keyboardType(.numberPad)
-                    .textContentType(.oneTimeCode)
-                    .font(.system(.title2, design: .monospaced))
-                    .multilineTextAlignment(.center)
-                    .onChange(of: verificationCode) { oldValue, newValue in
-                        // Limit to 6 digits
-                        if newValue.count > 6 {
-                            verificationCode = String(newValue.prefix(6))
-                        }
-                        // Remove non-digits
-                        verificationCode = newValue.filter { $0.isNumber }
-                    }
-                
-                AsyncButton {
-                    await verifyAndEnable()
-                } label: {
-                    Text("Verify and Enable")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(verificationCode.count != 6)
-            }
-            .padding(.vertical, 8)
-        }
-    }
-    
     private func startSetup() async {
         isLoading = true
         do {
             let setupData = try await authManager.totpManager.setupTOTP()
             qrCode = setupData.qrCode
             secret = setupData.secret
-            isLoading = false
-        } catch {
-            self.error = error
-            isLoading = false
-        }
-    }
-    
-    private func verifyAndEnable() async {
-        isLoading = true
-        do {
-            try await authManager.totpManager.verifyAndEnableTOTP(code: verificationCode)
-            // If we get here, TOTP was enabled successfully
-            // Sign out immediately since the server has invalidated our tokens
-            await authManager.signOut()
-            dismiss()
-        } catch let error as NetworkError {
-            // If we get a 401, it means TOTP was enabled but our token was invalidated
-            if case .unauthorized = error {
-                await authManager.signOut()
-                dismiss()
-                return
-            }
-            self.error = error
             isLoading = false
         } catch {
             self.error = error
@@ -216,12 +159,12 @@ import Networking
         refreshClient: refreshClient,
         tokenStore: tokenStore
     )
-
+    
     let totpService = PreviewTOTPService()
     let totpManager = TOTPManager(totpService: totpService)
     let emailVerificationService = PreviewEmailVerificationService()
     let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
-
+    
     let authManager = AuthenticationManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
@@ -229,7 +172,7 @@ import Networking
         emailVerificationManager: emailVerificationManager,
         authorizationManager: authorizationManager
     )
-
+    
     TOTPSetupView()
         .environment(authManager)
 }

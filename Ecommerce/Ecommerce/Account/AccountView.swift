@@ -41,12 +41,12 @@ struct AccountView: View {
                 }
             }
             .navigationTitle("Account")
+            .navigationBarTitleDisplayMode(.inline)
             .refreshable {
                 await authManager.refreshProfile()
             }
             .sheet(isPresented: $showingEmailVerification) {
-                EmailVerificationView(source: .account)
-                    .interactiveDismissDisabled()
+                VerificationView(type: .initialEmail)
             }
             .sheet(isPresented: $showingTOTPSetup) {
                 TOTPSetupView()
@@ -60,7 +60,7 @@ struct AccountView: View {
                 Text("This will remove an important security feature from your account. You'll need to verify your identity to continue.")
             }
             .sheet(isPresented: $showingDisableTOTPVerification) {
-                TOTPDisableView()
+                VerificationView(type: .disableTOTP)
             }
             .alert("Disable Email Verification", isPresented: $showingDisableEmail2FAConfirmation) {
                 Button("Cancel", role: .cancel) { }
@@ -73,10 +73,10 @@ struct AccountView: View {
                 Text("This will remove email verification as a security feature from your account. You'll need to verify your identity to continue.")
             }
             .sheet(isPresented: $showingDisableEmail2FAVerification) {
-                EmailVerificationDisableView()
+                VerificationView(type: .disableEmail2FA)
             }
             .sheet(isPresented: $showingEnableEmail2FAVerification) {
-                EmailVerificationSetupView()
+                VerificationView(type: .setupEmail2FA)
             }
             .onChange(of: emailVerificationManager.requiresEmailVerification) { _, requiresEmailVerification in
                 if !requiresEmailVerification {
@@ -94,6 +94,12 @@ struct AccountView: View {
                     editedEmail: $editedEmail,
                     authManager: authManager
                 )
+
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
             }
             .onChange(of: authManager.currentUser) { oldValue, newValue in
                 updateEditingFields(user: newValue)
@@ -163,11 +169,9 @@ struct AccountView: View {
                 // TOTP Cell
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Image(systemName: "lock.shield")
-                            .font(.title2)
-                            .symbolRenderingMode(.hierarchical)
+                        Image(systemName: "lock.shield.fill")
+                            .font(.title)
                             .foregroundStyle(authManager.totpManager.isEnabled ? .green : .secondary)
-                            .frame(width: 32)
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Authenticator App")
@@ -205,11 +209,9 @@ struct AccountView: View {
                 // Email 2FA Cell
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Image(systemName: "envelope.badge.shield.half.filled.fill")
-                            .font(.title2)
-                            .symbolRenderingMode(.hierarchical)
+                        Image(systemName: "shield.lefthalf.filled")
+                            .font(.title)
                             .foregroundStyle(emailVerificationManager.is2FAEnabled ? .green : .secondary)
-                            .frame(width: 32)
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Email Verification")

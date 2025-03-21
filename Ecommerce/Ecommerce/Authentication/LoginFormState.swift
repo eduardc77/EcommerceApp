@@ -3,9 +3,9 @@ import Observation
 
 @Observable
 final class LoginFormState {
-    var identifier = ""
-    var password = ""
-    
+    var identifier = "sare.delamaie2@gmail.com"
+    var password = "Str0ng#Pass2@"
+
     var fieldErrors: [String: String] = [:]
     var isValid = false
     

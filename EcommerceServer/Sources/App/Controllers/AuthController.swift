@@ -251,7 +251,7 @@ struct AuthController {
             // Generate temporary token for email verification
             let tempTokenPayload = JWTPayloadData(
                 subject: SubjectClaim(value: try user.requireID().uuidString),
-                expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 300)), // 5 minutes
+                expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 600)), // 10 minutes
                 type: "email_verification",
                 issuer: jwtConfig.issuer,
                 audience: jwtConfig.audience,
@@ -388,7 +388,7 @@ struct AuthController {
             // Generate temporary token for email verification
             let tempTokenPayload = JWTPayloadData(
                 subject: SubjectClaim(value: try user.requireID().uuidString),
-                expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 300)), // 5 minutes
+                expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 600)), // 10 minutes
                 type: "email_verification",
                 issuer: jwtConfig.issuer,
                 audience: jwtConfig.audience,
@@ -778,14 +778,33 @@ struct AuthController {
         }
     }
 
-    /// Request an email verification code for login
+    /// Request a new email verification code during login
     @Sendable func requestEmailCode(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<MessageResponse> {
-        // Check user credentials first
-        guard let user = context.identity else {
-            throw HTTPError(.unauthorized, message: "Invalid credentials")
+        // Get the temporary token from the Authorization header
+        guard let bearerToken = request.headers.bearer?.token else {
+            throw HTTPError(.unauthorized, message: "Missing authorization token")
+        }
+        
+        // Verify and decode temporary token
+        let tempTokenPayload = try await self.jwtKeyCollection.verify(bearerToken, as: JWTPayloadData.self)
+        
+        // Ensure it's an email verification token
+        guard tempTokenPayload.type == "email_verification" else {
+            throw HTTPError(.unauthorized, message: "Invalid token type")
+        }
+        
+        // Get user from database
+        guard let user = try await User.find(UUID(uuidString: tempTokenPayload.subject.value), on: fluent.db()) else {
+            throw HTTPError(.unauthorized, message: "User not found")
+        }
+        
+        // Verify token version
+        guard let tokenVersion = tempTokenPayload.tokenVersion,
+              tokenVersion == user.tokenVersion else {
+            throw HTTPError(.unauthorized, message: "Invalid token version")
         }
         
         // Check if email verification is enabled
@@ -793,13 +812,29 @@ struct AuthController {
             throw HTTPError(.badRequest, message: "Email verification is not enabled for this account")
         }
         
-        // Delete any existing verification codes for this user
+        // Get user ID first
         let userID = try user.requireID()
-        try await EmailVerificationCode.query(on: fluent.db())
+        
+        // Check for existing verification code and cooldown
+        if let existingCode = try await EmailVerificationCode.query(on: fluent.db())
             .filter(\.$user.$id == userID)
             .filter(\.$type == "2fa_login")
-            .delete()
-        
+            .first() {
+            
+            if existingCode.isWithinCooldown {
+                let remaining = existingCode.remainingCooldown
+                var headers = HTTPFields()
+                headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(remaining)"))
+                throw HTTPError(
+                    .tooManyRequests,
+                    headers: headers,
+                    message: "Please wait before requesting another code"
+                )
+            }
+            
+            // Delete the expired code
+            try await existingCode.delete(on: fluent.db())
+        }
         
         // Generate and store verification code
         let code = EmailVerificationCode.generateCode()

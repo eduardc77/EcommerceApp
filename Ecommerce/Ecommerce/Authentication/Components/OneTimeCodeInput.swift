@@ -27,10 +27,14 @@ struct OneTimeCodeInput: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(.background)
                         .strokeBorder(
-                            index == code.count ? Color.accentColor :
-                                index < code.count ? Color.secondary :
-                                Color.secondary.opacity(0.2),
-                            lineWidth: index == code.count ? 2 : 1
+                            isFocused ? (
+                                code.count == codeLength ? (index == codeLength - 1 ? Color.accentColor : Color.secondary) :
+                                index == code.count ? Color.accentColor : 
+                                index < code.count ? Color.secondary : Color.secondary.opacity(0.2)
+                            ) : (
+                                index < code.count ? Color.secondary : Color.secondary.opacity(0.2)
+                            ),
+                            lineWidth: isFocused && (index == code.count || (code.count == codeLength && index == codeLength - 1)) ? 2 : 1
                         )
                 }
             }
@@ -55,7 +59,7 @@ struct OneTimeCodeInput: View {
 }
 
 #Preview {
-    @State var code = ""
+    @Previewable @State var code = ""
     return OneTimeCodeInput(code: $code, codeLength: 6)
         .padding()
 }

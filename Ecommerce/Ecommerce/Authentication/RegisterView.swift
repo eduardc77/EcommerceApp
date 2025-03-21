@@ -28,8 +28,7 @@ struct RegisterView: View {
                 }
             }
         )) {
-            EmailVerificationView(source: .registration)
-                .interactiveDismissDisabled()
+            VerificationView(type: .initialEmail)
         }
         .onChange(of: focusedField) { oldValue, newValue in
             if let oldValue = oldValue {

@@ -9,6 +9,7 @@ struct CreateEmailVerificationCode: AsyncMigration {
             .field("type", .string, .required)
             .field("attempts", .int, .required, .sql(.default(0)))
             .field("expires_at", .datetime, .required)
+            .field("last_requested_at", .datetime)
             .field("created_at", .datetime)
             .create()
     }

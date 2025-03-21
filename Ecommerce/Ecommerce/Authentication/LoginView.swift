@@ -84,9 +84,9 @@ struct LoginView: View {
             .sheet(item: $authFlow) { flow in
                 switch flow {
                 case .totpVerification(let token):
-                    TOTPVerificationView(tempToken: token)
+                    VerificationView(type: .totpLogin(tempToken: token))
                 case .emailVerification(let token):
-                    EmailVerificationView(source: .login2FA, tempToken: token)
+                    VerificationView(type: .emailLogin(tempToken: token))
                 }
             }
             .onChange(of: focusedField) { oldValue, newValue in
