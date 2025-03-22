@@ -182,7 +182,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.displayName = userRequest.displayName
         self.email = userRequest.email
         self.profilePicture = userRequest.profilePicture ?? "https://api.dicebear.com/7.x/avataaars/png"
-        self.role = userRequest.role ?? .customer
+        self.role = .customer  // Default role for public registration
         self.emailVerified = false
         self.failedLoginAttempts = 0
         self.lastFailedLogin = nil
@@ -197,6 +197,43 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         // Hash the password
         let passwordHash = try await NIOThreadPool.singleton.runIfActive {
             Bcrypt.hash(userRequest.password, cost: 12)
+        }
+        self.passwordHash = passwordHash
+        self.passwordUpdatedAt = Date()
+        
+        // Store the initial password hash in history
+        self.passwordHistory = [passwordHash]
+        
+        self.tokenVersion = 0
+    }
+    
+    init(from adminRequest: AdminCreateUserRequest) async throws {
+        // Validate password first with user info for better validation
+        try Self.validatePassword(adminRequest.password, userInfo: [
+            "username": adminRequest.username,
+            "email": adminRequest.email
+        ])
+        
+        self.id = nil
+        self.username = adminRequest.username
+        self.displayName = adminRequest.displayName
+        self.email = adminRequest.email
+        self.profilePicture = adminRequest.profilePicture ?? "https://api.dicebear.com/7.x/avataaars/png"
+        self.role = adminRequest.role  // Use specified role for admin creation
+        self.emailVerified = false
+        self.failedLoginAttempts = 0
+        self.lastFailedLogin = nil
+        self.lastLoginAt = nil
+        self.accountLocked = false
+        self.lockoutUntil = nil
+        self.requirePasswordChange = false
+        self.twoFactorEnabled = false
+        self.twoFactorSecret = nil
+        self.emailVerificationEnabled = false
+        
+        // Hash the password
+        let passwordHash = try await NIOThreadPool.singleton.runIfActive {
+            Bcrypt.hash(adminRequest.password, cost: 12)
         }
         self.passwordHash = passwordHash
         self.passwordUpdatedAt = Date()
@@ -230,7 +267,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.lockoutUntil = nil
     }
     
-    func updateLastLogin() {
+    func updateLastSignIn() {
         self.lastLoginAt = Date()
     }
     
@@ -323,7 +360,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
     /// - Returns: True if the code is valid, false otherwise
     func verifyTOTPCode(_ code: String) async throws -> Bool {
         guard let secret = twoFactorSecret else {
-            throw HTTPError(.internalServerError, message: "2FA is not properly configured")
+            throw HTTPError(.internalServerError, message: "MFA is not properly configured")
         }
         
         return TOTPUtils.verifyTOTPCode(code: code, secret: secret)

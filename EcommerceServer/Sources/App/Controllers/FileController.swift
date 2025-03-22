@@ -33,8 +33,17 @@ struct FileController {
     
     /// Add protected routes that require authentication
     func addProtectedRoutes(to group: RouterGroup<Context>) {
-        group.post("/", use: uploadFile)
-        group.get(":filename", use: download)
+        // Add security headers middleware
+        group.add(middleware: SecurityHeadersMiddleware())
+
+        // File management endpoints
+        group.post("media/upload", use: uploadFile)
+            .get("media/download/:filename", use: download)
+        
+        // Optional: Add more structured endpoints for different use cases
+        let mediaGroup = group.group("media")
+        mediaGroup.post("profile/upload", use: uploadFile)
+            .post("documents/upload", use: uploadFile)
     }
     
     /// Handle file upload - supports both multipart/form-data and raw bytes

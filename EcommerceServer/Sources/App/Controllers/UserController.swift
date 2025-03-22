@@ -22,167 +22,89 @@ struct UserController {
         self.emailService = emailService
     }
     
-    /// Add public routes (registration, availability)
+    /// Add public routes
     func addPublicRoutes(to group: RouterGroup<Context>) {
-        // Group availability checks under /availability
-        let availabilityGroup = group.group("availability")
-        availabilityGroup.get(use: checkAvailability)
+        // No public routes needed
     }
     
     /// Add protected routes that require authentication
     func addProtectedRoutes(to group: RouterGroup<Context>) {
-        group.put("update-profile", use: updateProfile)  // For users to update their own profile
-        group.get(":id/public", use: getUserPublic)      // Public details endpoint
-        group.get(":id", use: getUser)                  // Full details endpoint
-        group.put(":id", use: adminUpdate)              // Admin-only update endpoint
-        group.delete(":id", use: deleteUser)
-        group.put(":id/role", use: updateRole)          // Admin/staff role management
+        group.put("update-profile", use: updateProfile)
+            .get(":id/public", use: getUserPublic)
+            .get(":id", use: getUser)
+            .put(":id", use: adminUpdate)
+            .delete(":id", use: deleteUser)
+            .put(":id/role", use: updateRole)
     }
     
-    /// Add all routes (deprecated)
-    @available(*, deprecated, message: "Use addPublicRoutes and addProtectedRoutes instead")
-    func addRoutes(to group: RouterGroup<Context>) {
-        addPublicRoutes(to: group)
-        addProtectedRoutes(to: group)
-    }
-    
-    /// Create new user
+    /// Create a new user (admin endpoint)
     @Sendable func create(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<UserResponse> {
-        do {
-            let createUser = try await request.decode(
-                as: CreateUserRequest.self,
-                context: context
-            )
-            
-            // Check role permissions if a role is specified
-            if let requestedRole = createUser.role {
-                if let currentUser = context.identity {
-                    // If authenticated user is creating another user, check permissions
-                    switch currentUser.role {
-                    case .admin:
-                        // Admin can create users with any role
-                        break
-                    case .staff:
-                        // Staff can only create customers or sellers
-                        guard requestedRole == .customer || requestedRole == .seller else {
-                            throw HTTPError(.forbidden, message: "Staff can only create customer or seller accounts")
-                        }
-                    case .seller:
-                        // Sellers can only create customer accounts
-                        guard requestedRole == .customer else {
-                            throw HTTPError(.forbidden, message: "Sellers can only create customer accounts")
-                        }
-                    case .customer:
-                        // Customers cannot specify roles
-                        throw HTTPError(.forbidden, message: "You cannot specify a role when creating an account")
-                    }
-                } else {
-                    // Unauthenticated users cannot specify roles
-                    throw HTTPError(.forbidden, message: "You cannot specify a role when creating an account")
+        let createUser = try await request.decode(
+            as: AdminCreateUserRequest.self,
+            context: context
+        )
+        
+        // Check role permissions if a role is specified
+        if let currentUser = context.identity {
+            // If authenticated user is creating another user, check permissions
+            switch currentUser.role {
+            case .admin:
+                // Admin can create users with any role
+                break
+            case .staff:
+                // Staff can only create customers or sellers
+                guard createUser.role == .customer || createUser.role == .seller else {
+                    throw HTTPError(.forbidden, message: "Staff can only create customer or seller accounts")
                 }
+            case .seller:
+                // Sellers can only create customer accounts
+                guard createUser.role == .customer else {
+                    throw HTTPError(.forbidden, message: "Sellers can only create customer accounts")
+                }
+            case .customer:
+                // Customers cannot create users
+                throw HTTPError(.forbidden, message: "You do not have permission to create users")
             }
-
-            context.logger.info("Decoded create user request: \(createUser.username)")
-            
-            let db = self.fluent.db()
-            
-            // Check if username exists
-            let existingUsername = try await User.query(on: db)
-                .filter(\.$username == createUser.username)
-                .first()
-            guard existingUsername == nil else {
-                context.logger.notice("Username already exists: \(createUser.username)")
-                throw HTTPError(.conflict, message: "Username already exists")
-            }
-            
-            // Check if email exists
-            let existingEmail = try await User.query(on: db)
-                .filter(\.$email == createUser.email)
-                .first()
-            guard existingEmail == nil else {
-                context.logger.notice("Email already exists: \(createUser.email)")
-                throw HTTPError(.conflict, message: "Email already exists")
-            }
-            
-            context.logger.info("Creating new user: \(createUser.username)")
-            let user = try await User(from: createUser)
-            
-            // Save both user and verification code in a transaction
-            try await db.transaction { database in
-                // Save user first
-                try await user.save(on: database)
-                
-                // Generate and store verification code
-                let code = EmailVerificationCode.generateCode()
-                let verificationCode = EmailVerificationCode(
-                    userID: try user.requireID(),
-                    code: code,
-                    type: "email_verify",
-                    expiresAt: Date().addingTimeInterval(300) // 5 minutes
-                )
-                
-                try await verificationCode.save(on: database)
-                
-                // Send verification email
-                try await emailService.sendVerificationEmail(to: user.email, code: code)
-            }
-            
-            context.logger.info("Successfully created user and sent verification email: \(user.username)")
-            
-            return .init(status: .created, response: UserResponse(from: user))
-        } catch {
-            context.logger.error("Failed to create user: \(error)")
-            throw error
+        } else {
+            // Unauthenticated users cannot create users
+            throw HTTPError(.forbidden, message: "Authentication required")
         }
-    }
-    
-    /// Check availability of username or email
-    /// Returns 200 OK with availability status
-    /// Query parameters:
-    /// - username: Username to check
-    /// - email: Email to check
-    /// Example:
-    /// GET /user/availability?username=john123
-    /// GET /user/availability?email=john@example.com
-    @Sendable func checkAvailability(
-        _ request: Request,
-        context: Context
-    ) async throws -> EditedResponse<AvailabilityResponse> {
+
+        context.logger.info("Creating new user: \(createUser.username)")
+        
         let db = self.fluent.db()
         
-        // Get query parameters
-        if let username = request.uri.queryParameters.get("username", as: String.self) {
-            let existingUser = try await User.query(on: db)
-                .filter(\.$username == username)
-                .first()
-            
-            return .init(
-                status: .ok,
-                response: AvailabilityResponse(
-                    available: existingUser == nil,
-                    identifier: username,
-                    type: "username"
-                )
-            )
-        } else if let email = request.uri.queryParameters.get("email", as: String.self) {
-            let existingUser = try await User.query(on: db)
-                .filter(\.$email == email)
-                .first()
-            
-            return .init(
-                status: .ok,
-                response: AvailabilityResponse(
-                    available: existingUser == nil,
-                    identifier: email,
-                    type: "email"
-                )
-            )
+        // Check if username exists
+        let existingUsername = try await User.query(on: db)
+            .filter(\.$username == createUser.username)
+            .first()
+        guard existingUsername == nil else {
+            context.logger.notice("Username already exists: \(createUser.username)")
+            throw HTTPError(.conflict, message: "Username already exists")
         }
         
-        throw HTTPError(.badRequest, message: "Either 'username' or 'email' query parameter is required")
+        // Check if email exists
+        let existingEmail = try await User.query(on: db)
+            .filter(\.$email == createUser.email)
+            .first()
+        guard existingEmail == nil else {
+            context.logger.notice("Email already exists: \(createUser.email)")
+            throw HTTPError(.conflict, message: "Email already exists")
+        }
+        
+        // Create user with specified role
+        let user = try await User(from: createUser)
+        try await user.save(on: db)
+        
+        context.logger.info("Successfully created user: \(user.username)")
+        
+        return .init(
+            status: .created,
+            response: UserResponse(from: user)
+        )
     }
     
     /// Update own profile (for any authenticated user)

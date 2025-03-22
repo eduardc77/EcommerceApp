@@ -36,30 +36,6 @@ extension String {
     }
 }
 
-/// Request structure for changing a password
-struct ChangePasswordRequest: Codable, Sendable {
-    let currentPassword: String
-    let newPassword: String
-}
-
-/// Request structure for initiating a password reset
-struct ForgotPasswordRequest: Codable, Sendable {
-    let email: String
-}
-
-/// Request structure for completing a password reset
-struct ResetPasswordRequest: Codable, Sendable {
-    let email: String
-    let code: String
-    let newPassword: String
-}
-
-/// Simple message response structure
-struct MessageResponse: Codable, Sendable {
-    let message: String
-    let success: Bool
-}
-
 /// Controller handling authentication-related endpoints
 struct AuthController {
     typealias Context = AppRequestContext
@@ -68,75 +44,82 @@ struct AuthController {
     let fluent: Fluent
     let jwtConfig: JWTConfiguration
     let emailService: EmailService
+    let totpController: TOTPController
+    let emailVerificationController: EmailVerificationController
 
     // Rate limiting configuration
-    private let maxLoginAttempts: Int
-    private let loginLockoutDuration: TimeInterval
+    private let maxSignInAttempts: Int
+    private let signInLockoutDuration: TimeInterval
 
     // Token store for blacklisting
     private let tokenStore: TokenStoreProtocol
 
-    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent, tokenStore: TokenStoreProtocol, emailService: EmailService) {
+    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent, tokenStore: TokenStoreProtocol, emailService: EmailService, totpController: TOTPController, emailVerificationController: EmailVerificationController) {
         self.jwtKeyCollection = jwtKeyCollection
         self.kid = kid
         self.fluent = fluent
         self.tokenStore = tokenStore
         self.emailService = emailService
+        self.totpController = totpController
+        self.emailVerificationController = emailVerificationController
         
         // Load configuration with graceful fallback
         self.jwtConfig = JWTConfiguration.load()
 
         // Update rate limiting configuration from loaded config
-        self.maxLoginAttempts = jwtConfig.maxFailedAttempts
-        self.loginLockoutDuration = jwtConfig.lockoutDuration
+        self.maxSignInAttempts = jwtConfig.maxFailedAttempts
+        self.signInLockoutDuration = jwtConfig.lockoutDuration
     }
 
-    /// Add public routes for auth controller (login, refresh)
+    /// Add public routes for auth controller
     func addPublicRoutes(to group: RouterGroup<Context>) {
         // Add security headers middleware
         group.add(middleware: SecurityHeadersMiddleware())
 
-        group.post("login", use: self.login)
-            .post("login/verify-totp", use: self.verifyTOTPLogin)
-            .post("login/verify-email", use: self.verifyEmailLogin)
-            .post("register", use: self.register)
-            .post("email-code", use: self.requestEmailCode)
-            .post("forgot-password", use: self.forgotPassword)
-            .post("reset-password", use: self.resetPassword)
+        // Core auth
+        group.post("signup", use: signUp)
+            .post("signin", use: signIn)
+            .post("token/refresh", use: refreshToken)
+            .post("logout", use: logout)
 
-        // Refresh token doesn't use JWT middleware since it's validated differently
-        group.post("refresh", use: self.refreshToken)
+        // Initial email verification
+        let verifyEmail = group.group("verify-email")
+        verifyEmail.post("send", use: sendInitialVerificationEmail)
+            .post("confirm", use: verifyInitialEmail)
+            .post("resend", use: resendVerificationEmail)
+            .get("status", use: getEmailVerificationStatus)
+
+        // MFA
+        let mfa = group.group("mfa")
+        mfa.get("methods", use: getMFAMethods)
+
+        // Email MFA
+        let emailMFA = mfa.group("email")
+        emailMFA.post("send", use: sendMFAEmailSignIn)
+            .post("verify", use: verifyEmailSignIn)
+            .post("resend", use: resendMFAEmailSignIn)
+            .get("status", use: getEmailMFAStatusSignIn)
+
+        // TOTP MFA
+        let totpMFA = mfa.group("totp")
+        totpMFA.post("verify", use: verifyTOTPSignIn)
+            .get("status", use: getTOTPMFAStatusSignIn)
+
+        // Password management
+        let password = group.group("password")
+        password.post("forgot", use: forgotPassword)
+            .post("reset", use: resetPassword)
     }
 
-    /// Add protected routes for auth controller (me, logout)
+    /// Add protected routes for auth controller
     func addProtectedRoutes(to group: RouterGroup<Context>) {
-        // Add security headers middleware
-        group.add(middleware: SecurityHeadersMiddleware())
-
-        group.post("logout", use: self.logout)
-        group.get("me", use: self.getMe)
-        group.post("change-password", use: self.changePassword)
+        group.get("me", use: getCurrentUser)
+            .post("password/change", use: changePassword)
+            .post("token/revoke", use: revokeToken)
     }
 
-    @available(*, deprecated, message: "Use addPublicRoutes and addProtectedRoutes instead")
-    func addRoutes(to group: RouterGroup<Context>) {
-        // Add security headers middleware
-        group.add(middleware: SecurityHeadersMiddleware())
-
-        // Add routes directly without redundant middleware
-        group.post("login", use: self.login)
-
-        // Add JWT authentication middleware for protected routes
-        group.add(middleware: JWTAuthenticator(fluent: fluent, tokenStore: tokenStore))
-            .post("logout", use: self.logout)
-            .get("me", use: self.getMe)
-
-        // Refresh token doesn't use JWT middleware since it's validated differently
-        group.post("refresh", use: self.refreshToken)
-    }
-
-    /// Login user with credentials
-    @Sendable func login(
+    /// Sign in user with credentials
+    @Sendable func signIn(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<AuthResponse> {
@@ -209,45 +192,26 @@ struct AuthController {
             try await user.save(on: fluent.db())
         }
 
-        // Update last login timestamp
-        user.updateLastLogin()
+        // Update last sign in timestamp
+        user.updateLastSignIn()
         try await user.save(on: fluent.db())
 
-        // Check if TOTP is enabled
+        // Check if MFA is enabled
         if user.twoFactorEnabled {
-            // Generate temporary token for TOTP verification
-            let tempTokenPayload = JWTPayloadData(
-                subject: SubjectClaim(value: try user.requireID().uuidString),
-                expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 300)), // 5 minutes
-                type: "totp_verification",
-                issuer: jwtConfig.issuer,
-                audience: jwtConfig.audience,
-                issuedAt: Date(),
-                id: UUID().uuidString,
-                role: user.role.rawValue,
-                tokenVersion: user.tokenVersion
-            )
-            
-            let tempToken = try await self.jwtKeyCollection.sign(tempTokenPayload, kid: self.kid)
+            let stateToken = try await generateStateToken(for: user)
             
             return .init(
-                status: .unauthorized,
+                status: .ok,
                 response: AuthResponse(
-                    accessToken: "",
-                    refreshToken: "",
-                    expiresIn: 0,
-                    expiresAt: "",
-                    user: UserResponse(from: user),
-                    requiresTOTP: true,
-                    requiresEmailVerification: false,
-                    tempToken: tempToken
+                    stateToken: stateToken,
+                    status: AuthResponse.STATUS_MFA_TOTP_REQUIRED
                 )
             )
         }
         
-        // Check if email verification is enabled for 2FA
+        // Check if email verification is enabled for MFA
         if user.emailVerificationEnabled {
-            context.logger.info("User has email verification enabled. Setting up 2FA flow")
+            context.logger.info("User has email verification enabled. Setting up MFA flow")
             // Generate temporary token for email verification
             let tempTokenPayload = JWTPayloadData(
                 subject: SubjectClaim(value: try user.requireID().uuidString),
@@ -263,45 +227,20 @@ struct AuthController {
             
             let tempToken = try await self.jwtKeyCollection.sign(tempTokenPayload, kid: self.kid)
             
-            // Delete any existing verification codes
-            try await EmailVerificationCode.query(on: fluent.db())
-                .filter(\.$user.$id, .equal, try user.requireID())
-                .filter(\.$type, .equal, "2fa_login")
-                .delete()
+            context.logger.info("[App] TOTP verified successfully, proceeding with email verification")
             
-            // Create and store verification code
-            let code = EmailVerificationCode.generateCode()
-            let verificationCode = EmailVerificationCode(
-                userID: try user.requireID(),
-                code: code,
-                type: "2fa_login",
-                expiresAt: Date().addingTimeInterval(300) // 5 minutes
-            )
-            try await verificationCode.save(on: fluent.db())
-            
-            // Send verification email
-            context.logger.info("Sending 2FA login email to \(user.email)")
-            try await emailService.send2FALoginEmail(to: user.email, code: code)
-            
-            context.logger.info("Returning unauthorized response with requiresEmailVerification=true")
             return .init(
-                status: .unauthorized,
+                status: .ok,
                 response: AuthResponse(
-                    accessToken: "",
-                    refreshToken: "",
-                    expiresIn: 0,
-                    expiresAt: "",
-                    user: UserResponse(from: user),
-                    requiresTOTP: false,
-                    requiresEmailVerification: true,
-                    tempToken: tempToken
+                    stateToken: tempToken,
+                    status: AuthResponse.STATUS_MFA_EMAIL_REQUIRED
                 )
             )
         } else {
-            context.logger.info("User does not have email verification enabled. Proceeding with normal login")
+            context.logger.info("User does not have email verification enabled. Proceeding with normal sign in")
         }
 
-        // For users without 2FA, proceed with normal login
+        // For users without MFA, proceed with normal sign in
         let expiresIn = Int(jwtConfig.accessTokenExpiration)
         let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
         let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
@@ -338,21 +277,81 @@ struct AuthController {
 
         let dateFormatter = ISO8601DateFormatter()
         return .init(
-            status: .created,
+            status: .ok,
             response: AuthResponse(
                 accessToken: accessToken,
                 refreshToken: refreshToken,
                 expiresIn: UInt(expiresIn),
                 expiresAt: dateFormatter.string(from: accessExpirationDate),
-                user: UserResponse(from: user),
-                requiresTOTP: false,
-                requiresEmailVerification: false
+                status: AuthResponse.STATUS_SUCCESS
             )
         )
     }
 
-    /// Verify TOTP code and complete login
-    @Sendable func verifyTOTPLogin(
+    /// Sign up a new user (public endpoint)
+    /// Returns a stateToken for email verification
+    @Sendable func signUp(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<AuthResponse> {
+        let createUser = try await request.decode(
+            as: CreateUserRequest.self,
+            context: context
+        )
+
+        let db = self.fluent.db()
+
+        // Check if username exists
+        if let _ = try await User.query(on: db)
+            .filter(\.$username == createUser.username)
+            .first() {
+            context.logger.notice("Username already exists: \(createUser.username)")
+            throw HTTPError(.conflict, message: "Username already exists")
+        }
+
+        // Check if email exists
+        if let _ = try await User.query(on: db)
+            .filter(\.$email == createUser.email)
+            .first() {
+            context.logger.notice("Email already exists: \(createUser.email)")
+            throw HTTPError(.conflict, message: "Email already exists")
+        }
+
+        // Create and save user with default customer role
+        let user = try await User(from: createUser)
+        user.role = .customer  // Always set to customer for public registration
+        try await user.save(on: db)
+
+        // Generate temporary token for email verification
+        let tempTokenPayload = JWTPayloadData(
+            subject: SubjectClaim(value: try user.requireID().uuidString),
+            expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 600)), // 10 minutes
+            type: "email_verification",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: Date(),
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+        
+        let stateToken = try await self.jwtKeyCollection.sign(tempTokenPayload, kid: self.kid)
+
+        // Return AuthResponse with stateToken and user info
+        return .init(
+            status: .created,
+            response: AuthResponse(
+                tokenType: "Bearer",
+                user: UserResponse(from: user),
+                stateToken: stateToken,
+                status: AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED,
+                maskedEmail: user.email.maskEmail()
+            )
+        )
+    }
+
+    /// Verify TOTP code and complete sign in
+    @Sendable func verifyTOTPSignIn(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<AuthResponse> {
@@ -360,8 +359,8 @@ struct AuthController {
         let verifyRequest = try await request.decode(as: TOTPVerificationRequest.self, context: context)
         
         // Verify and decode temporary token
-        let tempTokenPayload = try await self.jwtKeyCollection.verify(verifyRequest.tempToken, as: JWTPayloadData.self)
-        
+        let tempTokenPayload = try await self.jwtKeyCollection.verify(verifyRequest.stateToken, as: JWTPayloadData.self)
+
         // Ensure it's a TOTP verification token
         guard tempTokenPayload.type == "totp_verification" else {
             throw HTTPError(.unauthorized, message: "Invalid token type")
@@ -400,44 +399,13 @@ struct AuthController {
             
             let tempToken = try await self.jwtKeyCollection.sign(tempTokenPayload, kid: self.kid)
             
-            // Delete any existing verification codes
-            try await EmailVerificationCode.query(on: fluent.db())
-                .filter(\.$user.$id, .equal, try user.requireID())
-                .filter(\.$type, .equal, "2fa_login")
-                .delete()
-            
-            // Create and store verification code
-            let code = EmailVerificationCode.generateCode()
-            let verificationCode = EmailVerificationCode(
-                userID: try user.requireID(),
-                code: code,
-                type: "2fa_login",
-                expiresAt: Date().addingTimeInterval(300) // 5 minutes
-            )
-            try await verificationCode.save(on: fluent.db())
-            
-            // Send verification email
-            try await emailService.send2FALoginEmail(
-                to: user.email,
-                code: code
-            )
-            
             context.logger.info("[App] TOTP verified successfully, proceeding with email verification")
             
-            let dateFormatter = ISO8601DateFormatter()
-            let expirationDate = Date().addingTimeInterval(300)
-            
             return .init(
-                status: .unauthorized,
+                status: .ok,
                 response: AuthResponse(
-                    accessToken: "",
-                    refreshToken: "",
-                    expiresIn: 300,
-                    expiresAt: dateFormatter.string(from: expirationDate),
-                    user: UserResponse(from: user),
-                    requiresTOTP: false,
-                    requiresEmailVerification: true,
-                    tempToken: tempToken
+                    stateToken: tempToken,
+                    status: AuthResponse.STATUS_MFA_EMAIL_REQUIRED
                 )
             )
         }
@@ -479,15 +447,13 @@ struct AuthController {
 
         let dateFormatter = ISO8601DateFormatter()
         return .init(
-            status: .created,
+            status: .ok,
             response: AuthResponse(
                 accessToken: accessToken,
                 refreshToken: refreshToken,
                 expiresIn: UInt(expiresIn),
                 expiresAt: dateFormatter.string(from: accessExpirationDate),
-                user: UserResponse(from: user),
-                requiresTOTP: false,
-                requiresEmailVerification: false
+                status: AuthResponse.STATUS_SUCCESS
             )
         )
     }
@@ -576,13 +542,14 @@ struct AuthController {
 
         let dateFormatter = ISO8601DateFormatter()
         return EditedResponse(
-            status: HTTPResponse.Status.created,
+            status: .ok,
             response: AuthResponse(
                 accessToken: accessToken,
                 refreshToken: newRefreshToken,
                 expiresIn: UInt(expiresIn),
                 expiresAt: dateFormatter.string(from: accessExpirationDate),
-                user: UserResponse(from: user)
+                user: UserResponse(from: user),
+                status: AuthResponse.STATUS_SUCCESS
             )
         )
     }
@@ -624,7 +591,7 @@ struct AuthController {
     ///   - context: The application request context
     /// - Returns: UserResponse containing user information
     /// - Throws: HTTPError if user is not authenticated
-    @Sendable func getMe(
+    @Sendable func getCurrentUser(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<UserResponse> {
@@ -750,7 +717,7 @@ struct AuthController {
             }
             
             return .init(
-                status: .created,
+                status: .ok,
                 response: MessageResponse(
                     message: "Password changed successfully. Please log in with your new password.",
                     success: true
@@ -778,7 +745,7 @@ struct AuthController {
         }
     }
 
-    /// Request a new email verification code during login
+    /// Request a new email verification code during sign in
     @Sendable func requestEmailCode(
         _ request: Request,
         context: Context
@@ -817,8 +784,8 @@ struct AuthController {
         
         // Check for existing verification code and cooldown
         if let existingCode = try await EmailVerificationCode.query(on: fluent.db())
-            .filter(\.$user.$id == userID)
-            .filter(\.$type == "2fa_login")
+            .filter(\.$user.$id, .equal, userID)
+            .filter(\.$type, .equal, "mfa_signin")
             .first() {
             
             if existingCode.isWithinCooldown {
@@ -841,13 +808,13 @@ struct AuthController {
         let verificationCode = EmailVerificationCode(
             userID: userID,
             code: code,
-            type: "2fa_login",
+            type: "mfa_signin",
             expiresAt: Date().addingTimeInterval(300) // 5 minutes
         )
         try await verificationCode.save(on: fluent.db())
         
         // Send verification email
-        try await emailService.send2FALoginEmail(to: user.email, code: code)
+        try await emailService.sendMFASignInEmail(to: user.email, code: code)
         
         return .init(
             status: .ok,
@@ -924,7 +891,7 @@ struct AuthController {
         
         // Find user by email
         guard let user = try await User.query(on: fluent.db())
-            .filter(\.$email == resetRequest.email)
+            .filter(\.$email, .equal, resetRequest.email)
             .first() else {
             throw HTTPError(.badRequest, message: "Invalid reset request")
         }
@@ -1026,202 +993,282 @@ struct AuthController {
             throw HTTPError(.internalServerError, message: "Failed to update password. Please try again later.")
         }
     }
-
-    /// Register a new user (public endpoint)
-    @Sendable func register(
+    
+    /// Send or resend verification code for initial email verification
+    @Sendable func sendInitialVerificationEmail(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<AuthResponse> {
-        let createUser = try await request.decode(
-            as: CreateUserRequest.self,
-            context: context
-        )
-        
-        // For public registration, force role to be customer
-        if createUser.role != nil {
-            throw HTTPError(.badRequest, message: "Cannot specify role during registration")
+    ) async throws -> EditedResponse<MessageResponse> {
+        // Decode request
+        struct SendCodeRequest: Codable {
+            let email: String
         }
-
-        context.logger.info("Decoded register user request: \(createUser.username)")
+        let sendRequest = try await request.decode(as: SendCodeRequest.self, context: context)
         
-        let db = self.fluent.db()
-        
-        // Check if username exists
-        let existingUsername = try await User.query(on: db)
-            .filter(\.$username == createUser.username)
-            .first()
-        guard existingUsername == nil else {
-            context.logger.notice("Username already exists: \(createUser.username)")
-            throw HTTPError(.conflict, message: "Username already exists")
-        }
-        
-        // Check if email exists
-        let existingEmail = try await User.query(on: db)
-            .filter(\.$email == createUser.email)
-            .first()
-        guard existingEmail == nil else {
-            context.logger.notice("Email already exists: \(createUser.email)")
-            throw HTTPError(.conflict, message: "Email already exists")
-        }
-        
-        context.logger.info("Creating new user: \(createUser.username)")
-        let user = try await User(from: createUser)
-        user.role = .customer  // Force role to customer for public registration
-        
-        // Save both user and verification code in a transaction
-        try await db.transaction { database in
-            // Save user first
-            try await user.save(on: database)
-            
-            // Generate and store verification code
-            let code = EmailVerificationCode.generateCode()
-            let verificationCode = EmailVerificationCode(
-                userID: try user.requireID(),
-                code: code,
-                type: "email_verify",
-                expiresAt: Date().addingTimeInterval(300) // 5 minutes
+        // Find user
+        guard let user = try await User.query(on: fluent.db())
+            .filter(\.$email, .equal, sendRequest.email)
+            .first() else {
+            // Return success even if user not found to prevent email enumeration
+            return .init(
+                status: .ok,
+                response: MessageResponse(
+                    message: "If an account exists with that email, a verification code has been sent",
+                    success: true
+                )
             )
-            
-            try await verificationCode.save(on: database)
-            
-            // Send verification email
-            try await emailService.sendVerificationEmail(to: user.email, code: code)
         }
         
-        context.logger.info("Successfully registered user and sent verification email: \(user.username)")
+        // Check if already verified
+        if user.emailVerified {
+            return .init(
+                status: .ok,
+                response: MessageResponse(
+                    message: "Email already verified",
+                    success: true
+                )
+            )
+        }
         
-        // Generate tokens for the new user
-        let expiresIn = Int(jwtConfig.accessTokenExpiration)
-        let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
-        let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
-        let issuedAt = Date()
+        // Check for existing code and cooldown
+        if let existingCode = try await EmailVerificationCode.query(on: fluent.db())
+            .filter(\.$user.$id, .equal, try user.requireID())
+            .filter(\.$type, .equal, "email_verify")
+            .first() {
+            
+            if existingCode.isWithinCooldown {
+                let remaining = existingCode.remainingCooldown
+                var headers = HTTPFields()
+                headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(remaining)"))
+                throw HTTPError(
+                    .tooManyRequests,
+                    headers: headers,
+                    message: "Please wait before requesting another code"
+                )
+            }
+            
+            // Delete expired code
+            try await existingCode.delete(on: fluent.db())
+        }
         
-        // Create access token
-        let accessPayload = JWTPayloadData(
-            subject: SubjectClaim(value: try user.requireID().uuidString),
-            expiration: ExpirationClaim(value: accessExpirationDate),
-            type: "access",
-            issuer: jwtConfig.issuer,
-            audience: jwtConfig.audience,
-            issuedAt: issuedAt,
-            id: UUID().uuidString,
-            role: user.role.rawValue,
-            tokenVersion: user.tokenVersion
+        // Generate new code
+        let code = EmailVerificationCode.generateCode()
+        let verificationCode = EmailVerificationCode(
+            userID: try user.requireID(),
+            code: code,
+            type: "email_verify",
+            expiresAt: Date().addingTimeInterval(1800) // 30 minutes
         )
-
-        // Create refresh token with same version
-        let refreshPayload = JWTPayloadData(
-            subject: SubjectClaim(value: try user.requireID().uuidString),
-            expiration: ExpirationClaim(value: refreshExpirationDate),
-            type: "refresh",
-            issuer: jwtConfig.issuer,
-            audience: jwtConfig.audience,
-            issuedAt: issuedAt,
-            id: UUID().uuidString,
-            role: user.role.rawValue,
-            tokenVersion: user.tokenVersion
-        )
-
-        let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
-        let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
-
-        let dateFormatter = ISO8601DateFormatter()
+        try await verificationCode.save(on: fluent.db())
+        
+        // Send verification email
+        try await emailService.sendVerificationEmail(to: user.email, code: code)
+        
         return .init(
-            status: .created,
-            response: AuthResponse(
-                accessToken: accessToken,
-                refreshToken: refreshToken,
-                expiresIn: UInt(expiresIn),
-                expiresAt: dateFormatter.string(from: accessExpirationDate),
-                user: UserResponse(from: user),
-                requiresTOTP: false,
-                requiresEmailVerification: true
+            status: .ok,
+            response: MessageResponse(
+                message: "Verification code sent",
+                success: true
             )
         )
     }
-
-    /// Verify email code during login
-    @Sendable func verifyEmailLogin(
+    
+    /// Verify initial email after registration
+    @Sendable func verifyInitialEmail(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<AuthResponse> {
-        context.logger.info("Starting email verification process")
-        // Decode the verification request
-        struct EmailVerifyRequest: Codable {
-            let tempToken: String
+    ) async throws -> EditedResponse<MessageResponse> {
+        // Decode verification request
+        struct VerifyRequest: Codable {
+            let email: String
             let code: String
         }
-        let verifyRequest = try await request.decode(as: EmailVerifyRequest.self, context: context)
-        context.logger.info("Successfully decoded request with code: \(verifyRequest.code)")
+        let verifyRequest = try await request.decode(as: VerifyRequest.self, context: context)
         
-        // Verify and decode temporary token
-        context.logger.info("Attempting to verify temp token")
-        let tempTokenPayload = try await self.jwtKeyCollection.verify(verifyRequest.tempToken, as: JWTPayloadData.self)
-        context.logger.info("Successfully verified temp token with type: \(tempTokenPayload.type)")
-        
-        // Ensure it's an email verification token
-        guard tempTokenPayload.type == "email_verification" else {
-            context.logger.error("Invalid token type: \(tempTokenPayload.type)")
-            throw HTTPError(.unauthorized, message: "Invalid token type")
+        // Find user
+        guard let user = try await User.query(on: fluent.db())
+            .filter(\.$email, .equal, verifyRequest.email)
+            .first() else {
+            throw HTTPError(.badRequest, message: "Invalid verification request")
         }
         
-        // Get user from database
-        context.logger.info("Looking up user with ID: \(tempTokenPayload.subject.value)")
-        guard let user = try await User.find(UUID(uuidString: tempTokenPayload.subject.value), on: fluent.db()) else {
-            context.logger.error("User not found with ID: \(tempTokenPayload.subject.value)")
-            throw HTTPError(.unauthorized, message: "User not found")
-        }
-        context.logger.info("Found user: \(user.email)")
-        
-        // Verify token version
-        guard let tokenVersion = tempTokenPayload.tokenVersion,
-              tokenVersion == user.tokenVersion else {
-            context.logger.error("Token version mismatch. Token: \(String(describing: tempTokenPayload.tokenVersion)), User: \(user.tokenVersion)")
-            throw HTTPError(.unauthorized, message: "Invalid token version")
+        // Check if already verified
+        if user.emailVerified {
+            return .init(
+                status: .ok,
+                response: MessageResponse(
+                    message: "Email already verified",
+                    success: true
+                )
+            )
         }
         
-        // Get user ID for filtering
-        let userID = try user.requireID()
-        
-        // Find the most recent verification code
-        context.logger.info("Looking for verification code for user \(userID)")
+        // Find verification code
         guard let verificationCode = try await EmailVerificationCode.query(on: fluent.db())
-            .filter(\.$user.$id == userID)
-            .filter(\.$type == "2fa_login")
+            .filter(\.$user.$id, .equal, try user.requireID())
+            .filter(\.$type, .equal, "email_verify")
             .sort(\.$createdAt, .descending)
             .first() else {
-            context.logger.error("No verification code found for user \(userID)")
             throw HTTPError(.badRequest, message: "No verification code found")
         }
-        context.logger.info("Found verification code created at: \(verificationCode.createdAt)")
-
+        
         // Check if code is expired
         if verificationCode.isExpired {
-            context.logger.error("Verification code has expired")
             try await verificationCode.delete(on: fluent.db())
             throw HTTPError(.badRequest, message: "Verification code has expired")
         }
         
         // Check attempts
         if verificationCode.hasExceededAttempts {
-            context.logger.error("Too many verification attempts")
             try await verificationCode.delete(on: fluent.db())
             throw HTTPError(.tooManyRequests, message: "Too many attempts. Please request a new code.")
         }
         
-        // Verify the code
+        // Verify code
         if verificationCode.code != verifyRequest.code {
-            context.logger.error("Invalid verification code. Expected: \(verificationCode.code), Got: \(verifyRequest.code)")
             verificationCode.incrementAttempts()
             try await verificationCode.save(on: fluent.db())
+            throw HTTPError(.badRequest, message: "Invalid verification code")
+        }
+        
+        // Mark email as verified
+        user.emailVerified = true
+        try await user.save(on: fluent.db())
+        
+        // Delete verification code
+        try await verificationCode.delete(on: fluent.db())
+        
+        return .init(
+            status: .ok,
+            response: MessageResponse(
+                message: "Email verified successfully",
+                success: true
+            )
+        )
+    }
+
+    /// Generate a state token for authentication flows
+    private func generateStateToken(for user: User) async throws -> String {
+        let stateTokenPayload = JWTPayloadData(
+            subject: SubjectClaim(value: try user.requireID().uuidString),
+            expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 600)), // 10 minutes
+            type: "totp_verification",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: Date(),
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+        
+        return try await self.jwtKeyCollection.sign(stateTokenPayload, kid: self.kid)
+    }
+
+    /// Revoke a specific token
+    @Sendable func revokeToken(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        // Ensure user is authenticated
+        guard let user = context.identity else {
+            throw HTTPError(.unauthorized, message: "Authentication required")
+        }
+        
+        // Decode the request
+        let revokeRequest = try await request.decode(as: RevokeTokenRequest.self, context: context)
+        
+        do {
+            // Verify the token to get its expiration
+            let payload = try await self.jwtKeyCollection.verify(revokeRequest.token, as: JWTPayloadData.self)
+            
+            // Ensure the token belongs to the current user
+            guard payload.subject.value == user.id?.uuidString else {
+                throw HTTPError(.forbidden, message: "Cannot revoke token belonging to another user")
+            }
+            
+            // Add token to blacklist
+            await tokenStore.blacklist(revokeRequest.token, expiresAt: payload.expiration.value, reason: .userRevoked)
+            
+            return .init(
+                status: .ok,
+                response: MessageResponse(
+                    message: "Token revoked successfully",
+                    success: true
+                )
+            )
+        } catch let error as JWTError {
+            // Handle JWT verification errors
+            return .init(
+                status: .badRequest,
+                response: MessageResponse(
+                    message: "Invalid token: \(error.localizedDescription)",
+                    success: false
+                )
+            )
+        }
+    }
+
+    /// Verify email-based sign in attempt
+    @Sendable func verifyEmailSignIn(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<AuthResponse> {
+        let verifyRequest = try await request.decode(as: EmailSignInVerifyRequest.self, context: context)
+        
+        // Verify and decode temporary token
+        let tempTokenPayload = try await self.jwtKeyCollection.verify(verifyRequest.tempToken, as: JWTPayloadData.self)
+        
+        // Ensure it's an email verification token
+        guard tempTokenPayload.type == "email_verification" else {
+            throw HTTPError(.unauthorized, message: "Invalid token type")
+        }
+        
+        // Get user from database
+        guard let user = try await User.find(UUID(uuidString: tempTokenPayload.subject.value), on: fluent.db()) else {
+            throw HTTPError(.unauthorized, message: "User not found")
+        }
+        
+        // Verify token version
+        guard let tokenVersion = tempTokenPayload.tokenVersion,
+              tokenVersion == user.tokenVersion else {
+            throw HTTPError(.unauthorized, message: "Invalid token version")
+        }
+        
+        // Check if account is locked
+        if user.isLocked() {
+            if let until = user.lockoutUntil {
+                throw HTTPError(.unauthorized, message: "Account is locked. Try again after \(until)")
+            }
+            throw HTTPError(.unauthorized, message: "Account is locked")
+        }
+        
+        // Verify the code
+        guard let verificationCode = try await EmailVerificationCode.query(on: fluent.db())
+            .filter(\.$user.$id, .equal, try user.requireID())
+            .filter(\.$code, .equal, verifyRequest.code)
+            .filter(\.$type, .equal, "mfa_signin")
+            .first() else {
+            // Increment failed attempts
+            user.incrementFailedLoginAttempts()
+            try await user.save(on: fluent.db())
             throw HTTPError(.unauthorized, message: "Invalid verification code")
         }
         
-        context.logger.info("Code verification successful")
-        // Delete the verification code
+        // Check if code is expired
+        if verificationCode.isExpired {
+            try await verificationCode.delete(on: fluent.db())
+            throw HTTPError(.unauthorized, message: "Verification code has expired")
+        }
+        
+        // Delete the used code
         try await verificationCode.delete(on: fluent.db())
         
-        // Generate new access and refresh tokens
+        // Reset failed login attempts
+        user.resetFailedLoginAttempts()
+        user.updateLastSignIn()
+        try await user.save(on: fluent.db())
+        
+        // Generate tokens
         let expiresIn = Int(jwtConfig.accessTokenExpiration)
         let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
         let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
@@ -1239,8 +1286,6 @@ struct AuthController {
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-        
-        let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         
         // Create refresh token
         let refreshPayload = JWTPayloadData(
@@ -1255,23 +1300,250 @@ struct AuthController {
             tokenVersion: user.tokenVersion
         )
         
+        let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
         
         let dateFormatter = ISO8601DateFormatter()
-        context.logger.info("Successfully completed email verification and generated new tokens")
         return .init(
-            status: .created,
+            status: .ok,
             response: AuthResponse(
                 accessToken: accessToken,
                 refreshToken: refreshToken,
+                tokenType: "Bearer",
                 expiresIn: UInt(expiresIn),
                 expiresAt: dateFormatter.string(from: accessExpirationDate),
                 user: UserResponse(from: user),
-                requiresTOTP: false,
-                requiresEmailVerification: false,
-                tempToken: nil
+                status: AuthResponse.STATUS_SUCCESS
             )
         )
+    }
+
+    /// Resend verification email for initial email verification
+    @Sendable func resendVerificationEmail(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        // Get email from request
+        let resendRequest = try await request.decode(as: ResendVerificationRequest.self, context: context)
+        
+        // Find user
+        guard let user = try await User.query(on: fluent.db())
+            .filter(\.$email, .equal, resendRequest.email)
+            .first() else {
+            throw HTTPError(.notFound, message: "User not found")
+        }
+        
+        // Check if already verified
+        if user.emailVerified {
+            throw HTTPError(.badRequest, message: "Email is already verified")
+        }
+        
+        // Delete any existing verification codes
+        let userID = try user.requireID()
+        try await EmailVerificationCode.query(on: fluent.db())
+            .filter(\.$user.$id, .equal, userID)
+            .filter(\.$type, .equal, "email_verify")
+            .delete()
+        
+        // Generate and store new code
+        let code = EmailVerificationCode.generateCode()
+        let verificationCode = EmailVerificationCode(
+            userID: userID,
+            code: code,
+            type: "email_verify",
+            expiresAt: Date().addingTimeInterval(300) // 5 minutes
+        )
+        try await verificationCode.save(on: fluent.db())
+        
+        // Send verification email
+        try await emailService.sendVerificationEmail(to: user.email, code: code)
+        
+        context.logger.info("Resent verification email to user: \(user.email)")
+        
+        return .init(
+            status: .ok,
+            response: MessageResponse(
+                message: "Verification email sent",
+                success: true
+            )
+        )
+    }
+
+    /// Get verification status for initial email verification
+    @Sendable func getVerificationStatus(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<EmailVerificationStatusResponse> {
+        guard let user = context.identity else {
+            context.logger.notice("Unauthorized attempt to get verification status")
+            throw HTTPError(.unauthorized, message: "Authentication required")
+        }
+        
+        context.logger.info("Getting verification status for user: \(user.email)")
+        
+        return .init(
+            status: .ok,
+            response: EmailVerificationStatusResponse(
+                isVerified: user.emailVerified
+            )
+        )
+    }
+
+    /// Get email verification status
+    @Sendable func getEmailVerificationStatus(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<EmailVerificationStatusResponse> {
+        guard let user = context.identity else {
+            context.logger.notice("Unauthorized attempt to get email verification status")
+            throw HTTPError(.unauthorized, message: "Authentication required")
+        }
+        
+        context.logger.info("Getting email verification status for user: \(user.email)")
+        
+        return .init(
+            status: .ok,
+            response: EmailVerificationStatusResponse(
+                isVerified: user.emailVerified
+            )
+        )
+    }
+
+    /// Get available MFA methods for the user
+    @Sendable func getMFAMethods(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MFAMethodsResponse> {
+        guard let user = context.identity else {
+            context.logger.notice("Unauthorized attempt to get MFA methods")
+            throw HTTPError(.unauthorized, message: "Authentication required")
+        }
+        
+        context.logger.info("Getting MFA methods for user: \(user.email)")
+        
+        return .init(
+            status: .ok,
+            response: MFAMethodsResponse(
+                emailEnabled: user.emailVerificationEnabled,
+                totpEnabled: user.twoFactorEnabled
+            )
+        )
+    }
+
+    /// Get email MFA status
+    @Sendable func getEmailMFAStatusSignIn(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<EmailVerificationStatusResponse> {
+        guard let user = context.identity else {
+            context.logger.notice("Unauthorized attempt to get email MFA status")
+            throw HTTPError(.unauthorized, message: "Authentication required")
+        }
+        
+        context.logger.info("Getting email MFA status for user: \(user.email)")
+        
+        return .init(
+            status: .ok,
+            response: EmailVerificationStatusResponse(
+                isVerified: user.emailVerified
+            )
+        )
+    }
+
+    /// Send MFA email verification code
+    @Sendable func sendMFAEmailSignIn(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        return try await requestEmailCode(request, context: context)
+    }
+
+    /// Resend MFA email verification code
+    @Sendable func resendMFAEmailSignIn(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        return try await requestEmailCode(request, context: context)
+    }
+
+    /// Get TOTP MFA status
+    @Sendable func getTOTPMFAStatusSignIn(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<TOTPMFAStatusResponse> {
+        guard let user = context.identity else {
+            context.logger.notice("Unauthorized attempt to get TOTP MFA status")
+            throw HTTPError(.unauthorized, message: "Authentication required")
+        }
+        
+        context.logger.info("Getting TOTP MFA status for user: \(user.email)")
+        
+        return .init(
+            status: .ok,
+            response: TOTPMFAStatusResponse(
+                enabled: user.twoFactorEnabled
+            )
+        )
+    }
+
+    // MARK: - TOTP MFA Forwarding
+    
+    @Sendable func enableTOTP(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<TOTPSetupResponse> {
+        try await totpController.enableTOTP(request, context: context)
+    }
+    
+    @Sendable func verifyTOTP(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        try await totpController.verifyTOTP(request, context: context)
+    }
+    
+    @Sendable func disableTOTP(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        try await totpController.disableTOTP(request, context: context)
+    }
+    
+    @Sendable func getTOTPStatus(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<TOTPStatusResponse> {
+        try await totpController.getTOTPStatus(request, context: context)
+    }
+    
+    // MARK: - Email MFA Forwarding
+    
+    @Sendable func enableEmailMFA(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        try await emailVerificationController.enableEmailMFA(request, context: context)
+    }
+    
+    @Sendable func verifyEmailMFA(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        try await emailVerificationController.verifyEmailMFA(request, context: context)
+    }
+    
+    @Sendable func disableEmailMFA(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        try await emailVerificationController.disableEmailMFA(request, context: context)
+    }
+    
+    @Sendable func getEmailMFAStatus(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MFAEmailVerificationStatusResponse> {
+        try await emailVerificationController.getEmailMFAStatus(request, context: context)
     }
 }
 
@@ -1285,7 +1557,7 @@ struct SecurityHeadersMiddleware: MiddlewareProtocol {
         response.headers.append(HTTPField(name: HTTPField.Name("X-Frame-Options")!, value: "DENY"))  // Stricter option
         response.headers.append(HTTPField(name: HTTPField.Name("X-XSS-Protection")!, value: "1; mode=block"))
         response.headers.append(HTTPField(name: HTTPField.Name("Strict-Transport-Security")!, value: "max-age=63072000; includeSubDomains; preload"))  // 2 years
-        
+
         // Secure CSP configuration
         let csp = [
             "default-src 'self'",
@@ -1300,10 +1572,10 @@ struct SecurityHeadersMiddleware: MiddlewareProtocol {
             "frame-ancestors 'none'",  // Equivalent to X-Frame-Options: DENY
             "upgrade-insecure-requests"
         ].joined(separator: "; ")
-        
+
         response.headers.append(HTTPField(name: HTTPField.Name("Content-Security-Policy")!, value: csp))
         response.headers.append(HTTPField(name: HTTPField.Name("Referrer-Policy")!, value: "strict-origin-when-cross-origin"))
-        
+
         // Permissions Policy with essential restrictions
         let permissionsPolicy = [
             "accelerometer=()",
@@ -1325,15 +1597,15 @@ struct SecurityHeadersMiddleware: MiddlewareProtocol {
             "usb=()",
             "xr-spatial-tracking=()"
         ].joined(separator: ", ")
-        
+
         response.headers.append(HTTPField(name: HTTPField.Name("Permissions-Policy")!, value: permissionsPolicy))
-        
+
         // Add Cross-Origin-Resource-Policy header
         response.headers.append(HTTPField(name: HTTPField.Name("Cross-Origin-Resource-Policy")!, value: "same-origin"))
-        
+
         // Add Cross-Origin-Opener-Policy header
         response.headers.append(HTTPField(name: HTTPField.Name("Cross-Origin-Opener-Policy")!, value: "same-origin"))
-        
+
         // Add Cross-Origin-Embedder-Policy header
         response.headers.append(HTTPField(name: HTTPField.Name("Cross-Origin-Embedder-Policy")!, value: "require-corp"))
 
@@ -1342,3 +1614,60 @@ struct SecurityHeadersMiddleware: MiddlewareProtocol {
 }
 
 extension MessageResponse: ResponseEncodable {}
+
+/// Request structure for changing a password
+struct ChangePasswordRequest: Codable {
+    let currentPassword: String
+    let newPassword: String
+}
+
+/// Request structure for initiating a password reset
+struct ForgotPasswordRequest: Codable {
+    let email: String
+}
+
+/// Request structure for completing a password reset
+struct ResetPasswordRequest: Codable {
+    let email: String
+    let code: String
+    let newPassword: String
+}
+
+/// Request structure for token revocation
+struct RevokeTokenRequest: Codable {
+    let token: String
+}
+
+/// Request structure for email-based sign in verification
+struct EmailSignInVerifyRequest: Codable {
+    let tempToken: String
+    let code: String
+}
+
+/// Simple message response structure
+struct MessageResponse: Codable {
+    let message: String
+    let success: Bool
+}
+
+/// Response structure for MFA methods
+struct MFAMethodsResponse: Codable {
+    let emailEnabled: Bool
+    let totpEnabled: Bool
+}
+
+extension MFAMethodsResponse: ResponseEncodable {}
+
+/// Response structure for email verification status
+struct EmailVerificationStatusResponse: Codable {
+    let isVerified: Bool
+}
+
+extension EmailVerificationStatusResponse: ResponseEncodable {}
+
+/// Response structure for TOTP MFA status
+struct TOTPMFAStatusResponse: Codable {
+    let enabled: Bool
+}
+
+extension TOTPMFAStatusResponse: ResponseEncodable {}

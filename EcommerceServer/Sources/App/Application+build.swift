@@ -90,7 +90,6 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
 
     // add migrations
     await fluent.migrations.add(CreateUser())
-    await fluent.migrations.add(AddEmailVerificationEnabled())
     await fluent.migrations.add(EmailVerificationCode.Migration())
     
     // migrate
@@ -154,6 +153,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
 
     let router = Router(context: AppRequestContext.self)
     router.add(middleware: LogRequestsMiddleware(.debug))
+    router.add(middleware: ErrorHandlingMiddleware())
     
     router.get("/") { _, _ in
         "Hello"
@@ -232,28 +232,29 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     let protectedAuthGroup = api.group("auth")
         .add(middleware: jwtAuthenticator)
     
+    // Initialize controllers
+    let totpController = TOTPController(fluent: fluent)
+    let emailVerificationController = EmailVerificationController(fluent: fluent, emailService: emailService)
+    
     let authController = AuthController(
         jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
         kid: jwtLocalSignerKid,
         fluent: fluent,
         tokenStore: tokenStore,
-        emailService: emailService
+        emailService: emailService,
+        totpController: totpController,
+        emailVerificationController: emailVerificationController
     )
-    
-    // Add TOTP routes to protected auth group
-    let totpController = TOTPController(fluent: fluent)
-    totpController.addProtectedRoutes(to: protectedAuthGroup.group("totp"))
-    
-    // Add email verification routes to protected auth group
-    let emailVerificationController = EmailVerificationController(fluent: fluent, emailService: emailService)
-    emailVerificationController.addProtectedRoutes(to: protectedAuthGroup.group("email"))
-    emailVerificationController.addPublicRoutes(to: api.group("auth/email"))
     
     // Add protected auth routes
     authController.addProtectedRoutes(to: protectedAuthGroup)
     
-    // Add public auth routes (login, register) to a separate group
+    // Add public auth routes
     authController.addPublicRoutes(to: api.group("auth"))
+
+    // Register TOTP and Email verification routes independently
+    totpController.addProtectedRoutes(to: api.group("mfa/totp").add(middleware: jwtAuthenticator))
+    emailVerificationController.addProtectedRoutes(to: api.group("mfa/email").add(middleware: jwtAuthenticator))
 
     // Add file upload routes
     let fileController = FileController(fluent: fluent)

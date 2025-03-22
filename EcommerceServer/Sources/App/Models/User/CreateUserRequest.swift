@@ -11,14 +11,13 @@ struct PasswordValidationResponse: Encodable {
     let suggestions: [String]
 }
 
-/// Create user request object decoded from HTTP body
+/// Create user request object decoded from HTTP body for public registration
 struct CreateUserRequest: Decodable, Sendable {
     let username: String
     let displayName: String
     let email: String
     let password: String
     let profilePicture: String?
-    let role: Role?
 
     enum CodingKeys: String, CodingKey {
         case username
@@ -26,7 +25,6 @@ struct CreateUserRequest: Decodable, Sendable {
         case email
         case password
         case profilePicture
-        case role
     }
 
     init(from decoder: Decoder) throws {
@@ -150,7 +148,6 @@ struct CreateUserRequest: Decodable, Sendable {
         
         // Make profilePicture optional with a default value
         self.profilePicture = try container.decodeIfPresent(String.self, forKey: .profilePicture) ?? "https://api.dicebear.com/7.x/avataaars/png"
-        self.role = try container.decodeIfPresent(Role.self, forKey: .role)
         
         // Validate password using the new validator with user info
         let validator = PasswordValidator()
@@ -172,8 +169,7 @@ struct CreateUserRequest: Decodable, Sendable {
         displayName: String,
         email: String,
         password: String,
-        profilePicture: String? = "https://api.dicebear.com/7.x/avataaars/png",
-        role: Role? = nil
+        profilePicture: String? = "https://api.dicebear.com/7.x/avataaars/png"
     ) throws {
         // Validate username
         guard !username.isEmpty else {
@@ -206,7 +202,6 @@ struct CreateUserRequest: Decodable, Sendable {
         self.password = password
         
         self.profilePicture = profilePicture
-        self.role = role
         
         // Validate password using the new validator with user info
         let validator = PasswordValidator()
@@ -289,6 +284,70 @@ struct CreateUserRequest: Decodable, Sendable {
             guard !allSame else {
                 throw HTTPError(.badRequest, message: "Password contains too many repeated characters")
             }
+        }
+    }
+}
+
+/// Create user request object for admin user creation
+struct AdminCreateUserRequest: Decodable, Sendable {
+    let username: String
+    let displayName: String
+    let email: String
+    let password: String
+    let profilePicture: String?
+    let role: Role
+
+    enum CodingKeys: String, CodingKey {
+        case username
+        case displayName
+        case email
+        case password
+        case profilePicture
+        case role
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Reuse validation logic from CreateUserRequest
+        let baseRequest = try CreateUserRequest(from: decoder)
+        self.username = baseRequest.username
+        self.displayName = baseRequest.displayName
+        self.email = baseRequest.email
+        self.password = baseRequest.password
+        self.profilePicture = baseRequest.profilePicture
+        
+        // Add role validation
+        self.role = try container.decode(Role.self, forKey: .role)
+    }
+
+    init(
+        username: String,
+        displayName: String,
+        email: String,
+        password: String,
+        profilePicture: String? = "https://api.dicebear.com/7.x/avataaars/png",
+        role: Role
+    ) throws {
+        do {
+            // Reuse validation from CreateUserRequest
+            let baseRequest = try CreateUserRequest(
+                username: username,
+                displayName: displayName,
+                email: email,
+                password: password,
+                profilePicture: profilePicture
+            )
+            self.username = baseRequest.username
+            self.displayName = baseRequest.displayName
+            self.email = baseRequest.email
+            self.password = baseRequest.password
+            self.profilePicture = baseRequest.profilePicture
+            self.role = role
+        } catch let error as HTTPError {
+            throw error
+        } catch {
+            throw HTTPError(.badRequest, message: "Invalid user data format")
         }
     }
 } 

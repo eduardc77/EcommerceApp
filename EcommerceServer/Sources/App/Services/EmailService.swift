@@ -8,14 +8,14 @@ protocol EmailService {
     /// Send initial email verification code
     func sendVerificationEmail(to: String, code: String) async throws
     
-    /// Send a 2FA setup verification code
-    func send2FASetupEmail(to: String, code: String) async throws
+    /// Send an MFA setup verification code
+    func sendMFASetupEmail(to: String, code: String) async throws
     
-    /// Send a 2FA disable verification code
-    func send2FADisableEmail(to: String, code: String) async throws
+    /// Send an MFA disable verification code
+    func sendMFADisableEmail(to: String, code: String) async throws
     
-    /// Send a 2FA login verification code
-    func send2FALoginEmail(to: String, code: String) async throws
+    /// Send an MFA sign in verification code
+    func sendMFASignInEmail(to: String, code: String) async throws
     
     /// Send a password reset verification code
     func sendPasswordResetEmail(to: String, code: String) async throws
@@ -72,40 +72,40 @@ struct SendGridEmailService: EmailService {
         logger.info("Sent verification email to \(email)")
     }
     
-    func send2FASetupEmail(to email: String, code: String) async throws {
-        let subject = "2FA Setup Verification"
+    func sendMFASetupEmail(to email: String, code: String) async throws {
+        let subject = "MFA Setup Verification"
         let htmlContent = """
-            <h1>2FA Setup Verification</h1>
+            <h1>MFA Setup Verification</h1>
             <p>Your verification code is: <strong>\(code)</strong></p>
             <p>This code will expire in 5 minutes.</p>
             """
         
         try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
-        logger.info("Sent 2FA setup email to \(email)")
+        logger.info("Sent MFA setup email to \(email)")
     }
     
-    func send2FADisableEmail(to email: String, code: String) async throws {
-        let subject = "2FA Disable Verification"
+    func sendMFADisableEmail(to email: String, code: String) async throws {
+        let subject = "MFA Disable Verification"
         let htmlContent = """
-            <h1>2FA Disable Verification</h1>
+            <h1>MFA Disable Verification</h1>
             <p>Your verification code is: <strong>\(code)</strong></p>
             <p>This code will expire in 5 minutes.</p>
             """
         
         try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
-        logger.info("Sent 2FA disable email to \(email)")
+        logger.info("Sent MFA disable email to \(email)")
     }
     
-    func send2FALoginEmail(to email: String, code: String) async throws {
-        let subject = "Login Verification Code"
+    func sendMFASignInEmail(to email: String, code: String) async throws {
+        let subject = "Sign In Verification Code"
         let htmlContent = """
-            <h1>Login Verification</h1>
+            <h1>Sign In Verification</h1>
             <p>Your verification code is: <strong>\(code)</strong></p>
             <p>This code will expire in 5 minutes.</p>
             """
         
         try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
-        logger.info("Sent 2FA login email to \(email)")
+        logger.info("Sent MFA sign in email to \(email)")
     }
     
     func sendPasswordResetEmail(to email: String, code: String) async throws {
@@ -143,19 +143,19 @@ struct MockEmailService: EmailService {
         logger.info("Mock email service: Verification code for \(email) is 123456")
     }
     
-    func send2FASetupEmail(to email: String, code: String) async throws {
+    func sendMFASetupEmail(to email: String, code: String) async throws {
         // In testing environment, we always log the code as 123456
-        logger.info("Mock email service: 2FA setup code for \(email) is 123456")
+        logger.info("Mock email service: MFA setup code for \(email) is 123456")
     }
     
-    func send2FADisableEmail(to email: String, code: String) async throws {
+    func sendMFADisableEmail(to email: String, code: String) async throws {
         // In testing environment, we always log the code as 123456
-        logger.info("Mock email service: 2FA disable code for \(email) is 123456")
+        logger.info("Mock email service: MFA disable code for \(email) is 123456")
     }
     
-    func send2FALoginEmail(to email: String, code: String) async throws {
+    func sendMFASignInEmail(to email: String, code: String) async throws {
         // In testing environment, we always log the code as 123456
-        logger.info("Mock email service: 2FA login code for \(email) is 123456")
+        logger.info("Mock email service: MFA sign in code for \(email) is 123456")
     }
     
     func sendPasswordResetEmail(to email: String, code: String) async throws {

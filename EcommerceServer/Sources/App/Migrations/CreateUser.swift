@@ -13,6 +13,7 @@ struct CreateUser: AsyncMigration {
             .field("password_updated_at", .datetime)
             .field("password_history", .array(of: .string))
             .field("email_verified", .bool, .required, .sql(.default(false)))
+            .field("email_verification_enabled", .bool, .required, .sql(.default(false)))
             .field("failed_login_attempts", .int, .required, .sql(.default(0)))
             .field("last_failed_login", .datetime)
             .field("last_login_at", .datetime)

@@ -17,16 +17,15 @@ struct TOTPController {
     
     /// Add protected routes for TOTP management
     func addProtectedRoutes(to group: RouterGroup<Context>) {
-        group.post("setup", use: setupTOTP)
-        group.post("verify", use: verifyTOTP)
         group.post("enable", use: enableTOTP)
-        group.delete("disable", use: disableTOTP)
-        group.get("status", use: getTOTPStatus)
+            .post("verify", use: verifyTOTP)
+            .post("disable", use: disableTOTP)
+            .get("status", use: getTOTPStatus)
     }
     
     /// Initialize TOTP setup for a user
     /// Returns QR code URL and secret for manual entry
-    @Sendable func setupTOTP(
+    @Sendable func enableTOTP(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<TOTPSetupResponse> {
@@ -34,9 +33,9 @@ struct TOTPController {
             throw HTTPError(.unauthorized)
         }
         
-        // Check if 2FA is already enabled
+        // Check if MFA is already enabled
         if user.twoFactorEnabled {
-            throw HTTPError(.badRequest, message: "2FA is already enabled")
+            throw HTTPError(.badRequest, message: "MFA is already enabled")
         }
         
         // Generate new secret
@@ -50,7 +49,7 @@ struct TOTPController {
         let qrCodeUrl = TOTPUtils.generateQRCodeURL(
             secret: secret,
             label: user.email,
-            issuer: "YourApp"
+            issuer: "EcommerceApp"
         )
         
         return .init(
@@ -62,7 +61,7 @@ struct TOTPController {
         )
     }
     
-    /// Verify TOTP code during setup
+    /// Verify TOTP code during enrollment
     @Sendable func verifyTOTP(
         _ request: Request,
         context: Context
@@ -76,7 +75,7 @@ struct TOTPController {
         
         // Ensure we have a secret to verify against
         guard let secret = user.twoFactorSecret else {
-            throw HTTPError(.badRequest, message: "No 2FA setup in progress")
+            throw HTTPError(.badRequest, message: "No MFA setup in progress")
         }
         
         // Verify the code
@@ -84,7 +83,7 @@ struct TOTPController {
             throw HTTPError(.unauthorized, message: "Invalid verification code")
         }
         
-        // Enable 2FA and invalidate all tokens
+        // Enable MFA and invalidate all tokens
         user.twoFactorEnabled = true
          user.tokenVersion += 1 
         try await user.save(on: fluent.db())
@@ -98,8 +97,8 @@ struct TOTPController {
         )
     }
     
-    /// Enable TOTP after successful verification
-    @Sendable func enableTOTP(
+    /// Activate TOTP after successful verification
+    @Sendable func activateTOTP(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<MessageResponse> {
@@ -111,14 +110,14 @@ struct TOTPController {
         let enableRequest = try await request.decode(as: TOTPVerifyRequest.self, context: context)
         
         guard let secret = user.twoFactorSecret else {
-            throw HTTPError(.badRequest, message: "No 2FA setup in progress")
+            throw HTTPError(.badRequest, message: "No MFA setup in progress")
         }
         
         if !TOTPUtils.verifyTOTPCode(code: enableRequest.code, secret: secret) {
             throw HTTPError(.unauthorized, message: "Invalid verification code")
         }
         
-        // Enable 2FA
+        // Enable MFA
         user.twoFactorEnabled = true
         try await user.save(on: fluent.db())
         
@@ -131,7 +130,7 @@ struct TOTPController {
         )
     }
     
-    /// Disable TOTP for a user
+    /// Disable TOTP
     @Sendable func disableTOTP(
         _ request: Request,
         context: Context
@@ -144,14 +143,14 @@ struct TOTPController {
         let disableRequest = try await request.decode(as: TOTPVerifyRequest.self, context: context)
         
         guard let secret = user.twoFactorSecret else {
-            throw HTTPError(.badRequest, message: "2FA is not enabled")
+            throw HTTPError(.badRequest, message: "MFA is not enabled")
         }
         
         if !TOTPUtils.verifyTOTPCode(code: disableRequest.code, secret: secret) {
             throw HTTPError(.unauthorized, message: "Invalid verification code")
         }
         
-        // Disable 2FA
+        // Disable MFA
         user.twoFactorEnabled = false
         user.twoFactorSecret = nil
         try await user.save(on: fluent.db())
@@ -159,7 +158,7 @@ struct TOTPController {
         return .init(
             status: .ok,
             response: MessageResponse(
-                message: "Two-factor authentication has been disabled",
+                message: "Multi-factor authentication has been disabled",
                 success: true
             )
         )

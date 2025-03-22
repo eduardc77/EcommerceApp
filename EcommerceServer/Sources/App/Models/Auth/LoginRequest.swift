@@ -1,7 +1,7 @@
 import Foundation
 
-/// Request for login
-struct LoginRequest: Decodable {
+/// Request for sign in
+struct SignInRequest: Decodable {
     let identifier: String
     let password: String
     let totpCode: String?
