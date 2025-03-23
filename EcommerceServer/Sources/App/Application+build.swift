@@ -234,7 +234,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     
     // Initialize controllers
     let totpController = TOTPController(fluent: fluent)
-    let emailVerificationController = EmailVerificationController(fluent: fluent, emailService: emailService)
+    let emailVerificationController = EmailMFAController(fluent: fluent, emailService: emailService)
     
     let authController = AuthController(
         jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
@@ -252,7 +252,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     // Add public auth routes
     authController.addPublicRoutes(to: api.group("auth"))
 
-    // Register TOTP and Email verification routes independently
+    // Sign up TOTP and Email verification routes independently
     totpController.addProtectedRoutes(to: api.group("mfa/totp").add(middleware: jwtAuthenticator))
     emailVerificationController.addProtectedRoutes(to: api.group("mfa/email").add(middleware: jwtAuthenticator))
 

@@ -10,6 +10,7 @@ struct ErrorHandlingMiddleware: MiddlewareProtocol {
             // Format HTTPError into ErrorResponse
             let response = EditedResponse(
                 status: error.status,
+                headers: error.headers,  // Preserve headers from the original error
                 response: ErrorResponse(
                     error: .init(message: error.body ?? "An error occurred")
                 )

@@ -81,7 +81,12 @@ final class RateLimiterMiddleware<Context: RequestContext>: MiddlewareProtocol {
         // Check rate limit
         if await state.shouldBlock(clientIP: clientIP, requestsPerMinute: requestsPerMinute) {
             var headers = HTTPFields()
-            headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "60"))
+            if let retryAfterName = HTTPField.Name("Retry-After") {
+                headers.append(HTTPField(name: retryAfterName, value: "60"))
+                print("DEBUG: Added Retry-After header with value 60")
+            } else {
+                print("DEBUG: Failed to create Retry-After header name")
+            }
             throw HTTPError(.tooManyRequests, headers: headers, message: "Rate limit exceeded. Please try again later.")
         }
         

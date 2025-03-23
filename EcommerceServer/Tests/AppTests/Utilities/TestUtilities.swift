@@ -52,7 +52,7 @@ extension TestClientProtocol {
     func completeEmailVerification(email: String) async throws {
         // Request new verification code
         try await self.execute(
-            uri: "/api/v1/auth/email/resend",
+            uri: "/api/v1/auth/verify-email/send",
             method: .post,
             body: JSONEncoder().encodeAsByteBuffer(ResendVerificationRequest(email: email), allocator: ByteBufferAllocator())
         ) { response in
@@ -65,9 +65,9 @@ extension TestClientProtocol {
         
         // Verify email with the test code
         try await self.execute(
-            uri: "/api/v1/auth/email/verify-initial",
+            uri: "/api/v1/auth/verify-email/confirm",
             method: .post,
-            body: JSONEncoder().encodeAsByteBuffer(EmailVerifyRequest(code: "123456"), allocator: ByteBufferAllocator())
+            body: JSONEncoder().encodeAsByteBuffer(EmailVerifyRequest(email: email, code: "123456"), allocator: ByteBufferAllocator())
         ) { response in
             guard response.status == .ok else {
                 let error = try? JSONDecoder().decode(ErrorResponse.self, from: response.body)

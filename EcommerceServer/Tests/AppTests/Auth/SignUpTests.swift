@@ -7,10 +7,10 @@ import HummingbirdAuthTesting
 import JWTKit
 import Testing
 
-@Suite("User Registration Tests")
-struct UserRegistrationTests {
-    @Test("Can create a new user")
-    func testCreateUser() async throws {
+@Suite("Sign Up Tests")
+struct SignUpTests {
+    @Test("Can sign up a new user")
+    func testSignUpUser() async throws {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
@@ -24,13 +24,13 @@ struct UserRegistrationTests {
             
             // 1. Register user
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
-                #expect(authResponse.user.username == "testuser")
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
             }
             
             // 2. Complete email verification
@@ -38,13 +38,14 @@ struct UserRegistrationTests {
             
             // 3. Verify can now login
             try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: requestBody.email, password: requestBody.password)
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
-                #expect(!authResponse.accessToken.isEmpty)
+                #expect(!authResponse.accessToken!.isEmpty)
+                #expect(authResponse.user!.username == "testuser")
             }
         }
     }
@@ -63,7 +64,7 @@ struct UserRegistrationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(firstUser, allocator: ByteBufferAllocator())
             ) { response in
@@ -79,7 +80,7 @@ struct UserRegistrationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(secondUser, allocator: ByteBufferAllocator())
             ) { response in
@@ -104,7 +105,7 @@ struct UserRegistrationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(firstUser, allocator: ByteBufferAllocator())
             ) { response in
@@ -120,7 +121,7 @@ struct UserRegistrationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(secondUser, allocator: ByteBufferAllocator())
             ) { response in

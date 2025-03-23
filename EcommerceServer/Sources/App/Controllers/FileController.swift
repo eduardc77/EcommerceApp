@@ -204,7 +204,7 @@ struct FileController {
     /// Downloads a file by filename.
     /// - Parameter request: any request
     /// - Returns: Response of chunked bytes if success
-    /// Note that this download has no login checks and allows anyone to download
+    /// Note that this download has no sign in checks and allows anyone to download
     /// by its filename alone.
     @Sendable private func download(_ request: Request, context: Context) async throws -> Response {
         let filename = try context.parameters.require("filename", as: String.self)

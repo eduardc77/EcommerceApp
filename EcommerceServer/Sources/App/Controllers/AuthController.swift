@@ -45,7 +45,7 @@ struct AuthController {
     let jwtConfig: JWTConfiguration
     let emailService: EmailService
     let totpController: TOTPController
-    let emailVerificationController: EmailVerificationController
+    let emailVerificationController: EmailMFAController
 
     // Rate limiting configuration
     private let maxSignInAttempts: Int
@@ -54,7 +54,7 @@ struct AuthController {
     // Token store for blacklisting
     private let tokenStore: TokenStoreProtocol
 
-    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent, tokenStore: TokenStoreProtocol, emailService: EmailService, totpController: TOTPController, emailVerificationController: EmailVerificationController) {
+    init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent, tokenStore: TokenStoreProtocol, emailService: EmailService, totpController: TOTPController, emailVerificationController: EmailMFAController) {
         self.jwtKeyCollection = jwtKeyCollection
         self.kid = kid
         self.fluent = fluent
@@ -77,10 +77,9 @@ struct AuthController {
         group.add(middleware: SecurityHeadersMiddleware())
 
         // Core auth
-        group.post("signup", use: signUp)
-            .post("signin", use: signIn)
+        group.post("sign-up", use: signUp)
+            .post("sign-in", use: signIn)
             .post("token/refresh", use: refreshToken)
-            .post("logout", use: logout)
 
         // Initial email verification
         let verifyEmail = group.group("verify-email")
@@ -116,6 +115,7 @@ struct AuthController {
         group.get("me", use: getCurrentUser)
             .post("password/change", use: changePassword)
             .post("token/revoke", use: revokeToken)
+            .post("sign-out", use: signOut)
     }
 
     /// Sign in user with credentials
@@ -167,7 +167,7 @@ struct AuthController {
 
         if !passwordValid {
             // Password verification failed - increment failed attempts
-            user.incrementFailedLoginAttempts()
+            user.incrementFailedSignInAttempts()
             try await user.save(on: fluent.db())
 
             // If now locked, throw too many requests
@@ -187,8 +187,8 @@ struct AuthController {
         }
 
         // Password verification succeeded - reset failed attempts if needed
-        if user.failedLoginAttempts > 0 {
-            user.resetFailedLoginAttempts()
+        if user.failedSignInAttempts > 0 {
+            user.resetFailedSignInAttempts()
             try await user.save(on: fluent.db())
         }
 
@@ -232,6 +232,7 @@ struct AuthController {
             return .init(
                 status: .ok,
                 response: AuthResponse(
+                    tokenType: "Bearer",
                     stateToken: tempToken,
                     status: AuthResponse.STATUS_MFA_EMAIL_REQUIRED
                 )
@@ -281,8 +282,10 @@ struct AuthController {
             response: AuthResponse(
                 accessToken: accessToken,
                 refreshToken: refreshToken,
+                tokenType: "Bearer",
                 expiresIn: UInt(expiresIn),
                 expiresAt: dateFormatter.string(from: accessExpirationDate),
+                user: UserResponse(from: user),
                 status: AuthResponse.STATUS_SUCCESS
             )
         )
@@ -342,7 +345,6 @@ struct AuthController {
             status: .created,
             response: AuthResponse(
                 tokenType: "Bearer",
-                user: UserResponse(from: user),
                 stateToken: stateToken,
                 status: AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED,
                 maskedEmail: user.email.maskEmail()
@@ -404,13 +406,14 @@ struct AuthController {
             return .init(
                 status: .ok,
                 response: AuthResponse(
+                    tokenType: "Bearer",
                     stateToken: tempToken,
                     status: AuthResponse.STATUS_MFA_EMAIL_REQUIRED
                 )
             )
         }
         
-        // If no email verification needed, complete login
+        // If no email verification needed, complete sign in
         let expiresIn = Int(jwtConfig.accessTokenExpiration)
         let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
         let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
@@ -451,8 +454,10 @@ struct AuthController {
             response: AuthResponse(
                 accessToken: accessToken,
                 refreshToken: refreshToken,
+                tokenType: "Bearer",
                 expiresIn: UInt(expiresIn),
                 expiresAt: dateFormatter.string(from: accessExpirationDate),
+                user: UserResponse(from: user),
                 status: AuthResponse.STATUS_SUCCESS
             )
         )
@@ -546,6 +551,7 @@ struct AuthController {
             response: AuthResponse(
                 accessToken: accessToken,
                 refreshToken: newRefreshToken,
+                tokenType: "Bearer",
                 expiresIn: UInt(expiresIn),
                 expiresAt: dateFormatter.string(from: accessExpirationDate),
                 user: UserResponse(from: user),
@@ -554,13 +560,13 @@ struct AuthController {
         )
     }
 
-    /// Logout user by invalidating their refresh tokens and blacklisting current access token
+    /// Sign out user by invalidating their refresh tokens and blacklisting current access token
     /// - Parameters:
     ///   - request: The incoming HTTP request
     ///   - context: The application request context
     /// - Returns: Empty response with 204 No Content status
     /// - Throws: HTTPError if user is not authenticated
-    @Sendable func logout(
+    @Sendable func signOut(
         _ request: Request,
         context: Context
     ) async throws -> Response {
@@ -577,7 +583,7 @@ struct AuthController {
         // Add current access token to blacklist if present
         if let token = request.headers.bearer {
             let payload = try await self.jwtKeyCollection.verify(token.token, as: JWTPayloadData.self)
-            await tokenStore.blacklist(token.token, expiresAt: payload.expiration.value, reason: .logout)
+            await tokenStore.blacklist(token.token, expiresAt: payload.expiration.value, reason: .signOut)
             context.logger.info("Blacklisted access token for user \(user.email), expires: \(payload.expiration.value)")
         }
 
@@ -808,7 +814,7 @@ struct AuthController {
         let verificationCode = EmailVerificationCode(
             userID: userID,
             code: code,
-            type: "mfa_signin",
+            type: "mfa_sign_in",
             expiresAt: Date().addingTimeInterval(300) // 5 minutes
         )
         try await verificationCode.save(on: fluent.db())
@@ -1064,10 +1070,12 @@ struct AuthController {
         // Send verification email
         try await emailService.sendVerificationEmail(to: user.email, code: code)
         
+        context.logger.info("Sent initial verification email to user: \(user.email)")
+        
         return .init(
             status: .ok,
             response: MessageResponse(
-                message: "Verification code sent",
+                message: "Verification email sent",
                 success: true
             )
         )
@@ -1216,7 +1224,7 @@ struct AuthController {
         let verifyRequest = try await request.decode(as: EmailSignInVerifyRequest.self, context: context)
         
         // Verify and decode temporary token
-        let tempTokenPayload = try await self.jwtKeyCollection.verify(verifyRequest.tempToken, as: JWTPayloadData.self)
+        let tempTokenPayload = try await self.jwtKeyCollection.verify(verifyRequest.stateToken, as: JWTPayloadData.self)
         
         // Ensure it's an email verification token
         guard tempTokenPayload.type == "email_verification" else {
@@ -1246,10 +1254,10 @@ struct AuthController {
         guard let verificationCode = try await EmailVerificationCode.query(on: fluent.db())
             .filter(\.$user.$id, .equal, try user.requireID())
             .filter(\.$code, .equal, verifyRequest.code)
-            .filter(\.$type, .equal, "mfa_signin")
+            .filter(\.$type, .equal, "mfa_sign_in")
             .first() else {
             // Increment failed attempts
-            user.incrementFailedLoginAttempts()
+            user.incrementFailedSignInAttempts()
             try await user.save(on: fluent.db())
             throw HTTPError(.unauthorized, message: "Invalid verification code")
         }
@@ -1263,8 +1271,8 @@ struct AuthController {
         // Delete the used code
         try await verificationCode.delete(on: fluent.db())
         
-        // Reset failed login attempts
-        user.resetFailedLoginAttempts()
+        // Reset failed sign in attempts
+        user.resetFailedSignInAttempts()
         user.updateLastSignIn()
         try await user.save(on: fluent.db())
         
@@ -1384,7 +1392,8 @@ struct AuthController {
         return .init(
             status: .ok,
             response: EmailVerificationStatusResponse(
-                isVerified: user.emailVerified
+                enabled: user.emailVerificationEnabled,
+                verified: user.emailVerified
             )
         )
     }
@@ -1404,7 +1413,8 @@ struct AuthController {
         return .init(
             status: .ok,
             response: EmailVerificationStatusResponse(
-                isVerified: user.emailVerified
+                enabled: user.emailVerificationEnabled,
+                verified: user.emailVerified
             )
         )
     }
@@ -1445,7 +1455,8 @@ struct AuthController {
         return .init(
             status: .ok,
             response: EmailVerificationStatusResponse(
-                isVerified: user.emailVerified
+                enabled: user.emailVerificationEnabled,
+                verified: user.emailVerified
             )
         )
     }
@@ -1640,7 +1651,7 @@ struct RevokeTokenRequest: Codable {
 
 /// Request structure for email-based sign in verification
 struct EmailSignInVerifyRequest: Codable {
-    let tempToken: String
+    let stateToken: String
     let code: String
 }
 
@@ -1660,7 +1671,8 @@ extension MFAMethodsResponse: ResponseEncodable {}
 
 /// Response structure for email verification status
 struct EmailVerificationStatusResponse: Codable {
-    let isVerified: Bool
+    let enabled: Bool
+    let verified: Bool
 }
 
 extension EmailVerificationStatusResponse: ResponseEncodable {}

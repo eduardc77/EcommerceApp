@@ -36,7 +36,7 @@ struct InputValidationTests {
                     profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
                 )
                 try await client.execute(
-                    uri: "/api/v1/auth/register",
+                    uri: "/api/v1/auth/sign-up",
                     method: .post,
                     body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
                 ) { response in
@@ -64,7 +64,7 @@ struct InputValidationTests {
                     profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
                 )
                 try await client.execute(
-                    uri: "/api/v1/auth/register",
+                    uri: "/api/v1/auth/sign-up",
                     method: .post,
                     body: JSONEncoder().encodeAsByteBuffer(validRequest, allocator: ByteBufferAllocator())
                 ) { response in
@@ -107,7 +107,7 @@ struct InputValidationTests {
                     profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
                 )
                 try await client.execute(
-                    uri: "/api/v1/auth/register",
+                    uri: "/api/v1/auth/sign-up",
                     method: .post,
                     body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
                 ) { response in
@@ -136,7 +136,7 @@ struct InputValidationTests {
                     profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
                 )
                 try await client.execute(
-                    uri: "/api/v1/auth/register",
+                    uri: "/api/v1/auth/sign-up",
                     method: .post,
                     body: JSONEncoder().encodeAsByteBuffer(validRequest, allocator: ByteBufferAllocator())
                 ) { response in
@@ -163,7 +163,7 @@ struct InputValidationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(shortPasswordRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -181,7 +181,7 @@ struct InputValidationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(noUppercaseRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -199,7 +199,7 @@ struct InputValidationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(commonPasswordRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -217,7 +217,7 @@ struct InputValidationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(repeatedCharsRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -235,7 +235,7 @@ struct InputValidationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(sequentialRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -253,7 +253,7 @@ struct InputValidationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(usernameInPasswordRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -271,13 +271,13 @@ struct InputValidationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(validRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
-                #expect(authResponse.user.username == "validuser")
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
             }
             
             // Complete email verification for valid registration

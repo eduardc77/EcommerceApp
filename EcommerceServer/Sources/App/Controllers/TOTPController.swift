@@ -85,7 +85,7 @@ struct TOTPController {
         
         // Enable MFA and invalidate all tokens
         user.twoFactorEnabled = true
-         user.tokenVersion += 1 
+        user.tokenVersion += 1
         try await user.save(on: fluent.db())
         
         return .init(

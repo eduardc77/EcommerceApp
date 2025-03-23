@@ -11,8 +11,8 @@ import Testing
 
 @Suite("TOTP Authentication Tests")
 struct TOTPTests {
-    @Test("Can setup TOTP")
-    func testTOTPSetup() async throws {
+    @Test("Can enable and disable TOTP")
+    func testTOTPEnableDisable() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
             // Create test user
@@ -24,31 +24,31 @@ struct TOTPTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
             }
-            
+
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
-            
+
             // Login to get access token
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "totp_test_123", password: "P@th3r#Bk9$mN")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
-            
+
             // Test TOTP setup endpoint
             let setupResponseData = try await client.execute(
-                uri: "/api/v1/auth/totp/setup",
+                uri: "/api/v1/mfa/totp/enable",
                 method: .post,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .ok)
                 let setupResponse = try JSONDecoder().decode(TOTPSetupResponse.self, from: response.body)
@@ -56,140 +56,71 @@ struct TOTPTests {
                 #expect(setupResponse.qrCodeUrl.isEmpty == false)
                 return setupResponse
             }
-            
+
             // Test invalid TOTP code
             try await client.execute(
-                uri: "/api/v1/auth/totp/enable",
+                uri: "/api/v1/mfa/totp/verify",
                 method: .post,
-                auth: .bearer(authResponse.accessToken),
-                body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: "000100"), allocator: ByteBufferAllocator())
+                auth: .bearer(authResponse.accessToken!),
+                body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: "001000"), allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .unauthorized)
             }
-            
+
             // Test valid TOTP code
             let validCode = try TOTP.generateTestCode(from: setupResponseData.secret)
             try await client.execute(
-                uri: "/api/v1/auth/totp/enable",
+                uri: "/api/v1/mfa/totp/verify",
                 method: .post,
-                auth: .bearer(authResponse.accessToken),
+                auth: .bearer(authResponse.accessToken!),
                 body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: validCode), allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .ok)
             }
-            
-            // Test TOTP disable
+
+            // Sign in again after enabling TOTP
+            let mfaSignInResponse = try await client.execute(
+                uri: "/api/v1/auth/sign-in",
+                method: .post,
+                auth: .basic(username: "totp_test_123", password: "P@th3r#Bk9$mN")
+            ) { response in
+                #expect(response.status == .ok)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_MFA_TOTP_REQUIRED)
+                return authResponse
+            }
+
+            // Complete TOTP verification
+            let totpCode = try TOTP.generateTestCode(from: setupResponseData.secret)
+            let finalAuthResponse = try await client.execute(
+                uri: "/api/v1/auth/mfa/totp/verify",
+                method: .post,
+                body: JSONEncoder().encodeAsByteBuffer(
+                    TOTPVerificationRequest(stateToken: mfaSignInResponse.stateToken!, code: totpCode),
+                    allocator: ByteBufferAllocator())
+            ) { response in
+                #expect(response.status == .ok)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+            }
+
+            // Test TOTP disable with new token
             let disableCode = try TOTP.generateTestCode(from: setupResponseData.secret)
             try await client.execute(
-                uri: "/api/v1/auth/totp/disable",
-                method: .delete,
-                auth: .bearer(authResponse.accessToken),
+                uri: "/api/v1/mfa/totp/disable",
+                method: .post,
+                auth: .bearer(finalAuthResponse.accessToken!),
                 body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: disableCode), allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .ok)
             }
         }
     }
-    
-    @Test("Can enable and disable TOTP")
-    func testTOTPEnableDisable() async throws {
-        let app = try await buildApplication(TestAppArguments())
-        try await app.test(.router) { client in
-            // Create and login user
-            let requestBody = TestCreateUserRequest(
-                username: "totp_test_456",
-                displayName: "TOTP Test User 2",
-                email: "totp_test_456@example.com",
-                password: "P@th3r#Bk9$mN",
-                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
-            )
-            try await client.execute(
-                uri: "/api/v1/auth/register",
-                method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
-            ) { response in
-                #expect(response.status == .created)
-            }
-            
-            // Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
-            
-            let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
-                method: .post,
-                auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN")
-            ) { response in
-                #expect(response.status == .created)
-                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
-            }
-            
-            // Setup TOTP
-            let setupResponse = try await client.execute(
-                uri: "/api/v1/auth/totp/setup",
-                method: .post,
-                auth: .bearer(authResponse.accessToken)
-            ) { response in
-                #expect(response.status == .ok)
-                return try JSONDecoder().decode(TOTPSetupResponse.self, from: response.body)
-            }
-            
-            // Generate and use valid TOTP code to enable
-            let code = try TOTP.generateTestCode(from: setupResponse.secret)
-            let enableRequest = TOTPVerifyRequest(code: code)
-            try await client.execute(
-                uri: "/api/v1/auth/totp/enable",
-                method: .post,
-                auth: .bearer(authResponse.accessToken),
-                body: JSONEncoder().encodeAsByteBuffer(enableRequest, allocator: ByteBufferAllocator())
-            ) { response in
-                #expect(response.status == .ok)
-                let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
-                #expect(messageResponse.success)
-            }
-            
-            // Verify TOTP is enabled
-            try await client.execute(
-                uri: "/api/v1/auth/totp/status",
-                method: .get,
-                auth: .bearer(authResponse.accessToken)
-            ) { response in
-                #expect(response.status == .ok)
-                let status = try JSONDecoder().decode(TOTPStatusResponse.self, from: response.body)
-                #expect(status.enabled)
-            }
-            
-            // Generate new code for disabling
-            let disableCode = try TOTP.generateTestCode(from: setupResponse.secret)
-            let disableRequest = TOTPVerifyRequest(code: disableCode)
-            try await client.execute(
-                uri: "/api/v1/auth/totp/disable",
-                method: .delete,
-                auth: .bearer(authResponse.accessToken),
-                body: JSONEncoder().encodeAsByteBuffer(disableRequest, allocator: ByteBufferAllocator())
-            ) { response in
-                #expect(response.status == .ok)
-                let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
-                #expect(messageResponse.success)
-            }
-            
-            // Verify TOTP is disabled
-            try await client.execute(
-                uri: "/api/v1/auth/totp/status",
-                method: .get,
-                auth: .bearer(authResponse.accessToken)
-            ) { response in
-                #expect(response.status == .ok)
-                let status = try JSONDecoder().decode(TOTPStatusResponse.self, from: response.body)
-                #expect(!status.enabled)
-            }
-        }
-    }
-    
+
     @Test("Login flow with TOTP works correctly")
-    func testLoginWithTOTP() async throws {
+    func testSignInWithTOTP() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create and login user
+            // Sign up and sign in user
             let requestBody = TestCreateUserRequest(
                 username: "totp_test_789",
                 displayName: "TOTP Test User 3",
@@ -198,95 +129,92 @@ struct TOTPTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
             }
-            
+
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
-            
-            let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+
+            let initialAuthResponse = try await client.execute(
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
-            
-            // Setup and enable TOTP
-            let setupResponse = try await client.execute(
-                uri: "/api/v1/auth/totp/setup",
+
+            // Enable TOTP
+            let enableResponse = try await client.execute(
+                uri: "/api/v1/mfa/totp/enable",
                 method: .post,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(initialAuthResponse.accessToken!)
             ) { response in
                 #expect(response.status == .ok)
                 return try JSONDecoder().decode(TOTPSetupResponse.self, from: response.body)
             }
-            
-            let enableCode = try TOTP.generateTestCode(from: setupResponse.secret)
+
+            let enableCode = try TOTP.generateTestCode(from: enableResponse.secret)
             let enableRequest = TOTPVerifyRequest(code: enableCode)
             try await client.execute(
-                uri: "/api/v1/auth/totp/enable",
+                uri: "/api/v1/mfa/totp/verify",
                 method: .post,
-                auth: .bearer(authResponse.accessToken),
+                auth: .bearer(initialAuthResponse.accessToken!),
                 body: JSONEncoder().encodeAsByteBuffer(enableRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .ok)
             }
-            
-            // Try login without TOTP code
-            let initialLoginResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+
+            // Sign in again after enabling TOTP
+            let mfaSignInResponse = try await client.execute(
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "totp_test_789", password: "P@th3r#Bk9$mN")
             ) { response in
-                #expect(response.status == .unauthorized)
+                #expect(response.status == .ok)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
-                #expect(authResponse.requiresTOTP)
-                #expect(authResponse.accessToken.isEmpty)
-                #expect(authResponse.tempToken != nil)
+                #expect(authResponse.status == AuthResponse.STATUS_MFA_TOTP_REQUIRED)
                 return authResponse
             }
-            
-            // Login with invalid TOTP code
-            try await client.execute(
-                uri: "/api/v1/auth/login/verify-totp",
+
+            // Complete TOTP verification
+            let totpCode = try TOTP.generateTestCode(from: enableResponse.secret)
+            let finalAuthResponse = try await client.execute(
+                uri: "/api/v1/auth/mfa/totp/verify",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
-                    TOTPVerificationRequest(tempToken: initialLoginResponse.tempToken!, code: "000100"),
+                    TOTPVerificationRequest(stateToken: mfaSignInResponse.stateToken!, code: totpCode),
                     allocator: ByteBufferAllocator()
                 )
             ) { response in
-                #expect(response.status == .unauthorized)
-            }
-            
-            // Login with valid TOTP code
-            let loginCode = try TOTP.generateTestCode(from: setupResponse.secret)
-            try await client.execute(
-                uri: "/api/v1/auth/login/verify-totp",
-                method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(
-                    TOTPVerificationRequest(tempToken: initialLoginResponse.tempToken!, code: loginCode),
-                    allocator: ByteBufferAllocator()
-                )
-            ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
-                #expect(!authResponse.requiresTOTP)
-                #expect(!authResponse.accessToken.isEmpty)
-                #expect(authResponse.tempToken == nil)
+                #expect(authResponse.status == "SUCCESS")
+                #expect(!authResponse.accessToken!.isEmpty)
+                return authResponse
+            }
+
+            // 3. Use the token to access protected endpoint
+            try await client.execute(
+                uri: "/api/v1/auth/me",
+                method: .get,
+                auth: .bearer(finalAuthResponse.accessToken!)
+            ) { response in
+                #expect(response.status == .ok)
+                let responseBody = String(buffer: response.body)
+                #expect(!responseBody.isEmpty)
             }
         }
     }
-    
+
     @Test("Invalid TOTP codes are rejected")
     func testInvalidTOTPCodes() async throws {
         let app = try await buildApplication(TestAppArguments())
-        let (secret, accessToken) = try await app.test(.router) { client in
+        try await app.test(.router) { client in
             // Create and login user
             let requestBody = TestCreateUserRequest(
                 username: "totp_test_456",
@@ -296,95 +224,96 @@ struct TOTPTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
             }
-            
+
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
-            
+
+            // Sign in
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN!Z")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
-            
-            // Setup TOTP
+
+            // Enable TOTP
             let setupResponse = try await client.execute(
-                uri: "/api/v1/auth/totp/setup",
+                uri: "/api/v1/mfa/totp/enable",
                 method: .post,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .ok)
                 return try JSONDecoder().decode(TOTPSetupResponse.self, from: response.body)
             }
-            
-            // Try to enable with invalid code
-            let invalidRequest = TOTPVerifyRequest(code: "123456")
+
+            let enableCode = try TOTP.generateTestCode(from: setupResponse.secret)
+            let enableRequest = TOTPVerifyRequest(code: enableCode)
             try await client.execute(
-                uri: "/api/v1/auth/totp/enable",
+                uri: "/api/v1/mfa/totp/verify",
                 method: .post,
-                auth: .bearer(authResponse.accessToken),
-                body: JSONEncoder().encodeAsByteBuffer(invalidRequest, allocator: ByteBufferAllocator())
-            ) { response in
-                #expect(response.status == .unauthorized)
-            }
-            
-            // Enable with valid code
-            let validCode = try TOTP.generateTestCode(from: setupResponse.secret)
-            let validRequest = TOTPVerifyRequest(code: validCode)
-            try await client.execute(
-                uri: "/api/v1/auth/totp/enable",
-                method: .post,
-                auth: .bearer(authResponse.accessToken),
-                body: JSONEncoder().encodeAsByteBuffer(validRequest, allocator: ByteBufferAllocator())
+                auth: .bearer(authResponse.accessToken!),
+                body: JSONEncoder().encodeAsByteBuffer(enableRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .ok)
             }
-            
-            return (setupResponse.secret, authResponse.accessToken)
-        }
-        
-        // Now test invalid TOTP codes in a separate test block
-        try await app.test(.router) { client in
-            // Try login with invalid TOTP code
-            try await client.execute(
-                uri: "/api/v1/auth/login",
+
+            // Sign in
+            let initialLoginResponse = try await client.execute(
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
-                headers: [HTTPField.Name("x-totp-code")!: "001000"],
                 auth: .basic(username: "totp_test_456", password: "P@th3r#Bk9$mN!Z")
             ) { response in
-                #expect(response.status == .unauthorized)
+                #expect(response.status == .ok)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == "MFA_TOTP_REQUIRED")
+                return authResponse
             }
-            
-            // Try to disable with invalid code
-            let invalidRequest = TOTPVerifyRequest(code: "000100")
+
+            // Verify with invalid TOTP code
             try await client.execute(
-                uri: "/api/v1/auth/totp/disable",
-                method: .delete,
-                auth: .bearer(accessToken),
-                body: JSONEncoder().encodeAsByteBuffer(invalidRequest, allocator: ByteBufferAllocator())
+                uri: "/api/v1/auth/mfa/totp/verify",
+                method: .post,
+                body: JSONEncoder().encodeAsByteBuffer(
+                    TOTPVerificationRequest(stateToken: initialLoginResponse.stateToken!, code: "000100"),
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .unauthorized)
             }
             
-            // Try with valid code to verify the secret still works
-            let validCode = try TOTP.generateTestCode(from: secret)
-            let validRequest = TOTPVerifyRequest(code: validCode)
+            // Verify with no TOTP code
             try await client.execute(
-                uri: "/api/v1/auth/totp/disable",
-                method: .delete,
-                auth: .bearer(accessToken),
-                body: JSONEncoder().encodeAsByteBuffer(validRequest, allocator: ByteBufferAllocator())
+                uri: "/api/v1/auth/mfa/totp/verify",
+                method: .post,
+                body: nil
+            ) { response in
+                #expect(response.status == .badRequest)
+            }
+            
+            // Verify with valid TOTP code
+            let loginCode = try TOTP.generateTestCode(from: setupResponse.secret)
+
+            try await client.execute(
+                uri: "/api/v1/auth/mfa/totp/verify",
+                method: .post,
+                body: JSONEncoder().encodeAsByteBuffer(
+                    TOTPVerificationRequest(stateToken: initialLoginResponse.stateToken!, code: loginCode),
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .ok)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == "SUCCESS")
+                #expect(!authResponse.accessToken!.isEmpty)
             }
         }
     }
-} 
+}

@@ -7,6 +7,7 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
     public let email: String
     public let profilePicture: String?  // Optional since server might not have it
     public let role: Role
+    public let emailVerified: Bool
     public let createdAt: String
     public let updatedAt: String
     
@@ -17,6 +18,7 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
         email: String,
         profilePicture: String? = nil,
         role: Role,
+        emailVerified: Bool,
         createdAt: String,
         updatedAt: String
     ) {
@@ -26,6 +28,7 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
         self.email = email
         self.profilePicture = profilePicture
         self.role = role
+        self.emailVerified = emailVerified
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

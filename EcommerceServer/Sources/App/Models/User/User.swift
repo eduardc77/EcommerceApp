@@ -40,14 +40,14 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
     @Field(key: "email_verified")
     var emailVerified: Bool
     
-    @Field(key: "failed_login_attempts")
-    var failedLoginAttempts: Int
+    @Field(key: "failed_sign_in_attempts")
+    var failedSignInAttempts: Int
     
-    @OptionalField(key: "last_failed_login")
-    var lastFailedLogin: Date?
+    @OptionalField(key: "last_failed_sign_in")
+    var lastFailedSignIn: Date?
     
-    @OptionalField(key: "last_login_at")
-    var lastLoginAt: Date?
+    @OptionalField(key: "last_sign_in_at")
+    var lastSignInAt: Date?
     
     @Field(key: "account_locked")
     var accountLocked: Bool
@@ -96,9 +96,9 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         role: Role = .customer,
         passwordHash: String?,
         emailVerified: Bool = false,
-        failedLoginAttempts: Int = 0,
-        lastFailedLogin: Date? = nil,
-        lastLoginAt: Date? = nil,
+        failedSignInAttempts: Int = 0,
+        lastFailedSignIn: Date? = nil,
+        lastSignInAt: Date? = nil,
         accountLocked: Bool = false,
         lockoutUntil: Date? = nil,
         requirePasswordChange: Bool = false,
@@ -117,9 +117,9 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.role = role
         self.passwordHash = passwordHash
         self.emailVerified = emailVerified
-        self.failedLoginAttempts = failedLoginAttempts
-        self.lastFailedLogin = lastFailedLogin
-        self.lastLoginAt = lastLoginAt
+        self.failedSignInAttempts = failedSignInAttempts
+        self.lastFailedSignIn = lastFailedSignIn
+        self.lastSignInAt = lastSignInAt
         self.accountLocked = accountLocked
         self.lockoutUntil = lockoutUntil
         self.requirePasswordChange = requirePasswordChange
@@ -141,9 +141,9 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.role = .customer
         self.passwordHash = nil
         self.emailVerified = true
-        self.failedLoginAttempts = 0
-        self.lastFailedLogin = nil
-        self.lastLoginAt = nil
+        self.failedSignInAttempts = 0
+        self.lastFailedSignIn = nil
+        self.lastSignInAt = nil
         self.accountLocked = false
         self.lockoutUntil = nil
         self.requirePasswordChange = false
@@ -184,9 +184,9 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.profilePicture = userRequest.profilePicture ?? "https://api.dicebear.com/7.x/avataaars/png"
         self.role = .customer  // Default role for public registration
         self.emailVerified = false
-        self.failedLoginAttempts = 0
-        self.lastFailedLogin = nil
-        self.lastLoginAt = nil
+        self.failedSignInAttempts = 0
+        self.lastFailedSignIn = nil
+        self.lastSignInAt = nil
         self.accountLocked = false
         self.lockoutUntil = nil
         self.requirePasswordChange = false
@@ -221,9 +221,9 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.profilePicture = adminRequest.profilePicture ?? "https://api.dicebear.com/7.x/avataaars/png"
         self.role = adminRequest.role  // Use specified role for admin creation
         self.emailVerified = false
-        self.failedLoginAttempts = 0
-        self.lastFailedLogin = nil
-        self.lastLoginAt = nil
+        self.failedSignInAttempts = 0
+        self.lastFailedSignIn = nil
+        self.lastSignInAt = nil
         self.accountLocked = false
         self.lockoutUntil = nil
         self.requirePasswordChange = false
@@ -249,26 +249,26 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         return "\(username)@\(ssoEmailDomain)"
     }
     
-    func incrementFailedLoginAttempts() {
-        self.failedLoginAttempts += 1
-        self.lastFailedLogin = Date()
+    func incrementFailedSignInAttempts() {
+        self.failedSignInAttempts += 1
+        self.lastFailedSignIn = Date()
         
         // Auto-lock account after too many failed attempts
-        if self.failedLoginAttempts >= 5 {
+        if self.failedSignInAttempts >= 5 {
             self.accountLocked = true
             self.lockoutUntil = Date().addingTimeInterval(15 * 60) // 15 minutes
         }
     }
     
-    func resetFailedLoginAttempts() {
-        self.failedLoginAttempts = 0
-        self.lastFailedLogin = nil
+    func resetFailedSignInAttempts() {
+        self.failedSignInAttempts = 0
+        self.lastFailedSignIn = nil
         self.accountLocked = false
         self.lockoutUntil = nil
     }
     
     func updateLastSignIn() {
-        self.lastLoginAt = Date()
+        self.lastSignInAt = Date()
     }
     
     func isLocked() -> Bool {
@@ -377,9 +377,9 @@ extension User {
         static let passwordHash: FluentKit.FieldKey = "password_hash"
         static let passwordUpdatedAt: FluentKit.FieldKey = "password_updated_at"
         static let emailVerified: FluentKit.FieldKey = "email_verified"
-        static let failedLoginAttempts: FluentKit.FieldKey = "failed_login_attempts"
-        static let lastFailedLogin: FluentKit.FieldKey = "last_failed_login"
-        static let lastLoginAt: FluentKit.FieldKey = "last_login_at"
+        static let failedSignInAttempts: FluentKit.FieldKey = "failed_sign_in_attempts"
+        static let lastFailedSignIn: FluentKit.FieldKey = "last_failed_sign_in"
+        static let lastSignInAt: FluentKit.FieldKey = "last_sign_in_at"
         static let accountLocked: FluentKit.FieldKey = "account_locked"
         static let lockoutUntil: FluentKit.FieldKey = "lockout_until"
         static let requirePasswordChange: FluentKit.FieldKey = "require_password_change"
@@ -409,9 +409,9 @@ extension User {
                 .field(FieldKey.passwordHash, .string)
                 .field(FieldKey.passwordUpdatedAt, .datetime)
                 .field(FieldKey.emailVerified, .bool, .required)
-                .field(FieldKey.failedLoginAttempts, .int, .required)
-                .field(FieldKey.lastFailedLogin, .datetime)
-                .field(FieldKey.lastLoginAt, .datetime)
+                .field(FieldKey.failedSignInAttempts, .int, .required)
+                .field(FieldKey.lastFailedSignIn, .datetime)
+                .field(FieldKey.lastSignInAt, .datetime)
                 .field(FieldKey.accountLocked, .bool, .required)
                 .field(FieldKey.lockoutUntil, .datetime)
                 .field(FieldKey.requirePasswordChange, .bool, .required)

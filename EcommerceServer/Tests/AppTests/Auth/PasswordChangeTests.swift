@@ -21,7 +21,7 @@ struct PasswordChangeTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/change-password",
+                uri: "/api/v1/auth/password/change",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -45,7 +45,7 @@ struct PasswordChangeTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -57,11 +57,11 @@ struct PasswordChangeTests {
             
             // 2. Login to get token
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "passwordtest@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
@@ -72,9 +72,9 @@ struct PasswordChangeTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/change-password",
+                uri: "/api/v1/auth/password/change",
                 method: .post,
-                auth: .bearer(authResponse.accessToken),
+                auth: .bearer(authResponse.accessToken!),
                 body: JSONEncoder().encodeAsByteBuffer(invalidRequestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .unauthorized)
@@ -97,7 +97,7 @@ struct PasswordChangeTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -109,11 +109,11 @@ struct PasswordChangeTests {
             
             // 2. Login to get token
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "passwordtest2@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
@@ -124,9 +124,9 @@ struct PasswordChangeTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/change-password",
+                uri: "/api/v1/auth/password/change",
                 method: .post,
-                auth: .bearer(authResponse.accessToken),
+                auth: .bearer(authResponse.accessToken!),
                 body: JSONEncoder().encodeAsByteBuffer(weakPasswordRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .badRequest)
@@ -149,7 +149,7 @@ struct PasswordChangeTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -161,11 +161,11 @@ struct PasswordChangeTests {
             
             // 2. Login to get token
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "passwordtest3@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
@@ -176,13 +176,13 @@ struct PasswordChangeTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/change-password",
+                uri: "/api/v1/auth/password/change",
                 method: .post,
-                auth: .bearer(authResponse.accessToken),
+                auth: .bearer(authResponse.accessToken!),
                 body: JSONEncoder().encodeAsByteBuffer(validPasswordRequest, allocator: ByteBufferAllocator())
             ) { response in
-                #expect(response.status == .created)
-                
+                #expect(response.status == .ok)
+
                 let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
                 #expect(messageResponse.success == true)
             }
@@ -191,24 +191,24 @@ struct PasswordChangeTests {
             try await client.execute(
                 uri: "/api/v1/auth/me",
                 method: .get,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .unauthorized)
             }
             
             // 5. Verify can login with new password
             let _ = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "passwordtest3@example.com", password: "NewP@ssw0rd!9K#")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // 6. Verify cannot login with old password
             try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "passwordtest3@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
@@ -232,7 +232,7 @@ struct PasswordChangeTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -244,11 +244,11 @@ struct PasswordChangeTests {
             
             // 2. Login to get token
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "passwordtest4@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
@@ -259,21 +259,21 @@ struct PasswordChangeTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/change-password",
+                uri: "/api/v1/auth/password/change",
                 method: .post,
-                auth: .bearer(authResponse.accessToken),
+                auth: .bearer(authResponse.accessToken!),
                 body: JSONEncoder().encodeAsByteBuffer(firstChangeRequest, allocator: ByteBufferAllocator())
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
             }
             
             // 4. Login with new password
             let newAuthResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "passwordtest4@example.com", password: "NewP@ssw0rd!9K#")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
@@ -284,9 +284,9 @@ struct PasswordChangeTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/change-password",
+                uri: "/api/v1/auth/password/change",
                 method: .post,
-                auth: .bearer(newAuthResponse.accessToken),
+                auth: .bearer(newAuthResponse.accessToken!),
                 body: JSONEncoder().encodeAsByteBuffer(revertChangeRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .badRequest)

@@ -19,7 +19,7 @@ struct ForgotPasswordResetTests {
             ]
             
             try await client.execute(
-                uri: "/api/v1/auth/forgot-password",
+                uri: "/api/v1/auth/password/forgot",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(forgotRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -45,7 +45,7 @@ struct ForgotPasswordResetTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -58,7 +58,7 @@ struct ForgotPasswordResetTests {
             ]
             
             let resetResponse = try await client.execute(
-                uri: "/api/v1/auth/forgot-password",
+                uri: "/api/v1/auth/password/forgot",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(forgotRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -87,7 +87,7 @@ struct ForgotPasswordResetTests {
             ]
             
             try await client.execute(
-                uri: "/api/v1/auth/reset-password",
+                uri: "/api/v1/auth/password/reset",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(resetRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -111,7 +111,7 @@ struct ForgotPasswordResetTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -124,7 +124,7 @@ struct ForgotPasswordResetTests {
             ]
             
             try await client.execute(
-                uri: "/api/v1/auth/forgot-password",
+                uri: "/api/v1/auth/password/forgot",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(forgotRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -148,7 +148,7 @@ struct ForgotPasswordResetTests {
             ]
             
             try await client.execute(
-                uri: "/api/v1/auth/reset-password",
+                uri: "/api/v1/auth/password/reset",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(resetRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -172,7 +172,7 @@ struct ForgotPasswordResetTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -185,7 +185,7 @@ struct ForgotPasswordResetTests {
             ]
             
             try await client.execute(
-                uri: "/api/v1/auth/forgot-password",
+                uri: "/api/v1/auth/password/forgot",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(forgotRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -200,7 +200,7 @@ struct ForgotPasswordResetTests {
             ]
             
             try await client.execute(
-                uri: "/api/v1/auth/reset-password",
+                uri: "/api/v1/auth/password/reset",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(resetRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -211,17 +211,17 @@ struct ForgotPasswordResetTests {
             
             // 4. Verify can login with new password
             let _ = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "resettest3@example.com", password: "NewP@ssw0rd!9K#")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
             // 5. Verify cannot login with old password
             try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "resettest3@example.com", password: "OldP@ssw0rd!9K#")
             ) { response in
@@ -245,7 +245,7 @@ struct ForgotPasswordResetTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -258,7 +258,7 @@ struct ForgotPasswordResetTests {
             ]
             
             try await client.execute(
-                uri: "/api/v1/auth/forgot-password",
+                uri: "/api/v1/auth/password/forgot",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(forgotRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -273,7 +273,7 @@ struct ForgotPasswordResetTests {
             ]
             
             try await client.execute(
-                uri: "/api/v1/auth/reset-password",
+                uri: "/api/v1/auth/password/reset",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(resetRequest, allocator: ByteBufferAllocator())
             ) { response in
@@ -288,7 +288,7 @@ struct ForgotPasswordResetTests {
             ]
             
             try await client.execute(
-                uri: "/api/v1/auth/reset-password",
+                uri: "/api/v1/auth/password/reset",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(reusedRequest, allocator: ByteBufferAllocator())
             ) { response in

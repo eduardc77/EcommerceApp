@@ -63,7 +63,7 @@ actor TokenStore: TokenStoreProtocol {
     
     /// Reason why a token was blacklisted
     enum BlacklistReason: String, Codable {
-        case logout
+        case signOut
         case tokenVersionChange
         case passwordChanged
         case userRevoked

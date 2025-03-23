@@ -9,6 +9,7 @@ struct UserResponse: ResponseCodable, Sendable {
     let email: String
     let profilePicture: String
     let role: Role
+    let emailVerified: Bool
     let createdAt: String
     let updatedAt: String
 
@@ -19,6 +20,7 @@ struct UserResponse: ResponseCodable, Sendable {
         self.email = user.email
         self.profilePicture = user.profilePicture ?? "https://api.dicebear.com/7.x/avataaars/png"
         self.role = user.role
+        self.emailVerified = user.emailVerified
         self.createdAt = user.createdAt?.ISO8601Format() ?? ""
         self.updatedAt = user.updatedAt?.ISO8601Format() ?? ""
     }

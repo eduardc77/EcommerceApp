@@ -4,8 +4,8 @@ import HummingbirdAuth
 import HummingbirdFluent
 import HTTPTypes
 
-/// Controller for managing email verification and MFA
-struct EmailVerificationController {
+/// Controller for managing  Email MFA
+struct EmailMFAController {
     typealias Context = AppRequestContext
     let fluent: HummingbirdFluent.Fluent
     let emailService: EmailService
@@ -320,6 +320,7 @@ struct EmailVerificationController {
 
 /// Request for verifying email code
 struct EmailVerifyRequest: Codable {
+    let email: String
     let code: String
 }
 

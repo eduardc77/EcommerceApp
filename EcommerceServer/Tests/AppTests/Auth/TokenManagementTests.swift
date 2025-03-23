@@ -23,7 +23,7 @@ struct TokenManagementTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -35,21 +35,21 @@ struct TokenManagementTests {
 
             // 2. Login to get initial tokens
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "refresh@example.com", password: "K9#mP2$vL5nQ8*x")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 3. Use refresh token to get new access token
             let refreshResponse = try await client.execute(
-                uri: "/api/v1/auth/refresh",
+                uri: "/api/v1/auth/token/refresh",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(["refreshToken": authResponse.refreshToken], allocator: ByteBufferAllocator())
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
@@ -57,7 +57,7 @@ struct TokenManagementTests {
             try await client.execute(
                 uri: "/api/v1/auth/me",
                 method: .get,
-                auth: .bearer(refreshResponse.accessToken)
+                auth: .bearer(refreshResponse.accessToken!)
             ) { response in
                 #expect(response.status == .ok)
                 let user = try JSONDecoder().decode(UserResponse.self, from: response.body)
@@ -68,14 +68,14 @@ struct TokenManagementTests {
             try await client.execute(
                 uri: "/api/v1/auth/me",
                 method: .get,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .unauthorized)
             }
 
             // 6. Verify old refresh token is invalidated
             try await client.execute(
-                uri: "/api/v1/auth/refresh",
+                uri: "/api/v1/auth/token/refresh",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(["refreshToken": authResponse.refreshToken], allocator: ByteBufferAllocator())
             ) { response in
@@ -98,7 +98,7 @@ struct TokenManagementTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -108,21 +108,21 @@ struct TokenManagementTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // 2. Login to get tokens
+            // 2. Sign in to get tokens
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "logout@example.com", password: "K9#mP2$vL5nQ8*x")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 3. Logout
             try await client.execute(
-                uri: "/api/v1/auth/logout",
+                uri: "/api/v1/auth/sign-out",
                 method: .post,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .noContent)
             }
@@ -131,14 +131,14 @@ struct TokenManagementTests {
             try await client.execute(
                 uri: "/api/v1/auth/me",
                 method: .get,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .unauthorized)
             }
 
             // 5. Verify refresh token is invalidated
             try await client.execute(
-                uri: "/api/v1/auth/refresh",
+                uri: "/api/v1/auth/token/refresh",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(["refreshToken": authResponse.refreshToken], allocator: ByteBufferAllocator())
             ) { response in
@@ -161,7 +161,7 @@ struct TokenManagementTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -172,11 +172,11 @@ struct TokenManagementTests {
             try await client.completeEmailVerification(email: requestBody.email)
 
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "blacklist@example.com", password: "K9#mP2$vL5nQ8*x")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
@@ -184,16 +184,16 @@ struct TokenManagementTests {
             try await client.execute(
                 uri: "/api/v1/auth/me",
                 method: .get,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .ok)
             }
 
-            // 3. Logout to blacklist token
+            // 3. Sign out to blacklist token
             try await client.execute(
-                uri: "/api/v1/auth/logout",
+                uri: "/api/v1/auth/sign-out",
                 method: .post,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .noContent)
             }
@@ -202,7 +202,7 @@ struct TokenManagementTests {
             try await client.execute(
                 uri: "/api/v1/auth/me",
                 method: .get,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .unauthorized)
             }
@@ -223,7 +223,7 @@ struct TokenManagementTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -234,11 +234,11 @@ struct TokenManagementTests {
             try await client.completeEmailVerification(email: requestBody.email)
 
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "original@example.com", password: "K9#mP2$vL5nQ8*xZ@")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
@@ -253,7 +253,7 @@ struct TokenManagementTests {
             try await client.execute(
                 uri: "/api/v1/users/update-profile",
                 method: .put,
-                auth: .bearer(authResponse.accessToken),
+                auth: .bearer(authResponse.accessToken!),
                 body: JSONEncoder().encodeAsByteBuffer(updateRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .ok)
@@ -265,7 +265,7 @@ struct TokenManagementTests {
             try await client.execute(
                 uri: "/api/v1/auth/me",
                 method: .get,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .unauthorized)
             }
@@ -286,7 +286,7 @@ struct TokenManagementTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             let userResponse = try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -297,10 +297,19 @@ struct TokenManagementTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
+            let authResponse = try await client.execute(
+                uri: "/api/v1/auth/sign-in",
+                method: .post,
+                auth: .basic(username: "expired@example.com", password: "K9#mP2$vL5nQ8*x")
+            ) { response in
+                #expect(response.status == .ok)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+            }
+
             // 2. Create expired token
             let expirationDate = Date().addingTimeInterval(-30) // Expired 30 seconds ago
             let token = try await JWTKeyCollection.generateTestToken(
-                subject: userResponse.user.id,
+                subject: authResponse.user!.id,
                 expiration: expirationDate
             )
 
@@ -334,7 +343,7 @@ struct TokenManagementTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -345,18 +354,18 @@ struct TokenManagementTests {
             try await client.completeEmailVerification(email: requestBody.email)
 
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "version@example.com", password: "K9#mP2$vL5nQ8*x")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
 
             // 2. Create token with incorrect version
             let expirationDate = Date(timeIntervalSinceNow: JWTConfiguration.load().accessTokenExpiration)
             let token = try await JWTKeyCollection.generateTestToken(
-                subject: authResponse.user.id,
+                subject: authResponse.user!.id,
                 expiration: expirationDate,
                 tokenVersion: 999  // Invalid version
             )

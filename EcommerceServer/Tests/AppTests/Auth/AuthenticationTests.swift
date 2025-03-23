@@ -23,7 +23,7 @@ struct AuthenticationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -35,11 +35,11 @@ struct AuthenticationTests {
             
             // 2. Login to get JWT
             let authResponse = try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "test_user_123", password: "Testing132!@#")
             ) { response in
-                #expect(response.status == .created)
+                #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
@@ -47,7 +47,7 @@ struct AuthenticationTests {
             try await client.execute(
                 uri: "/api/v1/auth/me",
                 method: .get,
-                auth: .bearer(authResponse.accessToken)
+                auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .ok)
                 let responseBody = String(buffer: response.body)
@@ -69,17 +69,28 @@ struct AuthenticationTests {
                 password: "Testing132!@#",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            let authResponse = try await client.execute(
-                uri: "/api/v1/auth/register",
+            try await client.execute(
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                let signUpResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(signUpResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
             }
             
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
+            
+            // Sign in to get user ID
+            let authResponse = try await client.execute(
+                uri: "/api/v1/auth/sign-in",
+                method: .post,
+                auth: .basic(username: requestBody.username, password: requestBody.password)
+            ) { response in
+                #expect(response.status == .ok)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+            }
             
             // 2. Create JWT with all required fields
             let jwtConfig = JWTConfiguration.load()
@@ -88,7 +99,7 @@ struct AuthenticationTests {
             let expirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
             
             let payload = JWTPayloadData(
-                subject: .init(value: authResponse.user.id),
+                subject: .init(value: authResponse.user!.id),
                 expiration: .init(value: expirationDate),
                 type: "access",
                 issuer: jwtConfig.issuer,
@@ -109,12 +120,11 @@ struct AuthenticationTests {
             await signers.add(
                 hmac: HMACKey(key: SymmetricKey(data: secretData)),
                 digestAlgorithm: .sha256,
-                kid: "hb_local"  // Match the application's key ID
+                kid: "hb_local"
             )
-            
             let token = try await signers.sign(payload, kid: "hb_local")
             
-            // 3. Use the token to access protected endpoint
+            // 3. Access protected endpoint with manually created JWT
             try await client.execute(
                 uri: "/api/v1/auth/me",
                 method: .get,
@@ -134,7 +144,7 @@ struct AuthenticationTests {
         try await app.test(.router) { client in
             // 1. Test non-existent user
             try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
                 auth: .basic(username: "nonexistent@example.com", password: "K9#mP2$vL5nQ8*xZ@")
             ) { response in
@@ -152,7 +162,7 @@ struct AuthenticationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -164,9 +174,9 @@ struct AuthenticationTests {
             
             // 3. Test wrong password
             try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
-                auth: .basic(username: "credentials@example.com", password: "wrongpassword")
+                auth: .basic(username: requestBody.email, password: "wrongpassword")
             ) { response in
                 #expect(response.status == .unauthorized)
                 let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
@@ -189,7 +199,7 @@ struct AuthenticationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -202,9 +212,9 @@ struct AuthenticationTests {
             // 2. Attempt multiple rapid login requests
             for _ in 1...6 {
                 try await client.execute(
-                    uri: "/api/v1/auth/login",
+                    uri: "/api/v1/auth/sign-in",
                     method: .post,
-                    auth: .basic(username: "ratelimit@example.com", password: "wrongpassword")
+                    auth: .basic(username: requestBody.email, password: "wrongpassword")
                 ) { response in
                     if response.status == .tooManyRequests {
                         // Rate limit hit
@@ -231,7 +241,7 @@ struct AuthenticationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             try await client.execute(
-                uri: "/api/v1/auth/register",
+                uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -244,9 +254,9 @@ struct AuthenticationTests {
             // 2. Attempt multiple failed logins
             for _ in 1...4 {
                 try await client.execute(
-                    uri: "/api/v1/auth/login",
+                    uri: "/api/v1/auth/sign-in",
                     method: .post,
-                    auth: .basic(username: "lockout@example.com", password: "wrongpassword")
+                    auth: .basic(username: requestBody.email, password: "wrongpassword")
                 ) { response in
                     #expect(response.status == .unauthorized)
                 }
@@ -254,18 +264,18 @@ struct AuthenticationTests {
             
             // 5th attempt should trigger lockout
             try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
-                auth: .basic(username: "lockout@example.com", password: "wrongpassword")
+                auth: .basic(username: requestBody.email, password: "wrongpassword")
             ) { response in
                 #expect(response.status == .tooManyRequests)
             }
             
             // Try correct password - should still be locked
             try await client.execute(
-                uri: "/api/v1/auth/login",
+                uri: "/api/v1/auth/sign-in",
                 method: .post,
-                auth: .basic(username: "lockout@example.com", password: "K9#mP2$vL5nQ8*xZ@")
+                auth: .basic(username: requestBody.email, password: requestBody.password)
             ) { response in
                 #expect(response.status == .tooManyRequests)
             }
