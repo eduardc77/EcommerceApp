@@ -12,6 +12,7 @@ struct AuthResponse: Codable {
     let stateToken: String?  // For multi-step auth flows
     let status: String  // Clear state indication
     let maskedEmail: String?  // For showing masked email in MFA/verification UI
+    let availableMfaMethods: [MFAMethod]?  // Available MFA methods for the user
     
     init(
         accessToken: String? = nil,
@@ -22,7 +23,8 @@ struct AuthResponse: Codable {
         user: UserResponse? = nil,
         stateToken: String? = nil,
         status: String,
-        maskedEmail: String? = nil
+        maskedEmail: String? = nil,
+        availableMfaMethods: [MFAMethod]? = nil
     ) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
@@ -33,7 +35,14 @@ struct AuthResponse: Codable {
         self.stateToken = stateToken
         self.status = status
         self.maskedEmail = maskedEmail
+        self.availableMfaMethods = availableMfaMethods
     }
+}
+
+/// Available MFA methods
+enum MFAMethod: String, Codable {
+    case totp = "totp"
+    case email = "email"
 }
 
 /// Auth status constants

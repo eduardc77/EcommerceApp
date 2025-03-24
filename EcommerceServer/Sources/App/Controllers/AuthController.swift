@@ -91,6 +91,7 @@ struct AuthController {
         // MFA
         let mfa = group.group("mfa")
         mfa.get("methods", use: getMFAMethods)
+            .post("select", use: selectMFAMethod)
 
         // Email MFA
         let emailMFA = mfa.group("email")
@@ -117,6 +118,20 @@ struct AuthController {
     }
 
     /// Sign in user with credentials
+    /// 
+    /// The authentication flow is as follows:
+    /// 1. User submits username/email and password
+    /// 2. If the user has MFA enabled:
+    ///   a. If only one MFA method is enabled, the system automatically selects that method
+    ///   b. If multiple MFA methods are enabled, system returns a response with status "MFA_REQUIRED" 
+    ///      and a list of available MFA methods
+    ///   c. Client calls `/api/v1/auth/mfa/select` with the chosen MFA method (only needed for multiple methods)
+    ///   d. System returns a response with status specific to the selected method (e.g., "MFA_TOTP_REQUIRED")
+    ///   e. Client completes the specific MFA verification flow for the selected method
+    /// 3. If authentication is successful, system returns access and refresh tokens
+    ///
+    /// This follows industry standard practices where users only need to complete one MFA method
+    /// and the selection step is skipped if only one method is available.
     @Sendable func signIn(
         _ request: Request,
         context: Context
@@ -194,49 +209,53 @@ struct AuthController {
         user.updateLastSignIn()
         try await user.save(on: fluent.db())
 
-        // Check if MFA is enabled
-        if user.twoFactorEnabled {
+        // Check if any MFA methods are enabled
+        let hasTOTP = user.twoFactorEnabled
+        let hasEmailMFA = user.emailVerificationEnabled
+        
+        // If user has any MFA method enabled
+        if hasTOTP || hasEmailMFA {
+            var availableMethods: [MFAMethod] = []
+            if hasTOTP { availableMethods.append(.totp) }
+            if hasEmailMFA { availableMethods.append(.email) }
+            
+            // Generate state token
             let stateToken = try await generateStateToken(for: user)
             
+            // If only one MFA method is enabled, automatically use that method
+            if availableMethods.count == 1 {
+                if hasTOTP {
+                    return .init(
+                        status: .ok,
+                        response: AuthResponse(
+                            stateToken: stateToken,
+                            status: AuthResponse.STATUS_MFA_TOTP_REQUIRED,
+                            maskedEmail: user.email.maskEmail()
+                        )
+                    )
+                } else if hasEmailMFA {
+                    return .init(
+                        status: .ok,
+                        response: AuthResponse(
+                            tokenType: "Bearer",
+                            stateToken: stateToken,
+                            status: AuthResponse.STATUS_MFA_EMAIL_REQUIRED,
+                            maskedEmail: user.email.maskEmail()
+                        )
+                    )
+                }
+            }
+            
+            // If multiple MFA methods are enabled, let the user choose
             return .init(
                 status: .ok,
                 response: AuthResponse(
                     stateToken: stateToken,
-                    status: AuthResponse.STATUS_MFA_TOTP_REQUIRED
+                    status: AuthResponse.STATUS_MFA_REQUIRED,
+                    maskedEmail: user.email.maskEmail(),
+                    availableMfaMethods: availableMethods
                 )
             )
-        }
-        
-        // Check if email verification is enabled for MFA
-        if user.emailVerificationEnabled {
-            context.logger.info("User has email verification enabled. Setting up MFA flow")
-            // Generate temporary token for email verification
-            let tempTokenPayload = JWTPayloadData(
-                subject: SubjectClaim(value: try user.requireID().uuidString),
-                expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 600)), // 10 minutes
-                type: "email_verification",
-                issuer: jwtConfig.issuer,
-                audience: jwtConfig.audience,
-                issuedAt: Date(),
-                id: UUID().uuidString,
-                role: user.role.rawValue,
-                tokenVersion: user.tokenVersion
-            )
-            
-            let tempToken = try await self.jwtKeyCollection.sign(tempTokenPayload, kid: self.kid)
-            
-            context.logger.info("[App] TOTP verified successfully, proceeding with email verification")
-            
-            return .init(
-                status: .ok,
-                response: AuthResponse(
-                    tokenType: "Bearer",
-                    stateToken: tempToken,
-                    status: AuthResponse.STATUS_MFA_EMAIL_REQUIRED
-                )
-            )
-        } else {
-            context.logger.info("User does not have email verification enabled. Proceeding with normal sign in")
         }
 
         // For users without MFA, proceed with normal sign in
@@ -350,68 +369,74 @@ struct AuthController {
         )
     }
 
-    /// Verify TOTP code and complete sign in
+    /// Verify TOTP during sign-in
     @Sendable func verifyTOTPSignIn(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<AuthResponse> {
-        // Decode the verification request
         let verifyRequest = try await request.decode(as: TOTPVerificationRequest.self, context: context)
         
-        // Verify and decode temporary token
-        let tempTokenPayload = try await self.jwtKeyCollection.verify(verifyRequest.stateToken, as: JWTPayloadData.self)
-
-        // Ensure it's a TOTP verification token
-        guard tempTokenPayload.type == "totp_verification" else {
+        // Verify and decode state token
+        let stateTokenPayload = try await self.jwtKeyCollection.verify(verifyRequest.stateToken, as: JWTPayloadData.self)
+        
+        // Ensure it's a state token
+        guard stateTokenPayload.type == "state_token" else {
             throw HTTPError(.unauthorized, message: "Invalid token type")
         }
         
         // Get user from database
-        guard let user = try await User.find(UUID(uuidString: tempTokenPayload.subject.value), on: fluent.db()) else {
+        guard let user = try await User.find(UUID(uuidString: stateTokenPayload.subject.value), on: fluent.db()) else {
             throw HTTPError(.unauthorized, message: "User not found")
         }
         
         // Verify token version
-        guard let tokenVersion = tempTokenPayload.tokenVersion,
+        guard let tokenVersion = stateTokenPayload.tokenVersion,
               tokenVersion == user.tokenVersion else {
             throw HTTPError(.unauthorized, message: "Invalid token version")
         }
         
-        // Verify TOTP code
-        guard try await user.verifyTOTPCode(verifyRequest.code) else {
-            throw HTTPError(.unauthorized, message: "Invalid TOTP code")
-        }
-
-        // Check if email verification is required
-        if user.emailVerificationEnabled {
-            // Generate temporary token for email verification
-            let tempTokenPayload = JWTPayloadData(
-                subject: SubjectClaim(value: try user.requireID().uuidString),
-                expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 600)), // 10 minutes
-                type: "email_verification",
-                issuer: jwtConfig.issuer,
-                audience: jwtConfig.audience,
-                issuedAt: Date(),
-                id: UUID().uuidString,
-                role: user.role.rawValue,
-                tokenVersion: user.tokenVersion
-            )
-            
-            let tempToken = try await self.jwtKeyCollection.sign(tempTokenPayload, kid: self.kid)
-            
-            context.logger.info("[App] TOTP verified successfully, proceeding with email verification")
-            
-            return .init(
-                status: .ok,
-                response: AuthResponse(
-                    tokenType: "Bearer",
-                    stateToken: tempToken,
-                    status: AuthResponse.STATUS_MFA_EMAIL_REQUIRED
-                )
-            )
+        // Check if account is locked
+        if user.isLocked() {
+            if let until = user.lockoutUntil {
+                throw HTTPError(.unauthorized, message: "Account is locked. Try again after \(until)")
+            }
+            throw HTTPError(.unauthorized, message: "Account is locked")
         }
         
-        // If no email verification needed, complete sign in
+        // Verify TOTP code
+        guard let secret = user.twoFactorSecret else {
+            throw HTTPError(.badRequest, message: "MFA is not properly configured")
+        }
+        
+        if !TOTPUtils.verifyTOTPCode(code: verifyRequest.code, secret: secret) {
+            // Increment failed attempts
+            user.incrementFailedSignInAttempts()
+            try await user.save(on: fluent.db())
+            
+            // Check if now locked
+            if user.isLocked() {
+                if let lockoutUntil = user.lockoutUntil {
+                    let retryAfter = Int(ceil(lockoutUntil.timeIntervalSinceNow))
+                    var headers = HTTPFields()
+                    headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(max(0, retryAfter))"))
+                    throw HTTPError(.tooManyRequests,
+                                  headers: headers,
+                                  message: "Account is temporarily locked. Please try again later."
+                    )
+                }
+                throw HTTPError(.tooManyRequests, message: "Account is temporarily locked. Please try again later.")
+            }
+            
+            throw HTTPError(.unauthorized, message: "Invalid verification code")
+        }
+        
+        // Reset failed attempts if needed
+        if user.failedSignInAttempts > 0 {
+            user.resetFailedSignInAttempts()
+            try await user.save(on: fluent.db())
+        }
+        
+        // Complete sign in by creating tokens
         let expiresIn = Int(jwtConfig.accessTokenExpiration)
         let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
         let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
@@ -429,7 +454,7 @@ struct AuthController {
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-        
+
         // Create refresh token
         let refreshPayload = JWTPayloadData(
             subject: SubjectClaim(value: try user.requireID().uuidString),
@@ -445,7 +470,7 @@ struct AuthController {
 
         let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
-
+        
         let dateFormatter = ISO8601DateFormatter()
         return .init(
             status: .ok,
@@ -762,8 +787,8 @@ struct AuthController {
         // Verify and decode temporary token
         let tempTokenPayload = try await self.jwtKeyCollection.verify(bearerToken, as: JWTPayloadData.self)
         
-        // Ensure it's an email verification token
-        guard tempTokenPayload.type == "email_verification" else {
+        // Ensure it's a valid token type
+        guard tempTokenPayload.type == "state_token" || tempTokenPayload.type == "email_verification" else {
             throw HTTPError(.unauthorized, message: "Invalid token type")
         }
         
@@ -789,7 +814,7 @@ struct AuthController {
         // Check for existing verification code and cooldown
         if let existingCode = try await EmailVerificationCode.query(on: fluent.db())
             .filter(\.$user.$id, .equal, userID)
-            .filter(\.$type, .equal, "mfa_signin")
+            .filter(\.$type, .equal, "mfa_sign_in")
             .first() {
             
             if existingCode.isWithinCooldown {
@@ -1153,12 +1178,13 @@ struct AuthController {
         )
     }
 
-    /// Generate a state token for authentication flows
+    /// Generate a state token for multi-step auth flow
     private func generateStateToken(for user: User) async throws -> String {
+        // Generate temporary token for auth flow state
         let stateTokenPayload = JWTPayloadData(
             subject: SubjectClaim(value: try user.requireID().uuidString),
             expiration: ExpirationClaim(value: Date(timeIntervalSinceNow: 600)), // 10 minutes
-            type: "totp_verification",
+            type: "state_token",  // Use a generic state token type for MFA flow
             issuer: jwtConfig.issuer,
             audience: jwtConfig.audience,
             issuedAt: Date(),
@@ -1214,7 +1240,7 @@ struct AuthController {
         }
     }
 
-    /// Verify email-based sign in attempt
+    /// Verify email MFA during sign-in
     @Sendable func verifyEmailMFASignIn(
         _ request: Request,
         context: Context
@@ -1224,8 +1250,8 @@ struct AuthController {
         // Verify and decode temporary token
         let tempTokenPayload = try await self.jwtKeyCollection.verify(verifyRequest.stateToken, as: JWTPayloadData.self)
         
-        // Ensure it's an email verification token
-        guard tempTokenPayload.type == "email_verification" else {
+        // Ensure it's an appropriate token type
+        guard tempTokenPayload.type == "state_token" else {
             throw HTTPError(.unauthorized, message: "Invalid token type")
         }
         
@@ -1260,21 +1286,22 @@ struct AuthController {
             throw HTTPError(.unauthorized, message: "Invalid verification code")
         }
         
-        // Check if code is expired
+        // Code is valid - check for expiration
         if verificationCode.isExpired {
             try await verificationCode.delete(on: fluent.db())
             throw HTTPError(.unauthorized, message: "Verification code has expired")
         }
         
-        // Delete the used code
+        // Delete the code once used
         try await verificationCode.delete(on: fluent.db())
         
-        // Reset failed sign in attempts
-        user.resetFailedSignInAttempts()
-        user.updateLastSignIn()
-        try await user.save(on: fluent.db())
+        // Reset failed attempts if needed
+        if user.failedSignInAttempts > 0 {
+            user.resetFailedSignInAttempts()
+            try await user.save(on: fluent.db())
+        }
         
-        // Generate tokens
+        // Complete sign in by creating tokens
         let expiresIn = Int(jwtConfig.accessTokenExpiration)
         let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
         let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
@@ -1292,8 +1319,8 @@ struct AuthController {
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-        
-        // Create refresh token
+
+        // Create refresh token with same version
         let refreshPayload = JWTPayloadData(
             subject: SubjectClaim(value: try user.requireID().uuidString),
             expiration: ExpirationClaim(value: refreshExpirationDate),
@@ -1305,7 +1332,7 @@ struct AuthController {
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-        
+
         let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
         
@@ -1513,6 +1540,71 @@ struct AuthController {
     ) async throws -> EditedResponse<EmailMFAVerificationStatusResponse> {
         try await emailVerificationController.getEmailMFAStatus(request, context: context)
     }
+
+    /// Select MFA method to use during sign-in
+    /// 
+    /// This endpoint allows users to choose which MFA method they want to use to complete sign-in.
+    /// This follows industry standard practices used by major authentication providers.
+    /// 
+    /// Request body must include:
+    /// - stateToken: The token received from the initial sign-in attempt
+    /// - method: The MFA method to use (either "totp" or "email")
+    /// 
+    /// The response will provide the next steps based on the selected method.
+    @Sendable func selectMFAMethod(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<AuthResponse> {
+        // Decode MFA selection request
+        let selectionRequest = try await request.decode(as: MFASelectionRequest.self, context: context)
+        
+        // Verify and decode state token
+        let statePayload = try await self.jwtKeyCollection.verify(selectionRequest.stateToken, as: JWTPayloadData.self)
+        
+        // Get user from database
+        guard let userID = UUID(uuidString: statePayload.subject.value),
+              let user = try await User.find(userID, on: fluent.db()) else {
+            throw HTTPError(.unauthorized, message: "Invalid token")
+        }
+        
+        // Verify token version
+        guard let tokenVersion = statePayload.tokenVersion,
+              tokenVersion == user.tokenVersion else {
+            throw HTTPError(.unauthorized, message: "Invalid token version")
+        }
+        
+        // Check the selected method is actually enabled for the user
+        switch selectionRequest.method {
+        case .totp:
+            if !user.twoFactorEnabled {
+                throw HTTPError(.badRequest, message: "TOTP is not enabled for this account")
+            }
+            
+            return .init(
+                status: .ok,
+                response: AuthResponse(
+                    stateToken: selectionRequest.stateToken,
+                    status: AuthResponse.STATUS_MFA_TOTP_REQUIRED,
+                    maskedEmail: user.email.maskEmail()
+                )
+            )
+            
+        case .email:
+            if !user.emailVerificationEnabled {
+                throw HTTPError(.badRequest, message: "Email MFA is not enabled for this account")
+            }
+            
+            return .init(
+                status: .ok,
+                response: AuthResponse(
+                    tokenType: "Bearer",
+                    stateToken: selectionRequest.stateToken,
+                    status: AuthResponse.STATUS_MFA_EMAIL_REQUIRED,
+                    maskedEmail: user.email.maskEmail()
+                )
+            )
+        }
+    }
 }
 
 /// Security Headers Middleware
@@ -1617,14 +1709,6 @@ struct MessageResponse: Codable {
     let message: String
     let success: Bool
 }
-
-/// Response structure for MFA methods
-struct MFAMethodsResponse: Codable {
-    let emailEnabled: Bool
-    let totpEnabled: Bool
-}
-
-extension MFAMethodsResponse: ResponseEncodable {}
 
 /// Response structure for email verification status
 struct EmailVerificationStatusResponse: Codable {

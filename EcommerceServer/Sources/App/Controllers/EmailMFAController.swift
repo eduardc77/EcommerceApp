@@ -22,6 +22,7 @@ struct EmailMFAController {
         group.post("enable", use: enableEmailMFA)
             .post("verify", use: verifyEmailMFA)
             .post("disable", use: disableEmailMFA)
+            .post("resend", use: resendEmailMFACode)
             .get("status", use: getEmailMFAStatus)
     }
     
@@ -300,6 +301,69 @@ struct EmailMFAController {
             status: .ok,
             response: MessageResponse(
                 message: "Verification email sent",
+                success: true
+            )
+        )
+    }
+    
+    /// Resend email MFA verification code during setup
+    @Sendable func resendEmailMFACode(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        guard let user = context.identity else {
+            throw HTTPError(.unauthorized)
+        }
+        
+        // Get user ID
+        let userID = try user.requireID()
+        
+        // Check for existing verification code and cooldown
+        if let existingCode = try await EmailVerificationCode.query(on: fluent.db())
+            .filter(\.$user.$id, .equal, userID)
+            .filter(\.$type, .equal, "mfa_enable")
+            .first() {
+            
+            // Check if within cooldown period
+            if existingCode.isWithinCooldown {
+                let remaining = existingCode.remainingCooldown
+                var headers = HTTPFields()
+                headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(remaining)"))
+                throw HTTPError(
+                    .tooManyRequests,
+                    headers: headers,
+                    message: "Please wait \(remaining) seconds before requesting another code"
+                )
+            }
+            
+            // Update the last requested time and reset attempts
+            existingCode.updateLastRequested()
+            existingCode.attempts = 0
+            try await existingCode.save(on: fluent.db())
+            
+            // Send verification email
+            try await emailService.sendMFASetupEmail(to: user.email, code: existingCode.code)
+        } else {
+            // No existing code, generate a new one
+            let code = EmailVerificationCode.generateCode()
+            let verificationCode = EmailVerificationCode(
+                userID: userID,
+                code: code,
+                type: "mfa_enable",
+                expiresAt: Date().addingTimeInterval(300) // 5 minutes
+            )
+            try await verificationCode.save(on: fluent.db())
+            
+            // Send verification email
+            try await emailService.sendMFASetupEmail(to: user.email, code: code)
+        }
+        
+        context.logger.info("Resent MFA setup verification code to user: \(user.email)")
+        
+        return .init(
+            status: .ok,
+            response: MessageResponse(
+                message: "Verification code sent to your email",
                 success: true
             )
         )

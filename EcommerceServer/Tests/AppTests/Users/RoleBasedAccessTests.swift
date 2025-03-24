@@ -88,9 +88,7 @@ struct RoleBasedAccessTests {
                 #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
-            
-            let adminUserId = adminAuth.user!.id
-            
+
             // Set admin role directly in the database
             try await client.setUserRole(app: app, email: admin.email, role: .admin)
             
@@ -261,9 +259,7 @@ struct RoleBasedAccessTests {
                 #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
-            
-            let staffUserId = staffAuth.user!.id
-            
+
             // 2. Create admin user
             let admin = TestCreateUserRequest(
                 username: "admin_user", 
