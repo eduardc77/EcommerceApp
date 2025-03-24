@@ -15,7 +15,7 @@ protocol EmailService {
     func sendMFADisableEmail(to: String, code: String) async throws
     
     /// Send an MFA sign in verification code
-    func sendMFASignInEmail(to: String, code: String) async throws
+    func sendEmailMFASignIn(to: String, code: String) async throws
     
     /// Send a password reset verification code
     func sendPasswordResetEmail(to: String, code: String) async throws
@@ -96,7 +96,7 @@ struct SendGridEmailService: EmailService {
         logger.info("Sent MFA disable email to \(email)")
     }
     
-    func sendMFASignInEmail(to email: String, code: String) async throws {
+    func sendEmailMFASignIn(to email: String, code: String) async throws {
         let subject = "Sign In Verification Code"
         let htmlContent = """
             <h1>Sign In Verification</h1>
@@ -153,7 +153,7 @@ struct MockEmailService: EmailService {
         logger.info("Mock email service: MFA disable code for \(email) is 123456")
     }
     
-    func sendMFASignInEmail(to email: String, code: String) async throws {
+    func sendEmailMFASignIn(to email: String, code: String) async throws {
         // In testing environment, we always log the code as 123456
         logger.info("Mock email service: MFA sign in code for \(email) is 123456")
     }

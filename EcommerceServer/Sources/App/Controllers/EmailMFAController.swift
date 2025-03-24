@@ -3,6 +3,8 @@ import Hummingbird
 import HummingbirdAuth
 import HummingbirdFluent
 import HTTPTypes
+import HummingbirdBcrypt
+import CryptoKit
 
 /// Controller for managing  Email MFA
 struct EmailMFAController {
@@ -36,7 +38,7 @@ struct EmailMFAController {
         let userID = try user.requireID()
         try await EmailVerificationCode.query(on: fluent.db())
             .filter(\.$user.$id, .equal, userID)
-            .filter(\.$type, .equal, "mfa_setup")
+            .filter(\.$type, .equal, "mfa_enable")
             .delete()
         
         // Generate and store verification code
@@ -72,7 +74,7 @@ struct EmailMFAController {
             throw HTTPError(.unauthorized)
         }
         
-        // Ensure email is verified before allowing MFA setup
+        // Ensure email is verified before allowing MFA enable
         guard user.emailVerified else {
             throw HTTPError(.badRequest, message: "Email must be verified before enabling MFA")
         }
@@ -114,7 +116,7 @@ struct EmailMFAController {
         // Delete the verification code
         try await verificationCode.delete(on: fluent.db())
         
-        // Enable email-based MFA only when explicitly requested
+        // Enable email-based MFA
         user.emailVerificationEnabled = true
         user.tokenVersion += 1  // Increment token version to invalidate all existing tokens
         try await user.save(on: fluent.db())
@@ -148,50 +150,36 @@ struct EmailMFAController {
             )
         }
         
-        // Get user ID first
-        let userID = try user.requireID()
-        
-        // Find the most recent verification code
-        guard let verificationCode = try await EmailVerificationCode.query(on: fluent.db())
-            .filter(\.$user.$id, .equal, userID)
-            .filter(\.$type, .equal, "mfa_setup")
-            .sort(\.$createdAt, .descending)
-            .first() else {
-            throw HTTPError(.badRequest, message: "No verification code found")
+        // Get disable request with password
+        let disableRequest: DisableEmailMFARequest
+        do {
+            disableRequest = try await request.decode(as: DisableEmailMFARequest.self, context: context)
+        } catch {
+            throw HTTPError(.badRequest, message: "Password verification required")
         }
         
-        // Check if code is expired
-        if verificationCode.isExpired {
-            try await verificationCode.delete(on: fluent.db())
-            throw HTTPError(.badRequest, message: "Verification code has expired")
+        // Verify password
+        guard let passwordHash = user.passwordHash else {
+            context.logger.error("User \(user.email) has no password hash")
+            throw HTTPError(.internalServerError, message: "Account configuration error. Please contact support.")
         }
         
-        // Check attempts
-        if verificationCode.hasExceededAttempts {
-            try await verificationCode.delete(on: fluent.db())
-            throw HTTPError(.tooManyRequests, message: "Too many attempts. Please request a new code.")
-        }
+        // Perform password verification
+        let passwordValid = Bcrypt.verify(disableRequest.password, hash: passwordHash)
         
-        // Verify the code
-        guard let code = request.headers.first(where: { $0.name.canonicalName == "x-email-code" })?.value else {
-            throw HTTPError(.badRequest, message: "Verification code is required")
+        if !passwordValid {
+            throw HTTPError(.unauthorized, message: "Invalid password")
         }
-        
-        if verificationCode.code != code {
-            verificationCode.incrementAttempts()
-            try await verificationCode.save(on: fluent.db())
-            throw HTTPError(.unauthorized, message: "Invalid verification code")
-        }
-        
-        // Delete the verification code
-        try await verificationCode.delete(on: fluent.db())
         
         // Disable email verification
         user.emailVerificationEnabled = false
+        
+        // Update token version to invalidate existing tokens
+        user.tokenVersion += 1
+        
         try await user.save(on: fluent.db())
         
         return .init(
-            status: .ok,
             response: MessageResponse(
                 message: "Email verification disabled successfully",
                 success: true
@@ -203,14 +191,14 @@ struct EmailMFAController {
     @Sendable func getEmailMFAStatus(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<MFAEmailVerificationStatusResponse> {
+    ) async throws -> EditedResponse<EmailMFAVerificationStatusResponse> {
         guard let user = context.identity else {
             throw HTTPError(.unauthorized)
         }
         
         return .init(
             status: .ok,
-            response: MFAEmailVerificationStatusResponse(
+            response: EmailMFAVerificationStatusResponse(
                 enabled: user.emailVerificationEnabled,
                 verified: user.emailVerified
             )
@@ -318,7 +306,7 @@ struct EmailMFAController {
     }
 }
 
-/// Request for verifying email code
+/// Request for email verification
 struct EmailVerifyRequest: Codable {
     let email: String
     let code: String
@@ -329,10 +317,12 @@ struct ResendVerificationRequest: Codable {
     let email: String
 }
 
+/// Request for disabling email MFA
+
 /// Response for email verification status
-struct MFAEmailVerificationStatusResponse: Codable {
+struct EmailMFAVerificationStatusResponse: Codable {
     let enabled: Bool
     let verified: Bool
 }
 
-extension MFAEmailVerificationStatusResponse: ResponseEncodable {}
+extension EmailMFAVerificationStatusResponse: ResponseEncodable {}

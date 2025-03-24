@@ -5,6 +5,8 @@ import HummingbirdOTP
 import FluentKit
 import CryptoKit
 import HummingbirdFluent
+import HTTPTypes
+import HummingbirdBcrypt
 
 /// Controller for managing TOTP (Time-based One-Time Password) functionality
 struct TOTPController {
@@ -23,12 +25,12 @@ struct TOTPController {
             .get("status", use: getTOTPStatus)
     }
     
-    /// Initialize TOTP setup for a user
+    /// Initialize TOTP enable for a user
     /// Returns QR code URL and secret for manual entry
     @Sendable func enableTOTP(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<TOTPSetupResponse> {
+    ) async throws -> EditedResponse<TOTPEnableResponse> {
         guard let user = context.identity else {
             throw HTTPError(.unauthorized)
         }
@@ -54,7 +56,7 @@ struct TOTPController {
         
         return .init(
             status: .ok,
-            response: TOTPSetupResponse(
+            response: TOTPEnableResponse(
                 secret: secret,
                 qrCodeUrl: qrCodeUrl
             )
@@ -139,20 +141,35 @@ struct TOTPController {
             throw HTTPError(.unauthorized)
         }
         
-        // Verify current TOTP code before disabling
-        let disableRequest = try await request.decode(as: TOTPVerifyRequest.self, context: context)
-        
-        guard let secret = user.twoFactorSecret else {
+        // Check if MFA is enabled
+        guard user.twoFactorEnabled, user.twoFactorSecret != nil else {
             throw HTTPError(.badRequest, message: "MFA is not enabled")
         }
         
-        if !TOTPUtils.verifyTOTPCode(code: disableRequest.code, secret: secret) {
-            throw HTTPError(.unauthorized, message: "Invalid verification code")
+        // Get disable request with password
+        let disableRequest: DisableTOTPRequest
+        do {
+            disableRequest = try await request.decode(as: DisableTOTPRequest.self, context: context)
+        } catch {
+            throw HTTPError(.badRequest, message: "Password verification required")
+        }
+        
+        // Verify password
+        guard let passwordHash = user.passwordHash else {
+            throw HTTPError(.internalServerError, message: "Account configuration error. Please contact support.")
+        }
+        
+        // Perform password verification
+        let passwordValid = Bcrypt.verify(disableRequest.password, hash: passwordHash)
+        
+        if !passwordValid {
+            throw HTTPError(.unauthorized, message: "Invalid password")
         }
         
         // Disable MFA
         user.twoFactorEnabled = false
         user.twoFactorSecret = nil
+        user.tokenVersion += 1  // Increment token version to invalidate all existing tokens
         try await user.save(on: fluent.db())
         
         return .init(
@@ -184,7 +201,7 @@ struct TOTPController {
 
 // MARK: - Request/Response Types
 
-struct TOTPSetupResponse: Codable {
+struct TOTPEnableResponse: Codable {
     let secret: String
     let qrCodeUrl: String
 }
@@ -193,9 +210,13 @@ struct TOTPVerifyRequest: Codable {
     let code: String
 }
 
+struct DisableTOTPRequest: Codable {
+    let password: String
+}
+
 struct TOTPStatusResponse: Codable {
     let enabled: Bool
 }
 
-extension TOTPSetupResponse: ResponseEncodable {}
+extension TOTPEnableResponse: ResponseEncodable {}
 extension TOTPStatusResponse: ResponseEncodable {} 

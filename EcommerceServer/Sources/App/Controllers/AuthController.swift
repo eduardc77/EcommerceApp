@@ -94,15 +94,13 @@ struct AuthController {
 
         // Email MFA
         let emailMFA = mfa.group("email")
-        emailMFA.post("send", use: sendMFAEmailSignIn)
-            .post("verify", use: verifyEmailSignIn)
-            .post("resend", use: resendMFAEmailSignIn)
-            .get("status", use: getEmailMFAStatusSignIn)
+        emailMFA.post("send", use: sendEmailMFASignIn)
+            .post("verify", use: verifyEmailMFASignIn)
+            .post("resend", use: resendEmailMFASignIn)
 
         // TOTP MFA
         let totpMFA = mfa.group("totp")
         totpMFA.post("verify", use: verifyTOTPSignIn)
-            .get("status", use: getTOTPMFAStatusSignIn)
 
         // Password management
         let password = group.group("password")
@@ -820,7 +818,7 @@ struct AuthController {
         try await verificationCode.save(on: fluent.db())
         
         // Send verification email
-        try await emailService.sendMFASignInEmail(to: user.email, code: code)
+        try await emailService.sendEmailMFASignIn(to: user.email, code: code)
         
         return .init(
             status: .ok,
@@ -1217,7 +1215,7 @@ struct AuthController {
     }
 
     /// Verify email-based sign in attempt
-    @Sendable func verifyEmailSignIn(
+    @Sendable func verifyEmailMFASignIn(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<AuthResponse> {
@@ -1440,29 +1438,8 @@ struct AuthController {
         )
     }
 
-    /// Get email MFA status
-    @Sendable func getEmailMFAStatusSignIn(
-        _ request: Request,
-        context: Context
-    ) async throws -> EditedResponse<EmailVerificationStatusResponse> {
-        guard let user = context.identity else {
-            context.logger.notice("Unauthorized attempt to get email MFA status")
-            throw HTTPError(.unauthorized, message: "Authentication required")
-        }
-        
-        context.logger.info("Getting email MFA status for user: \(user.email)")
-        
-        return .init(
-            status: .ok,
-            response: EmailVerificationStatusResponse(
-                enabled: user.emailVerificationEnabled,
-                verified: user.emailVerified
-            )
-        )
-    }
-
     /// Send MFA email verification code
-    @Sendable func sendMFAEmailSignIn(
+    @Sendable func sendEmailMFASignIn(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<MessageResponse> {
@@ -1470,31 +1447,11 @@ struct AuthController {
     }
 
     /// Resend MFA email verification code
-    @Sendable func resendMFAEmailSignIn(
+    @Sendable func resendEmailMFASignIn(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<MessageResponse> {
         return try await requestEmailCode(request, context: context)
-    }
-
-    /// Get TOTP MFA status
-    @Sendable func getTOTPMFAStatusSignIn(
-        _ request: Request,
-        context: Context
-    ) async throws -> EditedResponse<TOTPMFAStatusResponse> {
-        guard let user = context.identity else {
-            context.logger.notice("Unauthorized attempt to get TOTP MFA status")
-            throw HTTPError(.unauthorized, message: "Authentication required")
-        }
-        
-        context.logger.info("Getting TOTP MFA status for user: \(user.email)")
-        
-        return .init(
-            status: .ok,
-            response: TOTPMFAStatusResponse(
-                enabled: user.twoFactorEnabled
-            )
-        )
     }
 
     // MARK: - TOTP MFA Forwarding
@@ -1502,7 +1459,7 @@ struct AuthController {
     @Sendable func enableTOTP(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<TOTPSetupResponse> {
+    ) async throws -> EditedResponse<TOTPEnableResponse> {
         try await totpController.enableTOTP(request, context: context)
     }
     
@@ -1553,7 +1510,7 @@ struct AuthController {
     @Sendable func getEmailMFAStatus(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<MFAEmailVerificationStatusResponse> {
+    ) async throws -> EditedResponse<EmailMFAVerificationStatusResponse> {
         try await emailVerificationController.getEmailMFAStatus(request, context: context)
     }
 }

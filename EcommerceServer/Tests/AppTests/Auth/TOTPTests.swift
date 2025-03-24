@@ -51,7 +51,7 @@ struct TOTPTests {
                 auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .ok)
-                let setupResponse = try JSONDecoder().decode(TOTPSetupResponse.self, from: response.body)
+                let setupResponse = try JSONDecoder().decode(TOTPEnableResponse.self, from: response.body)
                 #expect(setupResponse.secret.isEmpty == false)
                 #expect(setupResponse.qrCodeUrl.isEmpty == false)
                 return setupResponse
@@ -109,7 +109,7 @@ struct TOTPTests {
                 uri: "/api/v1/mfa/totp/disable",
                 method: .post,
                 auth: .bearer(finalAuthResponse.accessToken!),
-                body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: disableCode), allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(DisableTOTPRequest(password: "P@th3r#Bk9$mN"), allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .ok)
             }
@@ -155,7 +155,7 @@ struct TOTPTests {
                 auth: .bearer(initialAuthResponse.accessToken!)
             ) { response in
                 #expect(response.status == .ok)
-                return try JSONDecoder().decode(TOTPSetupResponse.self, from: response.body)
+                return try JSONDecoder().decode(TOTPEnableResponse.self, from: response.body)
             }
 
             let enableCode = try TOTP.generateTestCode(from: enableResponse.secret)
@@ -251,7 +251,7 @@ struct TOTPTests {
                 auth: .bearer(authResponse.accessToken!)
             ) { response in
                 #expect(response.status == .ok)
-                return try JSONDecoder().decode(TOTPSetupResponse.self, from: response.body)
+                return try JSONDecoder().decode(TOTPEnableResponse.self, from: response.body)
             }
 
             let enableCode = try TOTP.generateTestCode(from: setupResponse.secret)
