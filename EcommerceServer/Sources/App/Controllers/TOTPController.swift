@@ -72,6 +72,11 @@ struct TOTPController {
             throw HTTPError(.unauthorized)
         }
         
+        // Ensure email is verified before allowing MFA enable
+        guard user.emailVerified else {
+            throw HTTPError(.badRequest, message: "Email must be verified before enabling MFA")
+        }
+        
         // Decode verification request
         let verifyRequest = try await request.decode(as: TOTPVerifyRequest.self, context: context)
         

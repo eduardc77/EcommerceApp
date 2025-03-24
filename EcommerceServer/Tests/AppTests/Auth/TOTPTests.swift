@@ -316,4 +316,197 @@ struct TOTPTests {
             }
         }
     }
+
+    @Test("Password change invalidates tokens when TOTP is enabled")
+    func testPasswordChangeWithTOTPEnabled() async throws {
+        let app = try await buildApplication(TestAppArguments())
+        try await app.test(.router) { client in
+            // Create test user
+            let requestBody = TestCreateUserRequest(
+                username: "totp_pwd_change",
+                displayName: "TOTP Password Change User",
+                email: "totp_pwd_change@example.com",
+                password: "P@th3r#Bk9$mN",
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
+            )
+            try await client.execute(
+                uri: "/api/v1/auth/sign-up",
+                method: .post,
+                body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
+            ) { response in
+                #expect(response.status == .created)
+            }
+
+            // Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
+
+            // Login to get access token
+            let authResponse = try await client.execute(
+                uri: "/api/v1/auth/sign-in",
+                method: .post,
+                auth: .basic(username: "totp_pwd_change", password: "P@th3r#Bk9$mN")
+            ) { response in
+                #expect(response.status == .ok)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+            }
+
+            // Setup TOTP
+            let setupResponseData = try await client.execute(
+                uri: "/api/v1/mfa/totp/enable",
+                method: .post,
+                auth: .bearer(authResponse.accessToken!)
+            ) { response in
+                #expect(response.status == .ok)
+                return try JSONDecoder().decode(TOTPEnableResponse.self, from: response.body)
+            }
+
+            // Verify TOTP setup
+            let validCode = try TOTP.generateTestCode(from: setupResponseData.secret)
+            try await client.execute(
+                uri: "/api/v1/mfa/totp/verify",
+                method: .post,
+                auth: .bearer(authResponse.accessToken!),
+                body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: validCode), allocator: ByteBufferAllocator())
+            ) { response in
+                #expect(response.status == .ok)
+            }
+
+            // Sign in with TOTP
+            let mfaSignInResponse = try await client.execute(
+                uri: "/api/v1/auth/sign-in",
+                method: .post,
+                auth: .basic(username: "totp_pwd_change", password: "P@th3r#Bk9$mN")
+            ) { response in
+                #expect(response.status == .ok)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_MFA_TOTP_REQUIRED)
+                return authResponse
+            }
+
+            // Complete TOTP verification
+            let totpCode = try TOTP.generateTestCode(from: setupResponseData.secret)
+            let finalAuthResponse = try await client.execute(
+                uri: "/api/v1/auth/mfa/totp/verify",
+                method: .post,
+                body: JSONEncoder().encodeAsByteBuffer(
+                    TOTPVerificationRequest(stateToken: mfaSignInResponse.stateToken!, code: totpCode),
+                    allocator: ByteBufferAllocator())
+            ) { response in
+                #expect(response.status == .ok)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+            }
+
+            // Change password with TOTP enabled
+            try await client.execute(
+                uri: "/api/v1/auth/password/change",
+                method: .post,
+                auth: .bearer(finalAuthResponse.accessToken!),
+                body: JSONEncoder().encodeAsByteBuffer(
+                    ChangePasswordRequest(
+                        currentPassword: "P@th3r#Bk9$mN", 
+                        newPassword: "N3w!P@55w0rd$X"
+                    ),
+                    allocator: ByteBufferAllocator()
+                )
+            ) { response in
+                #expect(response.status == .ok)
+                let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
+                #expect(messageResponse.success)
+                #expect(messageResponse.message.contains("Password changed successfully"))
+            }
+
+            // Verify old token is invalidated
+            try await client.execute(
+                uri: "/api/v1/auth/me",
+                method: .get,
+                auth: .bearer(finalAuthResponse.accessToken!)
+            ) { response in
+                #expect(response.status == .unauthorized)
+            }
+
+            // Verify can login with new password + TOTP
+            let newSignInResponse = try await client.execute(
+                uri: "/api/v1/auth/sign-in",
+                method: .post,
+                auth: .basic(username: "totp_pwd_change", password: "N3w!P@55w0rd$X")
+            ) { response in
+                #expect(response.status == .ok)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_MFA_TOTP_REQUIRED)
+                return authResponse
+            }
+
+            // Complete TOTP verification with new login
+            let newTotpCode = try TOTP.generateTestCode(from: setupResponseData.secret)
+            try await client.execute(
+                uri: "/api/v1/auth/mfa/totp/verify",
+                method: .post,
+                body: JSONEncoder().encodeAsByteBuffer(
+                    TOTPVerificationRequest(stateToken: newSignInResponse.stateToken!, code: newTotpCode),
+                    allocator: ByteBufferAllocator())
+            ) { response in
+                #expect(response.status == .ok)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_SUCCESS)
+                #expect(authResponse.accessToken != nil)
+            }
+        }
+    }
+
+    @Test("Cannot enable TOTP without verifying email first")
+    func testCannotEnableTOTPWithoutVerification() async throws {
+        let app = try await buildApplication(TestAppArguments())
+        try await app.test(.router) { client in
+            // Create test user without verifying email
+            let requestBody = TestCreateUserRequest(
+                username: "totp_unverified",
+                displayName: "TOTP Unverified User",
+                email: "totp_unverified@example.com",
+                password: "P@th3r#Bk9$mN",
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
+            )
+            try await client.execute(
+                uri: "/api/v1/auth/sign-up",
+                method: .post,
+                body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
+            ) { response in
+                #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+            }
+
+            // Login to get access token (should still work without email verification)
+            let authResponse = try await client.execute(
+                uri: "/api/v1/auth/sign-in",
+                method: .post,
+                auth: .basic(username: "totp_unverified@example.com", password: "P@th3r#Bk9$mN")
+            ) { response in
+                #expect(response.status == .ok)
+                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+            }
+
+            // Enable TOTP (should successfully return setup data)
+            let setupResponse = try await client.execute(
+                uri: "/api/v1/mfa/totp/enable",
+                method: .post,
+                auth: .bearer(authResponse.accessToken!)
+            ) { response in
+                #expect(response.status == .ok)
+                return try JSONDecoder().decode(TOTPEnableResponse.self, from: response.body)
+            }
+
+            // Verify TOTP (should fail with bad request since email isn't verified)
+            let validCode = try TOTP.generateTestCode(from: setupResponse.secret)
+            try await client.execute(
+                uri: "/api/v1/mfa/totp/verify",
+                method: .post,
+                auth: .bearer(authResponse.accessToken!),
+                body: JSONEncoder().encodeAsByteBuffer(TOTPVerifyRequest(code: validCode), allocator: ByteBufferAllocator())
+            ) { response in
+                #expect(response.status == .badRequest)
+                let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
+                #expect(error.error.message.contains("Email must be verified before enabling MFA"))
+            }
+        }
+    }
 }
