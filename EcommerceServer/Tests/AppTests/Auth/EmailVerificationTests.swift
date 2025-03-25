@@ -22,7 +22,7 @@ struct EmailVerificationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
 
-            let signUpResponse = try await client.execute(
+            let _ = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())

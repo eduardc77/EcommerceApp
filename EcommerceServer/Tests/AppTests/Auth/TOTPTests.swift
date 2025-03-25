@@ -104,7 +104,7 @@ struct TOTPTests {
             }
 
             // Test TOTP disable with new token
-            let disableCode = try TOTP.generateTestCode(from: setupResponseData.secret)
+            let _ = try TOTP.generateTestCode(from: setupResponseData.secret)
             try await client.execute(
                 uri: "/api/v1/mfa/totp/disable",
                 method: .post,
@@ -112,6 +112,9 @@ struct TOTPTests {
                 body: JSONEncoder().encodeAsByteBuffer(DisableTOTPRequest(password: "P@th3r#Bk9$mN"), allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .ok)
+                   let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
+                   #expect(messageResponse.success == true)
+                   #expect(messageResponse.message.contains("disabled"))
             }
         }
     }
