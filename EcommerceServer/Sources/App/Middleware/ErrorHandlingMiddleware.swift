@@ -15,7 +15,7 @@ struct ErrorHandlingMiddleware: MiddlewareProtocol {
                     error: .init(message: error.body ?? "An error occurred")
                 )
             )
-            return try await response.response(from: request, context: context)
+            return try response.response(from: request, context: context)
         } catch {
             // Handle other errors
             context.logger.error("Unhandled error: \(error)")
@@ -25,7 +25,7 @@ struct ErrorHandlingMiddleware: MiddlewareProtocol {
                     error: .init(message: "An internal server error occurred")
                 )
             )
-            return try await response.response(from: request, context: context)
+            return try response.response(from: request, context: context)
         }
     }
 } 

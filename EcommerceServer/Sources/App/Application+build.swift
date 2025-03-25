@@ -10,6 +10,7 @@ import HummingbirdFluent
 // Database imports
 import FluentKit
 import FluentSQLiteDriver
+import FluentSQL
 
 // Networking imports
 import AsyncHTTPClient
@@ -91,6 +92,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     // add migrations
     await fluent.migrations.add(CreateUser())
     await fluent.migrations.add(EmailVerificationCode.Migration())
+    await fluent.migrations.add(CreateSession())
     
     // migrate
     let fileManager = FileManager.default
@@ -99,6 +101,25 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     let shouldMigrate = args.migrate || args.inMemoryDatabase || !fileManager.fileExists(atPath: dbPath)
     if shouldMigrate {
         logger.info("Running database migrations...")
+        
+        // For SQLite database, we can directly check tables
+        if let sqliteDB = fluent.db() as? SQLDatabase {
+            // Check if sessions table exists
+            do {
+                // Run direct query to check if table exists
+                let rows = try await sqliteDB.raw("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'").all()
+                let doesSessionsExist = !rows.isEmpty
+                
+                // If sessions table exists but might have the wrong schema, drop it first
+                if args.migrate && doesSessionsExist {
+                    logger.warning("Sessions table exists - dropping before recreating with correct schema")
+                    try await sqliteDB.raw("DROP TABLE IF EXISTS sessions").run()
+                }
+            } catch {
+                logger.warning("Could not check sessions table: \(error)")
+            }
+        }
+        
         try await fluent.migrate()
         logger.info("Database migrations completed successfully")
     }

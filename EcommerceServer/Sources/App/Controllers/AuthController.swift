@@ -116,6 +116,9 @@ struct AuthController {
             .post("password/change", use: changePassword)
             .post("token/revoke", use: revokeToken)
             .post("sign-out", use: signOut)
+            .get("sessions", use: listSessions)
+            .delete("sessions/:sessionId", use: revokeSession)
+            .post("sessions/revoke-all", use: revokeAllOtherSessions)
     }
 
     /// Sign in user with credentials
@@ -260,8 +263,18 @@ struct AuthController {
         }
 
         // For users without MFA, proceed with normal sign in
-        let expiresIn = Int(jwtConfig.accessTokenExpiration)
-        let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
+        var accessTokenExpiration = jwtConfig.accessTokenExpiration
+        
+        // Check for custom expiration time in header
+        if let tokenExpiryHeader = HTTPField.Name("X-Token-Expiry"),
+           let customExpiryStr = request.headers[tokenExpiryHeader],
+           let customExpiry = TimeInterval(customExpiryStr) {
+            // Ensure custom expiry is within reasonable bounds (5 seconds to max configured time)
+            accessTokenExpiration = min(max(customExpiry, 5), jwtConfig.accessTokenExpiration)
+        }
+        
+        let expiresIn = Int(accessTokenExpiration)
+        let accessExpirationDate = Date(timeIntervalSinceNow: accessTokenExpiration)
         let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
         let issuedAt = Date()
         
@@ -294,19 +307,172 @@ struct AuthController {
         let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
 
+        // Create session record (but don't fail if it doesn't work)
+        var sessionCreated = false
+        do {
+            _ = try await createSessionRecord(
+                userID: user.requireID(),
+                request: request,
+                tokenID: accessPayload.id,
+                context: context
+            )
+            sessionCreated = true
+            context.logger.info("Session created successfully")
+        } catch {
+            context.logger.error("Failed to create session record: \(error)")
+            // Keep track of failures for monitoring
+            if let fluentError = error as? FluentError {
+                context.logger.error("Database error during session creation: \(fluentError)")
+            }
+            // Continue with authentication even if session creation fails
+        }
+
         let dateFormatter = ISO8601DateFormatter()
+        
+        // Create response
+        let response = AuthResponse(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            tokenType: "Bearer",
+            expiresIn: UInt(expiresIn),
+            expiresAt: dateFormatter.string(from: accessExpirationDate),
+            user: UserResponse(from: user),
+            status: AuthResponse.STATUS_SUCCESS
+        )
+        
+        // Update metrics for session creation tracking
+        if !sessionCreated {
+            context.logger.warning("Authentication succeeded but session creation failed for user: \(user.email)")
+        }
+        
         return .init(
             status: .ok,
-            response: AuthResponse(
-                accessToken: accessToken,
-                refreshToken: refreshToken,
-                tokenType: "Bearer",
-                expiresIn: UInt(expiresIn),
-                expiresAt: dateFormatter.string(from: accessExpirationDate),
-                user: UserResponse(from: user),
-                status: AuthResponse.STATUS_SUCCESS
-            )
+            response: response
         )
+    }
+
+    /// Creates a session record for a successful authentication
+    /// - Parameters:
+    ///   - userID: User ID
+    ///   - request: The HTTP request that contains device info
+    ///   - tokenID: JWT token ID
+    ///   - context: Request context for logging
+    /// - Returns: The created session
+    private func createSessionRecord(
+        userID: UUID,
+        request: Request,
+        tokenID: String,
+        context: Context
+    ) async throws -> Session {
+        let db = fluent.db()
+        
+        context.logger.debug("Creating session for user ID: \(userID.uuidString), tokenID: \(tokenID)")
+        
+        // Extract session information
+        let deviceName: String
+        let userAgent: String
+        
+        if let deviceNameHeader = HTTPField.Name("X-Device-Name") {
+            deviceName = request.headers[deviceNameHeader] ?? "Unknown Device"
+        } else {
+            deviceName = "Unknown Device"
+        }
+        
+        if let userAgentHeader = HTTPField.Name("User-Agent") {
+            userAgent = request.headers[userAgentHeader] ?? "Unknown"
+        } else {
+            userAgent = "Unknown"
+        }
+        
+        // Get IP address with fallback
+        let ipAddress: String = {
+            if let forwardedForName = HTTPField.Name("X-Forwarded-For"),
+               let forwardedFor = request.headers[forwardedForName]?.split(separator: ",").first {
+                return String(forwardedFor).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if let realIPName = HTTPField.Name("X-Real-IP"),
+                      let realIP = request.headers[realIPName] {
+                return String(realIP)
+            }
+            return "127.0.0.1"
+        }()
+        
+        context.logger.debug("Session details - Device: \(deviceName), UA: \(userAgent), IP: \(ipAddress)")
+        
+        // First check if we have an existing session with this token ID
+        // This prevents duplicate session records and is more robust
+        if let existingSession = try await Session.query(on: db)
+            .filter(\.$tokenId == tokenID)
+            .first() {
+            context.logger.debug("Found existing session with this token ID: \(existingSession.id?.uuidString ?? "unknown")")
+            
+            // Update the existing session instead of creating a new one
+            existingSession.lastUsedAt = Date()
+            existingSession.isActive = true
+            try await existingSession.save(on: db)
+            context.logger.debug("Updated existing session")
+            return existingSession
+        }
+        
+        // Create new session in a transaction
+        return try await db.transaction { database in
+            // Verify user exists
+            guard try await User.find(userID, on: database) != nil else {
+                context.logger.error("Failed to create session: User with ID \(userID.uuidString) not found")
+                throw HTTPError(.internalServerError, message: "User not found")
+            }
+            
+            // Check for existing sessions and manage the total count
+            let sessionCount = try await Session.query(on: database)
+                .filter(\.$user.$id == userID)
+                .filter(\.$isActive == true)
+                .count()
+                
+            context.logger.debug("User has \(sessionCount) active sessions")
+            
+            // If over the limit, deactivate oldest sessions
+            let maxActiveSessions = self.jwtConfig.maxRefreshTokens
+            if sessionCount >= maxActiveSessions {
+                context.logger.debug("User has reached max sessions (\(maxActiveSessions)), will deactivate oldest")
+                
+                // Get oldest sessions
+                let oldestSessions = try await Session.query(on: database)
+                    .filter(\.$user.$id == userID)
+                    .filter(\.$isActive == true)
+                    .sort(\.$lastUsedAt, .ascending)
+                    .limit(sessionCount - maxActiveSessions + 1)
+                    .all()
+                
+                for oldSession in oldestSessions {
+                    context.logger.debug("Deactivating old session: \(oldSession.id?.uuidString ?? "unknown")")
+                    oldSession.isActive = false
+                    try await oldSession.save(on: database)
+                }
+            }
+            
+            // Create copies of variables to avoid capture issues in concurrent code
+            let sessionDeviceName = deviceName
+            let sessionIPAddress = ipAddress
+            let sessionUserAgent = userAgent
+            
+            // Create new session record
+            let session = Session()
+            session.id = UUID()
+            session.$user.id = userID
+            session.deviceName = sessionDeviceName
+            session.ipAddress = sessionIPAddress
+            session.userAgent = sessionUserAgent
+            session.tokenId = tokenID
+            session.isActive = true
+            session.lastUsedAt = Date()
+            session.createdAt = Date()
+            
+            context.logger.debug("Saving new session with ID: \(session.id?.uuidString ?? "unknown")")
+            
+            try await session.save(on: database)
+            
+            context.logger.info("Session created successfully for user ID: \(userID.uuidString)")
+            return session
+        }
     }
 
     /// Sign up a new user (public endpoint)
@@ -472,6 +638,19 @@ struct AuthController {
         let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
         
+        // Create session record (but don't fail if it doesn't work)
+        do {
+            _ = try await createSessionRecord(
+                userID: user.requireID(),
+                request: request,
+                tokenID: accessPayload.id,
+                context: context
+            )
+        } catch {
+            context.logger.error("Failed to create session record: \(error)")
+            // Continue with authentication even if session creation fails
+        }
+        
         let dateFormatter = ISO8601DateFormatter()
         return .init(
             status: .ok,
@@ -607,12 +786,286 @@ struct AuthController {
         // Add current access token to blacklist if present
         if let token = request.headers.bearer {
             let payload = try await self.jwtKeyCollection.verify(token.token, as: JWTPayloadData.self)
+            
+            // Mark current session as inactive in the database
+            let tokenId = payload.id
+            if let session = try await Session.query(on: fluent.db())
+                .filter(\.$user.$id == user.requireID())
+                .filter(\.$tokenId == tokenId)
+                .filter(\.$isActive == true)
+                .first() {
+                
+                session.isActive = false
+                try await session.save(on: fluent.db())
+                context.logger.info("Marked session as inactive: \(session.id?.uuidString ?? "unknown")")
+            } else {
+                context.logger.warning("No active session found for token ID: \(tokenId)")
+            }
+            
             await tokenStore.blacklist(token.token, expiresAt: payload.expiration.value, reason: .signOut)
             context.logger.info("Blacklisted access token for user \(user.email), expires: \(payload.expiration.value)")
         }
 
         context.logger.info("User logged out: \(user.email)")
         return Response(status: .noContent)
+    }
+
+    /// List all active sessions for the authenticated user
+    /// - Parameters:
+    ///   - request: The incoming HTTP request
+    ///   - context: The application request context
+    /// - Returns: List of user sessions
+    @Sendable func listSessions(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<SessionListResponse> {
+        guard let user = context.identity else {
+            throw HTTPError(.unauthorized, message: "User not authenticated")
+        }
+        
+        let logger = context.logger
+        let userId = user.id?.uuidString ?? "unknown"
+        logger.debug("Fetching sessions for user ID: \(userId)")
+        
+        // Get the current token ID from Authorization header
+        var currentTokenId: String? = nil
+        if let bearerToken = request.headers.bearer?.token {
+            do {
+                let payload = try await self.jwtKeyCollection.verify(bearerToken, as: JWTPayloadData.self)
+                currentTokenId = payload.id
+                logger.debug("Current token ID: \(payload.id)")
+            } catch {
+                logger.warning("Failed to verify bearer token: \(error)")
+                // Continue without current token ID
+            }
+        } else {
+            logger.debug("No bearer token in request")
+        }
+        
+        // Get all active sessions for user
+        do {
+            let db = fluent.db()
+            
+            // Diagnostic check: Make sure user exists in database first
+            let userCheck = try await User.find(user.id, on: db)
+            if userCheck == nil {
+                logger.error("User exists in context but not in database: \(userId)")
+                throw HTTPError(.internalServerError, message: "User data inconsistency")
+            }
+            
+            // Check if sessions table exists using direct SQL
+            logger.debug("Verifying sessions table access")
+            
+            // Get all active sessions for user with error handling
+            let sessions = try await Session.query(on: db)
+                .filter(\.$user.$id == user.requireID())
+                .filter(\.$isActive == true)
+                .sort(\.$lastUsedAt, .descending)
+                .all()
+            
+            logger.debug("Found \(sessions.count) active sessions")
+            
+            // If no session found for current token, create one now
+            if let tokenId = currentTokenId, 
+               !sessions.contains(where: { $0.tokenId == tokenId }) {
+                logger.warning("No session found for current token, creating one now")
+                
+                // Try to create a session for the current token
+                do {
+                    let session = try await createSessionRecord(
+                        userID: user.requireID(),
+                        request: request,
+                        tokenID: tokenId,
+                        context: context
+                    )
+                    logger.info("Created missing session: \(session.id?.uuidString ?? "unknown")")
+                    
+                    // Re-fetch the sessions to include the new one
+                    let updatedSessions = try await Session.query(on: db)
+                        .filter(\.$user.$id == user.requireID())
+                        .filter(\.$isActive == true)
+                        .sort(\.$lastUsedAt, .descending)
+                        .all()
+                        
+                    // Map to response objects
+                    let sessionResponses = updatedSessions.map { 
+                        SessionResponse(from: $0, currentTokenId: currentTokenId) 
+                    }
+                    
+                    return .init(
+                        status: .ok,
+                        response: SessionListResponse(
+                            sessions: sessionResponses, 
+                            currentSessionId: sessionResponses.first(where: { $0.isCurrent })?.id
+                        )
+                    )
+                } catch {
+                    logger.error("Failed to create missing session: \(error)")
+                    // Continue with existing sessions
+                }
+            }
+            
+            // Map to response objects
+            let sessionResponses = sessions.map { 
+                SessionResponse(from: $0, currentTokenId: currentTokenId) 
+            }
+            
+            return .init(
+                status: .ok,
+                response: SessionListResponse(
+                    sessions: sessionResponses, 
+                    currentSessionId: sessionResponses.first(where: { $0.isCurrent })?.id
+                )
+            )
+        } catch {
+            logger.error("Failed to retrieve sessions: \(error)")
+            throw HTTPError(.internalServerError, message: "Failed to retrieve sessions")
+        }
+    }
+    
+    /// Revoke a specific session
+    /// - Parameters:
+    ///   - request: The incoming HTTP request with session ID
+    ///   - context: The application request context
+    /// - Returns: Success message
+    @Sendable func revokeSession(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        guard let user = context.identity else {
+            throw HTTPError(.unauthorized, message: "User not authenticated")
+        }
+        
+        // Extract session ID from path parameters
+        guard let sessionIdParam = request.uri.path.split(separator: "/").last.map(String.init),
+              let sessionId = UUID(uuidString: sessionIdParam) else {
+            throw HTTPError(.badRequest, message: "Invalid session ID")
+        }
+        
+        // Find the session
+        guard let session = try await Session.query(on: fluent.db())
+            .filter(\.$id == sessionId)
+            .filter(\.$user.$id == user.requireID())
+            .first() else {
+            throw HTTPError(.notFound, message: "Session not found")
+        }
+        
+        // Check if this is the current session
+        var isCurrentSession = false
+        if let bearerToken = request.headers.bearer?.token {
+            do {
+                let payload = try await self.jwtKeyCollection.verify(bearerToken, as: JWTPayloadData.self)
+                isCurrentSession = payload.id == session.tokenId
+            } catch {
+                isCurrentSession = false
+            }
+        }
+        
+        // Mark session as inactive
+        session.isActive = false
+        try await session.save(on: fluent.db())
+        
+        // If this is the current session, blacklist the current token and increment token version
+        if isCurrentSession {
+            if let bearerToken = request.headers.bearer?.token {
+                let payload = try await self.jwtKeyCollection.verify(bearerToken, as: JWTPayloadData.self)
+                await tokenStore.blacklist(bearerToken, expiresAt: payload.expiration.value, reason: .sessionRevoked)
+                
+                // Increment token version to invalidate all tokens for this session
+                user.tokenVersion += 1
+                try await user.save(on: fluent.db())
+            }
+        } else {
+            // For non-current sessions, just blacklist the specific token
+            await tokenStore.blacklist(session.tokenId, expiresAt: Date().addingTimeInterval(3600), reason: .sessionRevoked)
+        }
+        
+        return .init(
+            status: .ok,
+            response: MessageResponse(
+                message: "Session revoked successfully",
+                success: true
+            )
+        )
+    }
+    
+    /// Revoke all sessions except the current one
+    /// - Parameters:
+    ///   - request: The incoming HTTP request
+    ///   - context: The application request context
+    /// - Returns: Success message
+    @Sendable func revokeAllOtherSessions(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        guard let user = context.identity else {
+            throw HTTPError(.unauthorized, message: "User not authenticated")
+        }
+        
+        // Get current session token ID
+        var currentTokenId: String? = nil
+        if let bearerToken = request.headers.bearer?.token {
+            do {
+                let payload = try await self.jwtKeyCollection.verify(bearerToken, as: JWTPayloadData.self)
+                currentTokenId = payload.id
+                context.logger.debug("Current token ID: \(payload.id)")
+            } catch {
+                context.logger.warning("Failed to verify bearer token: \(error)")
+                throw HTTPError(.unauthorized, message: "Invalid authentication token")
+            }
+        } else {
+            context.logger.debug("No bearer token in request")
+            throw HTTPError(.unauthorized, message: "Authentication required")
+        }
+        
+        guard let tokenId = currentTokenId else {
+            throw HTTPError(.internalServerError, message: "Failed to identify current session")
+        }
+        
+        // Find current session to keep active
+        guard let currentSession = try await Session.query(on: fluent.db())
+            .filter(\.$tokenId == tokenId)
+            .filter(\.$user.$id == user.requireID())
+            .first() else {
+            throw HTTPError(.notFound, message: "Current session not found")
+        }
+        
+        // Get all other active sessions
+        let otherSessions = try await Session.query(on: fluent.db())
+            .filter(\.$user.$id == user.requireID())
+            .filter(\.$id != currentSession.id!)
+            .filter(\.$isActive == true)
+            .all()
+        
+        // Blacklist all other session tokens
+        for session in otherSessions {
+            session.isActive = false
+            await tokenStore.blacklist(
+                session.tokenId,
+                expiresAt: Date().addingTimeInterval(86400), // 24 hours
+                reason: .sessionRevoked
+            )
+        }
+        
+        // Save changes to all sessions
+        try await Session.query(on: fluent.db())
+            .filter(\.$user.$id == user.requireID())
+            .filter(\.$id != currentSession.id!)
+            .filter(\.$isActive == true)
+            .set(\.$isActive, to: false)
+            .update()
+        
+        // Increment token version to invalidate all other tokens
+        user.tokenVersion += 1
+        try await user.save(on: fluent.db())
+        
+        return .init(
+            status: .ok,
+            response: MessageResponse(
+                message: "All other sessions have been revoked",
+                success: true
+            )
+        )
     }
 
     /// Get authenticated user information
@@ -1336,6 +1789,19 @@ struct AuthController {
 
         let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
+        
+        // Create session record (but don't fail if it doesn't work)
+        do {
+            _ = try await createSessionRecord(
+                userID: user.requireID(),
+                request: request,
+                tokenID: accessPayload.id,
+                context: context
+            )
+        } catch {
+            context.logger.error("Failed to create session record: \(error)")
+            // Continue with authentication even if session creation fails
+        }
         
         let dateFormatter = ISO8601DateFormatter()
         return .init(

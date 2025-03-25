@@ -16,6 +16,15 @@ protocol TokenStoreProtocol {
     ///   - reason: The reason for blacklisting the token
     func blacklist(_ token: String, expiresAt: Date, reason: TokenStore.BlacklistReason) async
     
+    /// Add a token to the blacklist with uniqueness constraint on JTI
+    /// - Parameters:
+    ///   - token: The JWT token to blacklist
+    ///   - jti: The JWT ID (jti) claim from the token
+    ///   - expiresAt: When the token expires (typically from JWT exp claim)
+    ///   - reason: The reason for blacklisting the token
+    /// - Throws: Error if the JTI is already blacklisted
+    func blacklistWithUniqueness(_ token: String, jti: String, expiresAt: Date, reason: TokenStore.BlacklistReason) async throws
+    
     /// Clean up expired tokens from the store
     func cleanup() async
 }
@@ -27,6 +36,9 @@ actor TokenStore: TokenStoreProtocol {
     /// Thread-safe storage for blacklisted tokens
     /// Maps token strings to their metadata
     private var blacklistedTokens: [String: BlacklistedToken] = [:]
+    
+    /// Set of blacklisted JTIs for enforcing uniqueness
+    private var blacklistedJTIs: Set<String> = []
     
     /// Maximum number of tokens to store in memory
     /// When this limit is reached, cleanup will be triggered
@@ -53,6 +65,7 @@ actor TokenStore: TokenStoreProtocol {
     /// Metadata for a blacklisted token
     private struct BlacklistedToken: Codable {
         let token: String
+        let jti: String?
         let expiresAt: Date
         let reason: BlacklistReason
         
@@ -68,6 +81,7 @@ actor TokenStore: TokenStoreProtocol {
         case passwordChanged
         case userRevoked
         case authenticationCancelled
+        case sessionRevoked
     }
     
     /// Check if a token is blacklisted
@@ -87,6 +101,9 @@ actor TokenStore: TokenStoreProtocol {
             } else {
                 // Token is expired, remove it from blacklist
                 blacklistedTokens.removeValue(forKey: token)
+                if let jti = blacklistedToken.jti {
+                    blacklistedJTIs.remove(jti)
+                }
                 logger.debug("Removed expired token from blacklist")
                 return false
             }
@@ -121,6 +138,7 @@ actor TokenStore: TokenStoreProtocol {
         // Create blacklisted token record
         let blacklistedToken = BlacklistedToken(
             token: token,
+            jti: nil,
             expiresAt: expiresAt,
             reason: reason
         )
@@ -128,6 +146,51 @@ actor TokenStore: TokenStoreProtocol {
         // Add to blacklist
         blacklistedTokens[token] = blacklistedToken
         logger.debug("Token blacklisted until \(expiresAt.ISO8601Format()) for reason: \(reason.rawValue)")
+    }
+    
+    /// Add a token to the blacklist with uniqueness constraint on JTI
+    /// - Parameters:
+    ///   - token: The JWT token to blacklist
+    ///   - jti: The JWT ID (jti) claim from the token
+    ///   - expiresAt: When the token expires (typically from JWT exp claim)
+    ///   - reason: The reason for blacklisting the token
+    /// - Throws: Error if the JTI is already blacklisted
+    public func blacklistWithUniqueness(_ token: String, jti: String, expiresAt: Date, reason: BlacklistReason) async throws {
+        // Don't blacklist already expired tokens
+        if expiresAt < Date() {
+            logger.warning("Attempted to blacklist an already expired token")
+            return
+        }
+        
+        // Check if JTI is already blacklisted
+        if blacklistedJTIs.contains(jti) {
+            logger.warning("Attempted to reuse JTI: \(jti)")
+            throw HTTPError(.unauthorized, message: "Token has already been used")
+        }
+        
+        // Check if we need to clean up before adding a new token
+        if blacklistedTokens.count >= maxTokens {
+            logger.notice("Token store reached capacity (\(maxTokens)), cleaning up before adding new token")
+            await cleanup()
+            
+            // If still at capacity after cleanup, log a warning
+            if blacklistedTokens.count >= maxTokens {
+                logger.warning("Token store still at capacity after cleanup, oldest tokens may be removed")
+            }
+        }
+        
+        // Create blacklisted token record
+        let blacklistedToken = BlacklistedToken(
+            token: token,
+            jti: jti,
+            expiresAt: expiresAt,
+            reason: reason
+        )
+        
+        // Add to blacklist and JTI set
+        blacklistedTokens[token] = blacklistedToken
+        blacklistedJTIs.insert(jti)
+        logger.debug("Token blacklisted with JTI \(jti) until \(expiresAt.ISO8601Format()) for reason: \(reason.rawValue)")
     }
     
     /// Clean up expired tokens from the store
@@ -139,8 +202,11 @@ actor TokenStore: TokenStoreProtocol {
         let expiredTokens = blacklistedTokens.filter { $0.value.expiresAt < now }
         
         if !expiredTokens.isEmpty {
-            for (key, _) in expiredTokens {
+            for (key, token) in expiredTokens {
                 blacklistedTokens.removeValue(forKey: key)
+                if let jti = token.jti {
+                    blacklistedJTIs.remove(jti)
+                }
             }
             
             logger.debug("Cleaned up \(expiredTokens.count) expired tokens from blacklist")
