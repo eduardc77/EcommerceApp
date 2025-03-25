@@ -382,4 +382,85 @@ struct TokenManagementTests {
             }
         }
     }
+
+    @Test("Can cancel authentication flow with state token")
+    func testCancelAuthentication() async throws {
+        let app = try await buildApplication(TestAppArguments())
+        
+        try await app.test(.router) { client in
+            // 1. Create user
+            let requestBody = TestCreateUserRequest(
+                username: "canceluser",
+                displayName: "Cancel Test User",
+                email: "cancel@example.com",
+                password: "K9#mP2$vL5nQ8*x",
+                profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
+            )
+            try await client.execute(
+                uri: "/api/v1/auth/sign-up",
+                method: .post,
+                body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
+            ) { response in
+                #expect(response.status == .created)
+            }
+            
+            // 2. Complete email verification
+            try await client.completeEmailVerification(email: requestBody.email)
+            
+            // 3. Enable TOTP for the user to ensure MFA flow
+            guard let fluent = app.services.first(where: { $0 is DatabaseService }) as? DatabaseService else {
+                throw HTTPError(.internalServerError, message: "Database service not found")
+            }
+            
+            guard let user = try await User.query(on: fluent.fluent.db())
+                .filter(\User.$email, .equal, requestBody.email)
+                .first() else {
+                throw HTTPError(.notFound, message: "User not found")
+            }
+            
+            user.twoFactorEnabled = true
+            user.twoFactorSecret = TOTPUtils.generateSecret()
+            try await user.save(on: fluent.fluent.db())
+            
+            // 4. Start authentication to get a state token
+            let initialResponse = try await client.execute(
+                uri: "/api/v1/auth/sign-in",
+                method: .post,
+                auth: .basic(username: requestBody.email, password: requestBody.password)
+            ) { response in
+                #expect(response.status == .ok)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.stateToken != nil)
+                #expect(authResponse.status == AuthResponse.STATUS_MFA_TOTP_REQUIRED)
+                return authResponse
+            }
+            
+            // 5. Cancel the authentication flow
+            try await client.execute(
+                uri: "/api/v1/auth/cancel",
+                method: .post,
+                body: JSONEncoder().encodeAsByteBuffer(
+                    ["stateToken": initialResponse.stateToken!],
+                    allocator: ByteBufferAllocator()
+                )
+            ) { response in
+                #expect(response.status == .ok)
+                let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
+                #expect(messageResponse.success)
+                #expect(messageResponse.message.contains("Authentication cancelled"))
+            }
+            
+            // 6. Try to use the cancelled state token for MFA verification
+            try await client.execute(
+                uri: "/api/v1/auth/mfa/totp/verify",
+                method: .post,
+                body: JSONEncoder().encodeAsByteBuffer(
+                    ["stateToken": initialResponse.stateToken!, "code": "123456"],
+                    allocator: ByteBufferAllocator()
+                )
+            ) { response in
+                #expect(response.status == .unauthorized)
+            }
+        }
+    }
 }

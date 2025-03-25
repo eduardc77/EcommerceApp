@@ -80,6 +80,7 @@ struct AuthController {
         group.post("sign-up", use: signUp)
             .post("sign-in", use: signIn)
             .post("token/refresh", use: refreshToken)
+            .post("cancel", use: cancelAuthentication)
 
         // Initial email verification
         let verifyEmail = group.group("verify-email")
@@ -1603,6 +1604,68 @@ struct AuthController {
                     maskedEmail: user.email.maskEmail()
                 )
             )
+        }
+    }
+
+    /// Cancel an in-progress authentication flow
+    /// Terminates a session with a stateToken and invalidates the token
+    /// - Parameters:
+    ///   - request: The HTTP request with the stateToken
+    ///   - context: The application request context
+    /// - Returns: A success message if the cancellation was successful
+    @Sendable func cancelAuthentication(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<MessageResponse> {
+        // Decode the cancellation request
+        struct CancelAuthRequest: Codable {
+            let stateToken: String
+        }
+        
+        let cancelRequest = try await request.decode(as: CancelAuthRequest.self, context: context)
+        
+        do {
+            // Verify and decode state token to get expiration and user info
+            let stateTokenPayload = try await self.jwtKeyCollection.verify(cancelRequest.stateToken, as: JWTPayloadData.self)
+            
+            // Ensure it's a state token
+            guard stateTokenPayload.type == "state_token" || stateTokenPayload.type == "email_verification" else {
+                throw HTTPError(.badRequest, message: "Invalid token type")
+            }
+            
+            // Blacklist the token
+            await tokenStore.blacklist(
+                cancelRequest.stateToken, 
+                expiresAt: stateTokenPayload.expiration.value, 
+                reason: .authenticationCancelled
+            )
+            
+            context.logger.info("Authentication flow cancelled with state token")
+            
+            return .init(
+                status: .ok,
+                response: MessageResponse(
+                    message: "Authentication cancelled successfully",
+                    success: true
+                )
+            )
+        } catch let error as JWTError {
+            // Handle JWT validation errors
+            context.logger.warning("Failed to cancel authentication: \(error.localizedDescription)")
+            
+            switch error.errorType {
+            case .claimVerificationFailure:
+                // Token is expired - no need to cancel it
+                return .init(
+                    status: .ok,
+                    response: MessageResponse(
+                        message: "Token already expired",
+                        success: true
+                    )
+                )
+            default:
+                throw HTTPError(.badRequest, message: "Invalid state token")
+            }
         }
     }
 }

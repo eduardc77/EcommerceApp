@@ -67,6 +67,7 @@ actor TokenStore: TokenStoreProtocol {
         case tokenVersionChange
         case passwordChanged
         case userRevoked
+        case authenticationCancelled
     }
     
     /// Check if a token is blacklisted
