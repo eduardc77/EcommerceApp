@@ -16,7 +16,7 @@ extension Data {
     func base64URLEncodedString() -> String {
         // First encode to regular base64
         let base64String = self.base64EncodedString()
-
+        
         // Then convert to base64URL by replacing specific characters
         return base64String
             .replacingOccurrences(of: "+", with: "-")
@@ -46,14 +46,14 @@ struct AuthController {
     let emailService: EmailService
     let totpController: TOTPController
     let emailVerificationController: EmailMFAController
-
+    
     // Rate limiting configuration
     private let maxSignInAttempts: Int
     private let signInLockoutDuration: TimeInterval
-
+    
     // Token store for blacklisting
     private let tokenStore: TokenStoreProtocol
-
+    
     init(jwtKeyCollection: JWTKeyCollection, kid: JWKIdentifier, fluent: Fluent, tokenStore: TokenStoreProtocol, emailService: EmailService, totpController: TOTPController, emailVerificationController: EmailMFAController) {
         self.jwtKeyCollection = jwtKeyCollection
         self.kid = kid
@@ -65,51 +65,51 @@ struct AuthController {
         
         // Load configuration with graceful fallback
         self.jwtConfig = JWTConfiguration.load()
-
+        
         // Update rate limiting configuration from loaded config
         self.maxSignInAttempts = jwtConfig.maxFailedAttempts
         self.signInLockoutDuration = jwtConfig.lockoutDuration
     }
-
+    
     /// Add public routes for auth controller
     func addPublicRoutes(to group: RouterGroup<Context>) {
         // Add security headers middleware
         group.add(middleware: SecurityHeadersMiddleware())
-
+        
         // Core auth
         group.post("sign-up", use: signUp)
             .post("sign-in", use: signIn)
             .post("token/refresh", use: refreshToken)
             .post("cancel", use: cancelAuthentication)
-
+        
         // Initial email verification
         let verifyEmail = group.group("verify-email")
         verifyEmail.post("send", use: sendInitialVerificationEmail)
             .post("confirm", use: verifyInitialEmail)
             .post("resend", use: resendVerificationEmail)
             .get("status", use: getEmailVerificationStatus)
-
+        
         // MFA
         let mfa = group.group("mfa")
         mfa.get("methods", use: getMFAMethods)
             .post("select", use: selectMFAMethod)
-
+        
         // Email MFA
         let emailMFA = mfa.group("email")
         emailMFA.post("send", use: sendEmailMFASignIn)
             .post("verify", use: verifyEmailMFASignIn)
             .post("resend", use: resendEmailMFASignIn)
-
+        
         // TOTP MFA
         let totpMFA = mfa.group("totp")
         totpMFA.post("verify", use: verifyTOTPSignIn)
-
+        
         // Password management
         let password = group.group("password")
         password.post("forgot", use: forgotPassword)
             .post("reset", use: resetPassword)
     }
-
+    
     /// Add protected routes for auth controller
     func addProtectedRoutes(to group: RouterGroup<Context>) {
         group.get("me", use: getCurrentUser)
@@ -120,7 +120,7 @@ struct AuthController {
             .delete("sessions/:sessionId", use: revokeSession)
             .post("sessions/revoke-all", use: revokeAllOtherSessions)
     }
-
+    
     /// Sign in user with credentials
     /// 
     /// The authentication flow is as follows:
@@ -144,7 +144,7 @@ struct AuthController {
         guard let basic = request.headers.basic else {
             throw HTTPError(.unauthorized, message: "Invalid credentials")
         }
-
+        
         // Try to find user by email or username
         let user = try await User.query(on: fluent.db())
             .group(.or) { group in
@@ -152,11 +152,11 @@ struct AuthController {
                 group.filter(\.$username == basic.username)
             }
             .first()
-
+        
         guard let user = user else {
             throw HTTPError(.unauthorized, message: "Invalid credentials")
         }
-
+        
         // Check for account lockout
         if user.isLocked() {
             if let lockoutUntil = user.lockoutUntil {
@@ -164,29 +164,29 @@ struct AuthController {
                 var headers = HTTPFields()
                 headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(max(0, retryAfter))"))
                 throw HTTPError(.tooManyRequests,
-                              headers: headers,
-                              message: "Account is temporarily locked. Please try again later."
+                                headers: headers,
+                                message: "Account is temporarily locked. Please try again later."
                 )
             }
             throw HTTPError(.tooManyRequests, message: "Account is temporarily locked. Please try again later.")
         }
-
+        
         // Verify password
         guard let passwordHash = user.passwordHash else {
             context.logger.error("User \(user.email) has no password hash")
             throw HTTPError(.unauthorized, message: "Invalid credentials")
         }
-
+        
         // Perform password verification
         let passwordValid = try await NIOThreadPool.singleton.runIfActive({
             Bcrypt.verify(basic.password, hash: passwordHash)
         })
-
+        
         if !passwordValid {
             // Password verification failed - increment failed attempts
             user.incrementFailedSignInAttempts()
             try await user.save(on: fluent.db())
-
+            
             // If now locked, throw too many requests
             if user.isLocked() {
                 if let lockoutUntil = user.lockoutUntil {
@@ -194,25 +194,25 @@ struct AuthController {
                     var headers = HTTPFields()
                     headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(max(0, retryAfter))"))
                     throw HTTPError(.tooManyRequests,
-                                  headers: headers,
-                                  message: "Account is temporarily locked. Please try again later."
+                                    headers: headers,
+                                    message: "Account is temporarily locked. Please try again later."
                     )
                 }
                 throw HTTPError(.tooManyRequests, message: "Account is temporarily locked. Please try again later.")
             }
             throw HTTPError(.unauthorized, message: "Invalid credentials")
         }
-
+        
         // Password verification succeeded - reset failed attempts if needed
         if user.failedSignInAttempts > 0 {
             user.resetFailedSignInAttempts()
             try await user.save(on: fluent.db())
         }
-
+        
         // Update last sign in timestamp
         user.updateLastSignIn()
         try await user.save(on: fluent.db())
-
+        
         // Check if any MFA methods are enabled
         let hasTOTP = user.twoFactorEnabled
         let hasEmailMFA = user.emailVerificationEnabled
@@ -261,7 +261,7 @@ struct AuthController {
                 )
             )
         }
-
+        
         // For users without MFA, proceed with normal sign in
         var accessTokenExpiration = jwtConfig.accessTokenExpiration
         
@@ -290,7 +290,7 @@ struct AuthController {
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-
+        
         // Create refresh token with same version
         let refreshPayload = JWTPayloadData(
             subject: SubjectClaim(value: try user.requireID().uuidString),
@@ -303,30 +303,33 @@ struct AuthController {
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-
+        
         let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
-
-        // Create session record (but don't fail if it doesn't work)
-        var sessionCreated = false
-        do {
-            _ = try await createSessionRecord(
-                userID: user.requireID(),
-                request: request,
-                tokenID: accessPayload.id,
-                context: context
-            )
-            sessionCreated = true
-            context.logger.info("Session created successfully")
-        } catch {
-            context.logger.error("Failed to create session record: \(error)")
-            // Keep track of failures for monitoring
-            if let fluentError = error as? FluentError {
-                context.logger.error("Database error during session creation: \(fluentError)")
-            }
-            // Continue with authentication even if session creation fails
-        }
-
+        
+        // Creates necessary records after successful authentication
+        // - Parameters:
+        //   - user: The authenticated user
+        //   - request: The HTTP request
+        //   - accessToken: The JWT access token
+        //   - refreshToken: The JWT refresh token
+        //   - accessPayload: The access token payload
+        //   - refreshPayload: The refresh token payload
+        //   - accessExpirationDate: Expiration date for the access token
+        //   - refreshExpirationDate: Expiration date for the refresh token
+        //   - context: Request context
+        await createTokenOnSuccessfulAuthentication(
+            user: user,
+            request: request,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            accessPayload: accessPayload,
+            refreshPayload: refreshPayload,
+            accessExpirationDate: accessExpirationDate,
+            refreshExpirationDate: refreshExpirationDate,
+            context: context
+        )
+        
         let dateFormatter = ISO8601DateFormatter()
         
         // Create response
@@ -340,17 +343,76 @@ struct AuthController {
             status: AuthResponse.STATUS_SUCCESS
         )
         
-        // Update metrics for session creation tracking
-        if !sessionCreated {
-            context.logger.warning("Authentication succeeded but session creation failed for user: \(user.email)")
-        }
-        
         return .init(
             status: .ok,
             response: response
         )
     }
-
+    
+    /// Creates necessary records after successful authentication
+    /// - Parameters:
+    ///   - user: The authenticated user
+    ///   - request: The HTTP request
+    ///   - accessToken: The JWT access token
+    ///   - refreshToken: The JWT refresh token
+    ///   - accessPayload: The access token payload
+    ///   - refreshPayload: The refresh token payload
+    ///   - accessExpirationDate: Expiration date for the access token
+    ///   - refreshExpirationDate: Expiration date for the refresh token
+    ///   - context: Request context
+    private func createTokenOnSuccessfulAuthentication(
+        user: User,
+        request: Request,
+        accessToken: String,
+        refreshToken: String,
+        accessPayload: JWTPayloadData,
+        refreshPayload: JWTPayloadData,
+        accessExpirationDate: Date,
+        refreshExpirationDate: Date,
+        context: Context
+    ) async {
+        // Create session record (but don't fail if it doesn't work)
+        var sessionCreated = false
+        var sessionId: UUID? = nil
+        do {
+            let session = try await createSessionRecord(
+                userID: user.requireID(),
+                request: request,
+                tokenID: accessPayload.id,
+                context: context
+            )
+            sessionId = session.id
+            sessionCreated = true
+            context.logger.info("Session created successfully")
+            
+            // Create token record if session was created successfully
+            if let sessionId = sessionId {
+                _ = try await createTokenRecord(
+                    accessToken: accessToken,
+                    refreshToken: refreshToken,
+                    accessJti: accessPayload.id,
+                    refreshJti: refreshPayload.id,
+                    accessExpirationDate: accessExpirationDate,
+                    refreshExpirationDate: refreshExpirationDate,
+                    sessionId: sessionId
+                )
+                context.logger.info("Token record created successfully")
+            }
+        } catch {
+            context.logger.error("Failed to create session record: \(error)")
+            // Keep track of failures for monitoring
+            if let fluentError = error as? FluentError {
+                context.logger.error("Database error during session creation: \(fluentError)")
+            }
+            // Continue with authentication even if session creation fails
+        }
+        
+        // Update metrics for session creation tracking
+        if !sessionCreated {
+            context.logger.warning("Authentication succeeded but session creation failed for user: \(user.email)")
+        }
+    }
+    
     /// Creates a session record for a successful authentication
     /// - Parameters:
     ///   - userID: User ID
@@ -426,7 +488,7 @@ struct AuthController {
                 .filter(\.$user.$id == userID)
                 .filter(\.$isActive == true)
                 .count()
-                
+            
             context.logger.debug("User has \(sessionCount) active sessions")
             
             // If over the limit, deactivate oldest sessions
@@ -474,7 +536,7 @@ struct AuthController {
             return session
         }
     }
-
+    
     /// Sign up a new user (public endpoint)
     /// Returns a stateToken for email verification
     @Sendable func signUp(
@@ -485,9 +547,9 @@ struct AuthController {
             as: CreateUserRequest.self,
             context: context
         )
-
+        
         let db = self.fluent.db()
-
+        
         // Check if username exists
         if let _ = try await User.query(on: db)
             .filter(\.$username == createUser.username)
@@ -495,7 +557,7 @@ struct AuthController {
             context.logger.notice("Username already exists: \(createUser.username)")
             throw HTTPError(.conflict, message: "Username already exists")
         }
-
+        
         // Check if email exists
         if let _ = try await User.query(on: db)
             .filter(\.$email == createUser.email)
@@ -503,12 +565,12 @@ struct AuthController {
             context.logger.notice("Email already exists: \(createUser.email)")
             throw HTTPError(.conflict, message: "Email already exists")
         }
-
+        
         // Create and save user with default customer role
         let user = try await User(from: createUser)
         user.role = .customer  // Always set to customer for public registration
         try await user.save(on: db)
-
+        
         // Generate temporary token for email verification
         let tempTokenPayload = JWTPayloadData(
             subject: SubjectClaim(value: try user.requireID().uuidString),
@@ -523,7 +585,7 @@ struct AuthController {
         )
         
         let stateToken = try await self.jwtKeyCollection.sign(tempTokenPayload, kid: self.kid)
-
+        
         // Return AuthResponse with stateToken and user info
         return .init(
             status: .created,
@@ -535,7 +597,7 @@ struct AuthController {
             )
         )
     }
-
+    
     /// Verify TOTP during sign-in
     @Sendable func verifyTOTPSignIn(
         _ request: Request,
@@ -587,8 +649,8 @@ struct AuthController {
                     var headers = HTTPFields()
                     headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(max(0, retryAfter))"))
                     throw HTTPError(.tooManyRequests,
-                                  headers: headers,
-                                  message: "Account is temporarily locked. Please try again later."
+                                    headers: headers,
+                                    message: "Account is temporarily locked. Please try again later."
                     )
                 }
                 throw HTTPError(.tooManyRequests, message: "Account is temporarily locked. Please try again later.")
@@ -621,7 +683,7 @@ struct AuthController {
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-
+        
         // Create refresh token
         let refreshPayload = JWTPayloadData(
             subject: SubjectClaim(value: try user.requireID().uuidString),
@@ -634,22 +696,32 @@ struct AuthController {
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-
+        
         let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
         
-        // Create session record (but don't fail if it doesn't work)
-        do {
-            _ = try await createSessionRecord(
-                userID: user.requireID(),
-                request: request,
-                tokenID: accessPayload.id,
-                context: context
-            )
-        } catch {
-            context.logger.error("Failed to create session record: \(error)")
-            // Continue with authentication even if session creation fails
-        }
+        // Creates necessary records after successful authentication
+        // - Parameters:
+        //   - user: The authenticated user
+        //   - request: The HTTP request
+        //   - accessToken: The JWT access token
+        //   - refreshToken: The JWT refresh token
+        //   - accessPayload: The access token payload
+        //   - refreshPayload: The refresh token payload
+        //   - accessExpirationDate: Expiration date for the access token
+        //   - refreshExpirationDate: Expiration date for the refresh token
+        //   - context: Request context
+        await createTokenOnSuccessfulAuthentication(
+            user: user,
+            request: request,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            accessPayload: accessPayload,
+            refreshPayload: refreshPayload,
+            accessExpirationDate: accessExpirationDate,
+            refreshExpirationDate: refreshExpirationDate,
+            context: context
+        )
         
         let dateFormatter = ISO8601DateFormatter()
         return .init(
@@ -665,7 +737,7 @@ struct AuthController {
             )
         )
     }
-
+    
     /// Refresh JWT token using a refresh token
     /// - Parameters:
     ///   - request: The incoming HTTP request
@@ -681,12 +753,12 @@ struct AuthController {
             let refreshToken: String
         }
         let refreshRequest = try await request.decode(as: RefreshRequest.self, context: context)
-
+        
         // Check if token is blacklisted
         if await tokenStore.isBlacklisted(refreshRequest.refreshToken) {
             throw HTTPError(.unauthorized, message: "Token has been revoked")
         }
-
+        
         // Verify and decode refresh token
         let refreshPayload = try await self.jwtKeyCollection.verify(refreshRequest.refreshToken, as: JWTPayloadData.self)
         
@@ -705,20 +777,35 @@ struct AuthController {
               tokenVersion == user.tokenVersion else {
             throw HTTPError(.unauthorized, message: "Invalid token version")
         }
-
-        // Blacklist the used refresh token immediately
+        
+        // Create token rotation service
+        let tokenRotationService = TokenRotationService(
+            db: fluent.db(),
+            tokenStore: tokenStore,
+            logger: context.logger
+        )
+        
+        // Check if token is valid for rotation
+        let isValidForRotation = try await tokenRotationService.isValidForRotation(jti: refreshPayload.id)
+        if !isValidForRotation {
+            // If not valid, immediately blacklist the token
+            await tokenStore.blacklist(refreshRequest.refreshToken, expiresAt: refreshPayload.expiration.value, reason: .tokenVersionChange)
+            throw HTTPError(.unauthorized, message: "This refresh token cannot be used")
+        }
+        
+        // Blacklist the used refresh token immediately (keep this for backward compatibility)
         await tokenStore.blacklist(refreshRequest.refreshToken, expiresAt: refreshPayload.expiration.value, reason: .tokenVersionChange)
-
-        // Increment token version to invalidate all previous tokens
-        user.tokenVersion += 1
-        try await user.save(on: fluent.db())
-
-        // Generate new access token with new version
+        
+        // Generate new tokens
         let expiresIn = Int(jwtConfig.accessTokenExpiration)
         let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
         let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
         let issuedAt = Date()
-
+        
+        // Create new token IDs
+        let newAccessJti = UUID().uuidString
+        let newRefreshJti = UUID().uuidString
+        
         // Create access token
         let accessPayload = JWTPayloadData(
             subject: SubjectClaim(value: refreshPayload.subject.value),
@@ -727,11 +814,11 @@ struct AuthController {
             issuer: jwtConfig.issuer,
             audience: jwtConfig.audience,
             issuedAt: issuedAt,
-            id: UUID().uuidString,
+            id: newAccessJti,
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-
+        
         // Create refresh token with same version
         let newRefreshPayload = JWTPayloadData(
             subject: SubjectClaim(value: refreshPayload.subject.value),
@@ -740,14 +827,71 @@ struct AuthController {
             issuer: jwtConfig.issuer,
             audience: jwtConfig.audience,
             issuedAt: issuedAt,
-            id: UUID().uuidString,
+            id: newRefreshJti,
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-
+        
         let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         let newRefreshToken = try await self.jwtKeyCollection.sign(newRefreshPayload, kid: self.kid)
-
+        
+        // Track and rotate tokens
+        if let existingToken = try await Token.query(on: fluent.db())
+            .filter(\.$refreshToken == refreshRequest.refreshToken)
+            .first() {
+            // Get session ID
+            let sessionId = existingToken.$session.id
+            
+            // Create new token entry
+            let token = Token(
+                accessToken: accessToken,
+                refreshToken: newRefreshToken,
+                accessTokenExpiresAt: accessExpirationDate,
+                refreshTokenExpiresAt: refreshExpirationDate,
+                jti: newRefreshJti,
+                parentJti: refreshPayload.id,
+                familyId: existingToken.familyId,
+                generation: existingToken.generation + 1,
+                sessionId: sessionId
+            )
+            try await token.save(on: fluent.db())
+            
+            // Apply rotation
+            _ = try await tokenRotationService.rotateToken(
+                oldJti: refreshPayload.id,
+                newJti: newRefreshJti,
+                refreshToken: newRefreshToken,
+                expiresAt: refreshExpirationDate
+            )
+        } else {
+            // Fallback for existing tokens that weren't properly tracked
+            // This handles backward compatibility
+            context.logger.warning("Token not found in database, creating new record")
+            
+            // Look up session by user and timestamp (best effort)
+            let session = try await Session.query(on: fluent.db())
+                .filter(\.$user.$id == user.requireID())
+                .filter(\.$isActive == true)
+                .sort(\.$lastUsedAt, .descending)
+                .first()
+            
+            if let session = session {
+                // Create new token with default values
+                let token = Token(
+                    accessToken: accessToken,
+                    refreshToken: newRefreshToken,
+                    accessTokenExpiresAt: accessExpirationDate,
+                    refreshTokenExpiresAt: refreshExpirationDate,
+                    jti: newRefreshJti,
+                    parentJti: refreshPayload.id,
+                    familyId: UUID(), // New family
+                    generation: 0,
+                    sessionId: session.id!
+                )
+                try await token.save(on: fluent.db())
+            }
+        }
+        
         let dateFormatter = ISO8601DateFormatter()
         return EditedResponse(
             status: .ok,
@@ -762,7 +906,7 @@ struct AuthController {
             )
         )
     }
-
+    
     /// Sign out user by invalidating their refresh tokens and blacklisting current access token
     /// - Parameters:
     ///   - request: The incoming HTTP request
@@ -776,13 +920,13 @@ struct AuthController {
         guard let user = context.identity else {
             throw HTTPError(.unauthorized, message: "User not authenticated")
         }
-
+        
         // Increment token version to invalidate all tokens
         let oldVersion = user.tokenVersion
         user.tokenVersion += 1
         try await user.save(on: fluent.db())
         context.logger.info("Incremented token version for user \(user.email): \(oldVersion) -> \(user.tokenVersion)")
-
+        
         // Add current access token to blacklist if present
         if let token = request.headers.bearer {
             let payload = try await self.jwtKeyCollection.verify(token.token, as: JWTPayloadData.self)
@@ -805,11 +949,11 @@ struct AuthController {
             await tokenStore.blacklist(token.token, expiresAt: payload.expiration.value, reason: .signOut)
             context.logger.info("Blacklisted access token for user \(user.email), expires: \(payload.expiration.value)")
         }
-
+        
         context.logger.info("User logged out: \(user.email)")
         return Response(status: .noContent)
     }
-
+    
     /// List all active sessions for the authenticated user
     /// - Parameters:
     ///   - request: The incoming HTTP request
@@ -867,7 +1011,7 @@ struct AuthController {
             
             // If no session found for current token, create one now
             if let tokenId = currentTokenId, 
-               !sessions.contains(where: { $0.tokenId == tokenId }) {
+                !sessions.contains(where: { $0.tokenId == tokenId }) {
                 logger.warning("No session found for current token, creating one now")
                 
                 // Try to create a session for the current token
@@ -886,7 +1030,7 @@ struct AuthController {
                         .filter(\.$isActive == true)
                         .sort(\.$lastUsedAt, .descending)
                         .all()
-                        
+                    
                     // Map to response objects
                     let sessionResponses = updatedSessions.map { 
                         SessionResponse(from: $0, currentTokenId: currentTokenId) 
@@ -1067,7 +1211,7 @@ struct AuthController {
             )
         )
     }
-
+    
     /// Get authenticated user information
     /// - Parameters:
     ///   - request: The incoming HTTP request
@@ -1227,7 +1371,7 @@ struct AuthController {
             )
         }
     }
-
+    
     /// Request a new email verification code during sign in
     @Sendable func requestEmailCode(
         _ request: Request,
@@ -1307,7 +1451,7 @@ struct AuthController {
             )
         )
     }
-
+    
     /// Request a password reset for a user
     @Sendable func forgotPassword(
         _ request: Request,
@@ -1631,7 +1775,7 @@ struct AuthController {
             )
         )
     }
-
+    
     /// Generate a state token for multi-step auth flow
     private func generateStateToken(for user: User) async throws -> String {
         // Generate temporary token for auth flow state
@@ -1649,7 +1793,7 @@ struct AuthController {
         
         return try await self.jwtKeyCollection.sign(stateTokenPayload, kid: self.kid)
     }
-
+    
     /// Revoke a specific token
     @Sendable func revokeToken(
         _ request: Request,
@@ -1693,7 +1837,7 @@ struct AuthController {
             )
         }
     }
-
+    
     /// Verify email MFA during sign-in
     @Sendable func verifyEmailMFASignIn(
         _ request: Request,
@@ -1773,7 +1917,7 @@ struct AuthController {
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-
+        
         // Create refresh token with same version
         let refreshPayload = JWTPayloadData(
             subject: SubjectClaim(value: try user.requireID().uuidString),
@@ -1786,22 +1930,32 @@ struct AuthController {
             role: user.role.rawValue,
             tokenVersion: user.tokenVersion
         )
-
+        
         let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
         let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
         
-        // Create session record (but don't fail if it doesn't work)
-        do {
-            _ = try await createSessionRecord(
-                userID: user.requireID(),
-                request: request,
-                tokenID: accessPayload.id,
-                context: context
-            )
-        } catch {
-            context.logger.error("Failed to create session record: \(error)")
-            // Continue with authentication even if session creation fails
-        }
+        // Creates necessary records after successful authentication
+        // - Parameters:
+        //   - user: The authenticated user
+        //   - request: The HTTP request
+        //   - accessToken: The JWT access token
+        //   - refreshToken: The JWT refresh token
+        //   - accessPayload: The access token payload
+        //   - refreshPayload: The refresh token payload
+        //   - accessExpirationDate: Expiration date for the access token
+        //   - refreshExpirationDate: Expiration date for the refresh token
+        //   - context: Request context
+        await createTokenOnSuccessfulAuthentication(
+            user: user,
+            request: request,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            accessPayload: accessPayload,
+            refreshPayload: refreshPayload,
+            accessExpirationDate: accessExpirationDate,
+            refreshExpirationDate: refreshExpirationDate,
+            context: context
+        )
         
         let dateFormatter = ISO8601DateFormatter()
         return .init(
@@ -1817,7 +1971,7 @@ struct AuthController {
             )
         )
     }
-
+    
     /// Resend verification email for initial email verification
     @Sendable func resendVerificationEmail(
         _ request: Request,
@@ -1868,7 +2022,7 @@ struct AuthController {
             )
         )
     }
-
+    
     /// Get verification status for initial email verification
     @Sendable func getVerificationStatus(
         _ request: Request,
@@ -1889,7 +2043,7 @@ struct AuthController {
             )
         )
     }
-
+    
     /// Get email verification status
     @Sendable func getEmailVerificationStatus(
         _ request: Request,
@@ -1910,7 +2064,7 @@ struct AuthController {
             )
         )
     }
-
+    
     /// Get available MFA methods for the user
     @Sendable func getMFAMethods(
         _ request: Request,
@@ -1931,7 +2085,7 @@ struct AuthController {
             )
         )
     }
-
+    
     /// Send MFA email verification code
     @Sendable func sendEmailMFASignIn(
         _ request: Request,
@@ -1939,7 +2093,7 @@ struct AuthController {
     ) async throws -> EditedResponse<MessageResponse> {
         return try await requestEmailCode(request, context: context)
     }
-
+    
     /// Resend MFA email verification code
     @Sendable func resendEmailMFASignIn(
         _ request: Request,
@@ -1947,7 +2101,7 @@ struct AuthController {
     ) async throws -> EditedResponse<MessageResponse> {
         return try await requestEmailCode(request, context: context)
     }
-
+    
     // MARK: - TOTP MFA Forwarding
     
     @Sendable func enableTOTP(
@@ -2007,7 +2161,7 @@ struct AuthController {
     ) async throws -> EditedResponse<EmailMFAVerificationStatusResponse> {
         try await emailVerificationController.getEmailMFAStatus(request, context: context)
     }
-
+    
     /// Select MFA method to use during sign-in
     /// 
     /// This endpoint allows users to choose which MFA method they want to use to complete sign-in.
@@ -2072,7 +2226,7 @@ struct AuthController {
             )
         }
     }
-
+    
     /// Cancel an in-progress authentication flow
     /// Terminates a session with a stateToken and invalidates the token
     /// - Parameters:
@@ -2134,19 +2288,55 @@ struct AuthController {
             }
         }
     }
+    
+    /// Creates a token record in the database for JWT tokens
+    /// - Parameters:
+    ///   - accessToken: The access token string
+    ///   - refreshToken: The refresh token string
+    ///   - accessJti: JWT ID of the access token
+    ///   - refreshJti: JWT ID of the refresh token
+    ///   - accessExpirationDate: Expiration date for access token
+    ///   - refreshExpirationDate: Expiration date for refresh token
+    ///   - sessionId: Session ID to associate with the token
+    /// - Returns: The created token record
+    private func createTokenRecord(
+        accessToken: String,
+        refreshToken: String,
+        accessJti: String,
+        refreshJti: String,
+        accessExpirationDate: Date,
+        refreshExpirationDate: Date,
+        sessionId: UUID
+    ) async throws -> Token {
+        // Create token record with default values for new generation
+        let token = Token(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            accessTokenExpiresAt: accessExpirationDate,
+            refreshTokenExpiresAt: refreshExpirationDate,
+            jti: refreshJti,  // Use refresh token JTI as primary JTI
+            parentJti: nil,   // No parent for first generation
+            familyId: UUID(), // New family for first token
+            generation: 0,    // First generation
+            sessionId: sessionId
+        )
+        
+        try await token.save(on: fluent.db())
+        return token
+    }
 }
 
 /// Security Headers Middleware
 struct SecurityHeadersMiddleware: MiddlewareProtocol {
     func handle(_ request: Request, context: AppRequestContext, next: (Request, AppRequestContext) async throws -> Response) async throws -> Response {
         var response = try await next(request, context)
-
+        
         // Add security headers
         response.headers.append(HTTPField(name: HTTPField.Name("X-Content-Type-Options")!, value: "nosniff"))
         response.headers.append(HTTPField(name: HTTPField.Name("X-Frame-Options")!, value: "DENY"))  // Stricter option
         response.headers.append(HTTPField(name: HTTPField.Name("X-XSS-Protection")!, value: "1; mode=block"))
         response.headers.append(HTTPField(name: HTTPField.Name("Strict-Transport-Security")!, value: "max-age=63072000; includeSubDomains; preload"))  // 2 years
-
+        
         // Secure CSP configuration
         let csp = [
             "default-src 'self'",
@@ -2161,10 +2351,10 @@ struct SecurityHeadersMiddleware: MiddlewareProtocol {
             "frame-ancestors 'none'",  // Equivalent to X-Frame-Options: DENY
             "upgrade-insecure-requests"
         ].joined(separator: "; ")
-
+        
         response.headers.append(HTTPField(name: HTTPField.Name("Content-Security-Policy")!, value: csp))
         response.headers.append(HTTPField(name: HTTPField.Name("Referrer-Policy")!, value: "strict-origin-when-cross-origin"))
-
+        
         // Permissions Policy with essential restrictions
         let permissionsPolicy = [
             "accelerometer=()",
@@ -2186,18 +2376,18 @@ struct SecurityHeadersMiddleware: MiddlewareProtocol {
             "usb=()",
             "xr-spatial-tracking=()"
         ].joined(separator: ", ")
-
+        
         response.headers.append(HTTPField(name: HTTPField.Name("Permissions-Policy")!, value: permissionsPolicy))
-
+        
         // Add Cross-Origin-Resource-Policy header
         response.headers.append(HTTPField(name: HTTPField.Name("Cross-Origin-Resource-Policy")!, value: "same-origin"))
-
+        
         // Add Cross-Origin-Opener-Policy header
         response.headers.append(HTTPField(name: HTTPField.Name("Cross-Origin-Opener-Policy")!, value: "same-origin"))
-
+        
         // Add Cross-Origin-Embedder-Policy header
         response.headers.append(HTTPField(name: HTTPField.Name("Cross-Origin-Embedder-Policy")!, value: "require-corp"))
-
+        
         return response
     }
 }

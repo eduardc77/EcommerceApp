@@ -120,6 +120,12 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
             }
         }
         
+        // Add Token migration before the token rotation migration
+        await fluent.migrations.add(Token.Migration())
+        
+        // Add token rotation migration after Token migration
+        await fluent.migrations.add(UpdateTokenForTokenRotation())
+        
         try await fluent.migrate()
         logger.info("Database migrations completed successfully")
     }

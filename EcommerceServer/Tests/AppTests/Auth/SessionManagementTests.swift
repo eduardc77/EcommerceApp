@@ -153,7 +153,7 @@ struct SessionManagementTests {
             try await client.completeEmailVerification(email: requestBody.email)
             
             // 3. Create first session
-            let firstSession = try await client.execute(
+            let _ = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
                 headers: [HTTPField.Name("X-Device-Name")!: "First Device"],
