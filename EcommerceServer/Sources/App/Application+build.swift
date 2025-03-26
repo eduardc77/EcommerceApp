@@ -91,6 +91,8 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     await fluent.migrations.add(CreateUser())
     await fluent.migrations.add(EmailVerificationCode.Migration())
     await fluent.migrations.add(CreateSession())
+    await fluent.migrations.add(CreateMFARecoveryCodes())
+    await fluent.migrations.add(Token.Migration())
     
     // migrate
     let fileManager = FileManager.default
@@ -118,9 +120,6 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
             }
         }
         
-        // Add Token migration before the token rotation migration
-        await fluent.migrations.add(Token.Migration())
-
         try await fluent.migrate()
         logger.info("Database migrations completed successfully")
     }
@@ -140,6 +139,19 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     guard let secretData = jwtSecret.data(using: .utf8) else {
         throw HTTPError(.internalServerError, message: "JWT secret must be valid UTF-8")
     }
+
+    // Create JWT configuration
+    let jwtConfiguration = JWTConfiguration(
+        accessTokenExpiration: 24 * 3600,  // 24 hours
+        refreshTokenExpiration: 30 * 24 * 3600,  // 30 days
+        issuer: "auth-jwt",
+        audience: "auth-jwt-users",
+        minimumPasswordLength: 12,
+        maximumPasswordLength: 128,
+        maxRefreshTokens: 5,
+        maxFailedAttempts: 5,
+        lockoutDuration: 15 * 60  // 15 minutes
+    )
 
     await jwtAuthenticator.useSigner(
         hmac: HMACKey(key: SymmetricKey(data: secretData)),
@@ -256,8 +268,21 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
         .add(middleware: jwtAuthenticator)
     
     // Initialize controllers
-    let totpController = TOTPController(fluent: fluent)
-    let emailVerificationController = EmailMFAController(fluent: fluent, emailService: emailService)
+    let totpController = TOTPController(
+        fluent: fluent
+    )
+    let emailVerificationController = EmailMFAController(
+        fluent: fluent,
+        emailService: emailService
+    )
+    let mfaRecoveryController = MFARecoveryController(
+        fluent: fluent,
+        emailService: emailService,
+        jwtConfig: jwtConfiguration,
+        jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
+        kid: jwtLocalSignerKid,
+        tokenStore: tokenStore
+    )
     
     let authController = AuthController(
         jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
@@ -278,6 +303,8 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     // Sign up TOTP and Email verification routes independently
     totpController.addProtectedRoutes(to: api.group("mfa/totp").add(middleware: jwtAuthenticator))
     emailVerificationController.addProtectedRoutes(to: api.group("mfa/email").add(middleware: jwtAuthenticator))
+    mfaRecoveryController.addProtectedRoutes(to: api.group("mfa/recovery").add(middleware: jwtAuthenticator))
+    mfaRecoveryController.addPublicRoutes(to: api.group("mfa/recovery"))
 
     // Add file upload routes
     let fileController = FileController(fluent: fluent)

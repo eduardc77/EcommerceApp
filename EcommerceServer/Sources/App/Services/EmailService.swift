@@ -1,3 +1,4 @@
+import Foundation
 import AsyncHTTPClient
 import Logging
 import SendGridKit
@@ -18,6 +19,12 @@ protocol EmailService {
     
     /// Send a password reset verification code
     func sendPasswordResetEmail(to: String, code: String) async throws
+    
+    /// Send notification when recovery codes are generated
+    func sendRecoveryCodesGeneratedEmail(to: String) async throws
+    
+    /// Send notification when a recovery code is used
+    func sendRecoveryCodeUsedEmail(to: String, ip: String, userAgent: String) async throws
 }
 
 /// SendGrid email service implementation using SendGridKit
@@ -120,6 +127,37 @@ struct SendGridEmailService: EmailService {
         try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
         logger.info("Sent password reset email to \(email)")
     }
+    
+    func sendRecoveryCodesGeneratedEmail(to email: String) async throws {
+        let subject = "New Recovery Codes Generated"
+        let htmlContent = """
+            <h1>New Recovery Codes Generated</h1>
+            <p>New recovery codes have been generated for your account.</p>
+            <p>If you did not generate these codes, please contact support immediately.</p>
+            """
+        
+        try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
+        logger.info("Sent recovery codes generated email to \(email)")
+    }
+    
+    func sendRecoveryCodeUsedEmail(to email: String, ip: String, userAgent: String) async throws {
+        let subject = "Recovery Code Used"
+        let now = Date()
+        let htmlContent = """
+            <h1>Recovery Code Used</h1>
+            <p>A recovery code was just used to access your account.</p>
+            <p>Details:</p>
+            <ul>
+                <li>IP Address: \(ip)</li>
+                <li>Device: \(userAgent)</li>
+                <li>Time: \(now.ISO8601Format())</li>
+            </ul>
+            <p>If this wasn't you, please contact support immediately.</p>
+            """
+        
+        try await sendEmail(to: email, subject: subject, htmlContent: htmlContent)
+        logger.info("Sent recovery code used email to \(email)")
+    }
 }
 
 /// Empty struct for emails without dynamic template data
@@ -160,6 +198,14 @@ struct MockEmailService: EmailService {
     func sendPasswordResetEmail(to email: String, code: String) async throws {
         // In testing environment, we always log the code as 123456
         logger.info("Mock email service: Password reset code for \(email) is 123456")
+    }
+    
+    func sendRecoveryCodesGeneratedEmail(to email: String) async throws {
+        logger.info("Mock email service: Sent recovery codes generated notification to \(email)")
+    }
+    
+    func sendRecoveryCodeUsedEmail(to email: String, ip: String, userAgent: String) async throws {
+        logger.info("Mock email service: Sent recovery code used notification to \(email) (IP: \(ip), UA: \(userAgent))")
     }
 }
 
