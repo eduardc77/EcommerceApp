@@ -1,5 +1,3 @@
-import Foundation
-
 /// Request structure for TOTP verification
 struct TOTPVerificationRequest: Codable {
     let stateToken: String

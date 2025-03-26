@@ -1,5 +1,3 @@
-import Foundation
-
 /// Represents the API versions supported by the application
 public enum APIVersion: String {
     case v1 = "v1"

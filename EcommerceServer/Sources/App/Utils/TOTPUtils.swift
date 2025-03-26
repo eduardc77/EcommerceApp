@@ -1,6 +1,5 @@
 import Foundation
 import HummingbirdOTP
-import CryptoKit
 
 /// Utility functions for TOTP (Time-based One-Time Password) operations
 enum TOTPUtils {

@@ -1,5 +1,3 @@
-import Foundation
-
 /// Available permissions for roles
 public enum Permission: String, Codable, CaseIterable {
     case viewProducts

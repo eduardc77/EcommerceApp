@@ -1,10 +1,8 @@
 @testable import App
 import Foundation
+import Testing
 import Hummingbird
 import HummingbirdTesting
-import HummingbirdAuthTesting
-import Testing
-import HTTPTypes
 
 @Suite("Email MFA Tests")
 struct EmailMFATests {

@@ -1,9 +1,8 @@
 @testable import App
 import Foundation
+import Testing
 import Hummingbird
 import HummingbirdTesting
-import HummingbirdAuthTesting
-import Testing
 
 @Suite("File Tests")
 struct MultipartFormTests {

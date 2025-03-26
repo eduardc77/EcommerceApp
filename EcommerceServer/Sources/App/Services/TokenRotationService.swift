@@ -1,6 +1,5 @@
 import Foundation
 import FluentKit
-import JWTKit
 import Logging
 
 struct TokenRotationService {

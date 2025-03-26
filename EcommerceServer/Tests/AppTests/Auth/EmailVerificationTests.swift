@@ -2,9 +2,7 @@
 import Foundation
 import Hummingbird
 import HummingbirdTesting
-import HummingbirdAuthTesting
 import Testing
-import HTTPTypes
 
 @Suite("Email Verification Tests")
 struct EmailVerificationTests {

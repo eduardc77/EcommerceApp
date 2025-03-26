@@ -1,8 +1,6 @@
 import Foundation
 import Hummingbird
-import HummingbirdAuth
 import HummingbirdFluent
-import NIOFoundationCompat
 import HTTPTypes
 
 struct FileController {

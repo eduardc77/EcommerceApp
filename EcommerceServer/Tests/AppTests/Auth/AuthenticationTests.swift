@@ -1,11 +1,10 @@
 @testable import App
-import CryptoKit
 import Foundation
+import Testing
 import Hummingbird
 import HummingbirdTesting
-import HummingbirdAuthTesting
+import CryptoKit
 import JWTKit
-import Testing
 
 @Suite("Authentication Tests")
 struct AuthenticationTests {

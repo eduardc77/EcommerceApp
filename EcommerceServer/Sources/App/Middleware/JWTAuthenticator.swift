@@ -3,7 +3,6 @@ import Hummingbird
 import HummingbirdAuth
 import HummingbirdFluent
 import JWTKit
-import NIOFoundationCompat
 
 /// JWT authenticator with blacklist support
 struct JWTAuthenticator: AuthenticatorMiddleware, @unchecked Sendable {

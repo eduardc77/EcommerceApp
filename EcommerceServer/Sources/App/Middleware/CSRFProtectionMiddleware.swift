@@ -1,6 +1,5 @@
 import Foundation
 import Hummingbird
-import CryptoKit
 import HTTPTypes
 
 /// CSRF Protection Middleware using Double Submit Cookie pattern

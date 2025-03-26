@@ -1,8 +1,6 @@
 import Foundation
-import ExtrasBase64
 import Hummingbird
 import MultipartKit
-import NIOFoundationCompat
 
 /// Decoder for multipart form data
 struct MultipartRequestDecoder: RequestDecoder {

@@ -1,10 +1,8 @@
-import FluentKit
 import Foundation
 import Hummingbird
-import HummingbirdAuth
 import HummingbirdFluent
+import FluentKit
 import JWTKit
-import NIO
 
 struct UserController {
     typealias Context = AppRequestContext

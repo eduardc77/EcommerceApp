@@ -1,7 +1,6 @@
 import AsyncHTTPClient
 import Logging
 import SendGridKit
-import Hummingbird
 
 /// Protocol for email service functionality
 protocol EmailService {

@@ -1,13 +1,11 @@
-import FluentKit
 import Foundation
 import Hummingbird
-import HummingbirdAuth
 import HummingbirdBasicAuth
 import HummingbirdFluent
-import JWTKit
-import CryptoKit
-import HTTPTypes
 import HummingbirdBcrypt
+import FluentKit
+import JWTKit
+import HTTPTypes
 
 /// Extension to convert Data to URL-safe base64 string
 extension Data {
@@ -114,7 +112,7 @@ struct AuthController {
     func addProtectedRoutes(to group: RouterGroup<Context>) {
         group.get("me", use: getCurrentUser)
             .post("password/change", use: changePassword)
-            .post("token/revoke", use: revokeToken)
+            .post("token/revoke", use: revokeAccessToken)
             .post("sign-out", use: signOut)
             .get("sessions", use: listSessions)
             .delete("sessions/:sessionId", use: revokeSession)
@@ -1795,7 +1793,7 @@ struct AuthController {
     }
     
     /// Revoke a specific token
-    @Sendable func revokeToken(
+    @Sendable func revokeAccessToken(
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<MessageResponse> {

@@ -37,7 +37,7 @@ public actor ProductService: ProductServiceProtocol {
             allowRetry: true,
             requiresAuthorization: false
         )
-        print("Fetched \(products.count) products")
+        logger.debug("Fetched \(products.count, privacy: .public) products")
         return products
     }
     
@@ -48,7 +48,7 @@ public actor ProductService: ProductServiceProtocol {
             allowRetry: true,
             requiresAuthorization: false
         )
-        print("Fetched product: \(product)")
+        logger.debug("Fetched product with ID: \(id, privacy: .public)")
         return product
     }
     
@@ -60,10 +60,10 @@ public actor ProductService: ProductServiceProtocol {
                 allowRetry: false,
                 requiresAuthorization: false
             )
-            print("Created product: \(product)")
+            logger.debug("Created product with ID: \(product.id, privacy: .public)")
             return product
         } catch {
-            print("Create product error: \(error)")
+            logger.error("Create product error: \(error, privacy: .public)")
             throw error
         }
     }
@@ -76,10 +76,10 @@ public actor ProductService: ProductServiceProtocol {
                 allowRetry: true,
                 requiresAuthorization: false
             )
-            print("Updated product: \(product)")
+            logger.debug("Updated product with ID: \(id, privacy: .public)")
             return product
         } catch {
-            print("Update product error: \(error)")
+            logger.error("Update product error: \(error, privacy: .public)")
             throw error
         }
     }
@@ -91,16 +91,19 @@ public actor ProductService: ProductServiceProtocol {
             allowRetry: false,
             requiresAuthorization: false
         )
+        logger.debug("Deleted product with ID: \(id, privacy: .public)")
     }
     
     // MARK: - Filtering
 
     public func filterProducts(_ dto: ProductFilterRequest) async throws -> [ProductResponse] {
-        try await apiClient.performRequest(
+        let products = try await apiClient.performRequest(
             from: Store.Product.filter(dto: dto),
             in: environment,
             allowRetry: true,
             requiresAuthorization: false
         )
+        logger.debug("Filtered products, found \(products.count, privacy: .public) results")
+        return products
     }
 } 

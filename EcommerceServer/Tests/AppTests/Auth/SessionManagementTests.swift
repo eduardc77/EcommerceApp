@@ -1,12 +1,9 @@
 @testable import App
-import CryptoKit
 import Foundation
+import Testing
 import Hummingbird
 import HummingbirdTesting
-import HummingbirdAuthTesting
-import JWTKit
 import HTTPTypes
-import Testing
 
 @Suite("Session Management Tests")
 struct SessionManagementTests {

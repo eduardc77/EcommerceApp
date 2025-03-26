@@ -1,5 +1,5 @@
-import Foundation
 @testable import App
+import Foundation
 
 // Shared request models for testing
 struct TestCreateUserRequest: Encodable {

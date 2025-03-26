@@ -1,12 +1,9 @@
 @testable import App
 import Foundation
+import Testing
 import Hummingbird
 import HummingbirdTesting
-import HummingbirdAuthTesting
 import HummingbirdOTP
-import HTTPTypes
-import JWTKit
-import Testing
 
 @Suite("MFA Security Tests")
 struct MFASecurityTests {

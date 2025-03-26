@@ -1,10 +1,8 @@
-import Testing
+@testable import App
 import Foundation
+import Testing
 import Hummingbird
 import HummingbirdTesting
-import HummingbirdAuthTesting
-import JWTKit
-@testable import App
 
 @Suite("Forgot and Reset Password Tests")
 struct ForgotPasswordResetTests {

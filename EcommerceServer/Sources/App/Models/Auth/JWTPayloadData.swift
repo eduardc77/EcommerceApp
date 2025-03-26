@@ -1,6 +1,5 @@
 import Foundation
 import JWTKit
-import NIOFoundationCompat
 
 /// JWT payload data structure
 struct JWTPayloadData: JWTPayload {

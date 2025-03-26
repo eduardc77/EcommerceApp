@@ -1,4 +1,3 @@
-import Foundation
 import Hummingbird
 
 /// Response for available MFA methods

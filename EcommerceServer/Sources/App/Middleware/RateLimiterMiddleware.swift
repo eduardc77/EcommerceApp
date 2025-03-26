@@ -1,6 +1,5 @@
-import Hummingbird
 import Foundation
-import NIO
+import Hummingbird
 import HTTPTypes
 
 /// Actor to manage rate limiting state in a thread-safe way
@@ -9,8 +8,8 @@ private actor RateLimitState {
     
     init() {
         if Environment.current.isProduction {
-            print("""
-                ⚠️ WARNING: In-memory rate limiter is not suitable for distributed environments.
+            AppLogger.global.warning("""
+                In-memory rate limiter is not suitable for distributed environments.
                 For production with multiple instances, implement a distributed cache (e.g., Redis)
                 or use a reverse proxy/load balancer level rate limiting.
                 """)
@@ -83,9 +82,9 @@ final class RateLimiterMiddleware<Context: RequestContext>: MiddlewareProtocol {
             var headers = HTTPFields()
             if let retryAfterName = HTTPField.Name("Retry-After") {
                 headers.append(HTTPField(name: retryAfterName, value: "60"))
-                print("DEBUG: Added Retry-After header with value 60")
+                context.logger.debug("Added Retry-After header with value 60")
             } else {
-                print("DEBUG: Failed to create Retry-After header name")
+                context.logger.warning("Failed to create Retry-After header name")
             }
             throw HTTPError(.tooManyRequests, headers: headers, message: "Rate limit exceeded. Please try again later.")
         }

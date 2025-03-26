@@ -1,6 +1,5 @@
 import Foundation
 import FluentKit
-import Crypto
 
 /// Model for storing email verification codes
 final class EmailVerificationCode: Model, @unchecked Sendable {

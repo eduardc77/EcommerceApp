@@ -1,10 +1,8 @@
 import Foundation
 import Hummingbird
-import HummingbirdAuth
 import HummingbirdFluent
-import HTTPTypes
 import HummingbirdBcrypt
-import CryptoKit
+import HTTPTypes
 
 /// Controller for managing  Email MFA
 struct EmailMFAController {

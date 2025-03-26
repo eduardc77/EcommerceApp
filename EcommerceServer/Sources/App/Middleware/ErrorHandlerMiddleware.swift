@@ -2,7 +2,7 @@ import Foundation
 import Hummingbird
 
 /// Middleware to handle errors and format them consistently
-struct ErrorHandlingMiddleware: MiddlewareProtocol {
+struct ErrorHandlerMiddleware: MiddlewareProtocol {
     func handle(_ request: Request, context: AppRequestContext, next: (Request, AppRequestContext) async throws -> Response) async throws -> Response {
         do {
             return try await next(request, context)

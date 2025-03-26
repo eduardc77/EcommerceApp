@@ -1,17 +1,13 @@
 @testable import App
 import Foundation
 import Testing
-import HTTPTypes
 
 // Hummingbird imports
 import Hummingbird
 import HummingbirdTesting
-import HummingbirdAuth
-import HummingbirdFluent
 import HummingbirdOTP
 
 // Security imports
-import Crypto
 import CryptoKit
 import JWTKit
 

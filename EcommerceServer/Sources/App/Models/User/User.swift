@@ -1,10 +1,8 @@
-import HummingbirdBcrypt
-import FluentKit
 import Foundation
 import Hummingbird
-import HummingbirdAuth
 import HummingbirdBasicAuth
-import HummingbirdFluent
+import HummingbirdBcrypt
+import FluentKit
 
 /// Database description of a user
 final class User: Model, PasswordAuthenticatable, @unchecked Sendable {

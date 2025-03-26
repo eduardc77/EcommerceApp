@@ -1,4 +1,3 @@
-import Foundation
 import Hummingbird
 
 /// User encoded into HTTP response

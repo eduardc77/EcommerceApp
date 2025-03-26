@@ -1,6 +1,5 @@
 import ArgumentParser
 import Dispatch
-import Hummingbird
 
 @main
 struct HummingbirdArguments: AsyncParsableCommand, AppArguments {

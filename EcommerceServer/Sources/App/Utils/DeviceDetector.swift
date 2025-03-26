@@ -1,5 +1,3 @@
-import Foundation
-
 /// Utility class for detecting device information from User-Agent strings
 enum DeviceDetector {
     /// Extract a human-readable device name from a User-Agent string

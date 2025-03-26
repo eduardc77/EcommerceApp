@@ -1,5 +1,3 @@
-import Foundation
-
 /// User role for access control
 public enum Role: String, Codable, Sendable {
     /// Full system access - can manage everything

@@ -8,15 +8,10 @@ import HummingbirdAuth
 import HummingbirdFluent
 
 // Database imports
-import FluentKit
 import FluentSQLiteDriver
-import FluentSQL
 
 // Networking imports
 import AsyncHTTPClient
-import NIOCore
-import NIOHTTP1
-import NIOPosix
 
 // Security imports
 import Crypto
@@ -64,6 +59,9 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
         logger.logLevel = .debug
         return logger
     }()
+    
+    // Configure global logger
+    AppLogger.configure(logLevel: .debug)
     
     // Load environment variables from .env file
     loadEnvironment(logger: logger)
@@ -122,10 +120,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
         
         // Add Token migration before the token rotation migration
         await fluent.migrations.add(Token.Migration())
-        
-        // Add token rotation migration after Token migration
-        await fluent.migrations.add(UpdateTokenForTokenRotation())
-        
+
         try await fluent.migrate()
         logger.info("Database migrations completed successfully")
     }
@@ -179,8 +174,9 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     }()
 
     let router = Router(context: AppRequestContext.self)
+    // Important: ErrorHandlerMiddleware should be first in the chain to catch all errors
+    router.add(middleware: ErrorHandlerMiddleware())
     router.add(middleware: LogRequestsMiddleware(.debug))
-    router.add(middleware: ErrorHandlingMiddleware())
     
     router.get("/") { _, _ in
         "Hello"
