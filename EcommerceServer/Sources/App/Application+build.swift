@@ -141,17 +141,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     }
 
     // Create JWT configuration
-    let jwtConfiguration = JWTConfiguration(
-        accessTokenExpiration: 24 * 3600,  // 24 hours
-        refreshTokenExpiration: 30 * 24 * 3600,  // 30 days
-        issuer: "auth-jwt",
-        audience: "auth-jwt-users",
-        minimumPasswordLength: 12,
-        maximumPasswordLength: 128,
-        maxRefreshTokens: 5,
-        maxFailedAttempts: 5,
-        lockoutDuration: 15 * 60  // 15 minutes
-    )
+    let jwtConfiguration = JWTConfiguration.load()
 
     await jwtAuthenticator.useSigner(
         hmac: HMACKey(key: SymmetricKey(data: secretData)),
