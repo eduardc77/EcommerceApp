@@ -111,6 +111,7 @@ struct AuthController {
     /// Add protected routes for auth controller
     func addProtectedRoutes(to group: RouterGroup<Context>) {
         group.get("me", use: getCurrentUser)
+            .get("userinfo", use: getUserInfo)  // OpenID Connect standard userinfo endpoint
             .post("password/change", use: changePassword)
             .post("token/revoke", use: revokeAccessToken)
             .post("sign-out", use: signOut)
@@ -2335,6 +2336,27 @@ struct AuthController {
         return .init(
             status: .ok,
             response: jwks
+        )
+    }
+    
+    /// Get the OpenID Connect UserInfo response for the authenticated user
+    /// This endpoint follows the OpenID Connect Core 1.0 specification
+    /// https://openid.net/specs/openid-connect-core-1_0.html#UserInfo
+    @Sendable func getUserInfo(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<UserInfoResponse> {
+        // Ensure user is authenticated
+        guard let user = context.identity else {
+            throw HTTPError(.unauthorized, message: "Authentication required")
+        }
+        
+        // Create UserInfo response
+        let userInfo = UserInfoResponse(from: user)
+        
+        return .init(
+            status: .ok,
+            response: userInfo
         )
     }
 }

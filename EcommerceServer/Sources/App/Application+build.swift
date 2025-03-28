@@ -293,6 +293,14 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     // Add .well-known endpoints for discovery
     let wellKnownGroup = router.group(".well-known")
     wellKnownGroup.get("jwks.json", use: authController.getJWKS)
+    
+    // Create base URL for discovery endpoints
+    let baseUrl = "\(args.hostname == "0.0.0.0" ? "localhost" : args.hostname):\(args.port)"
+    let baseUrlWithScheme = "http://\(baseUrl)"  // In production, this should be https
+    
+    // Add OpenID Connect discovery endpoints
+    let oidcController = OIDCController(baseUrl: baseUrlWithScheme)
+    oidcController.addRoutes(to: wellKnownGroup)
 
     // Sign up TOTP and Email verification routes independently
     totpController.addProtectedRoutes(to: api.group("mfa/totp").add(middleware: jwtAuthenticator))
