@@ -2322,6 +2322,21 @@ struct AuthController {
         try await token.save(on: fluent.db())
         return token
     }
+    
+    /// Get the JSON Web Key Set (JWKS) containing the public keys used for token verification
+    /// This endpoint follows the OAuth 2.0 and OpenID Connect standards
+    @Sendable func getJWKS(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<JWKSResponse> {
+        // Get the JWKS data from the key collection
+        let jwks = try await self.jwtKeyCollection.jwks()
+        
+        return .init(
+            status: .ok,
+            response: jwks
+        )
+    }
 }
 
 /// Security Headers Middleware

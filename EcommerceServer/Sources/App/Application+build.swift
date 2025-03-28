@@ -290,6 +290,10 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     // Add public auth routes
     authController.addPublicRoutes(to: api.group("auth"))
 
+    // Add .well-known endpoints for discovery
+    let wellKnownGroup = router.group(".well-known")
+    wellKnownGroup.get("jwks.json", use: authController.getJWKS)
+
     // Sign up TOTP and Email verification routes independently
     totpController.addProtectedRoutes(to: api.group("mfa/totp").add(middleware: jwtAuthenticator))
     emailVerificationController.addProtectedRoutes(to: api.group("mfa/email").add(middleware: jwtAuthenticator))
