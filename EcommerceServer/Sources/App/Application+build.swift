@@ -94,6 +94,10 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     await fluent.migrations.add(CreateMFARecoveryCodes())
     await fluent.migrations.add(Token.Migration())
     
+    // Add OAuth 2.0 related migrations
+    await fluent.migrations.add(OAuthClient.Migration())
+    await fluent.migrations.add(AuthorizationCode.Migration())
+    
     // migrate
     let fileManager = FileManager.default
     let serverDirectory = fileManager.currentDirectoryPath
@@ -301,6 +305,18 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     // Add OpenID Connect discovery endpoints
     let oidcController = OIDCController(baseUrl: baseUrlWithScheme)
     oidcController.addRoutes(to: wellKnownGroup)
+
+    // Initialize OAuth controller
+    let oauthController = OAuthController(
+        fluent: fluent,
+        jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
+        kid: jwtLocalSignerKid,
+        jwtConfig: jwtConfiguration,
+        tokenStore: tokenStore
+    )
+    
+    // Add OAuth 2.0 routes
+    oauthController.addRoutes(to: api.group("oauth"))
 
     // Sign up TOTP and Email verification routes independently
     totpController.addProtectedRoutes(to: api.group("mfa/totp").add(middleware: jwtAuthenticator))

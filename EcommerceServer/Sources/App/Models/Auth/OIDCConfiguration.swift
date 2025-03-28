@@ -40,17 +40,17 @@ public struct OIDCConfiguration: Codable, ResponseEncodable {
         // Base URL example: https://api.ecommerce.com or http://localhost:8080
         return OIDCConfiguration(
             issuer: baseUrl,
-            authorizationEndpoint: nil, // Not yet implemented
-            tokenEndpoint: nil,          // Not yet implemented
+            authorizationEndpoint: "\(baseUrl)/api/v1/oauth/authorize",
+            tokenEndpoint: "\(baseUrl)/api/v1/oauth/token",
             jwksUri: "\(baseUrl)/.well-known/jwks.json",
-            responseTypesSupported: ["id_token"],
+            responseTypesSupported: ["code", "id_token"],
             subjectTypesSupported: ["public"],
             idTokenSigningAlgValuesSupported: ["HS256"],
             userInfoEndpoint: "\(baseUrl)/api/v1/auth/userinfo", // User info endpoint
             registrationEndpoint: nil,
-            scopesSupported: ["openid", "profile", "email"],
+            scopesSupported: ["openid", "profile", "email", "basic"],
             claimsSupported: ["sub", "iss", "name", "email", "role", "email_verified", "picture", "updated_at"],
-            grantTypesSupported: nil
+            grantTypesSupported: ["authorization_code", "refresh_token"]
         )
     }
 } 
