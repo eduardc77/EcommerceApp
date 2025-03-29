@@ -1,6 +1,7 @@
 import Foundation
 import Hummingbird
 import HTTPTypes
+import Logging
 
 /// Actor to manage rate limiting state in a thread-safe way
 private actor RateLimitState {
@@ -8,7 +9,7 @@ private actor RateLimitState {
     
     init() {
         if Environment.current.isProduction {
-            AppLogger.global.warning("""
+            Logger.server.warning("""
                 In-memory rate limiter is not suitable for distributed environments.
                 For production with multiple instances, implement a distributed cache (e.g., Redis)
                 or use a reverse proxy/load balancer level rate limiting.

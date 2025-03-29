@@ -60,9 +60,11 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
         return logger
     }()
     
-    // Configure global logger
-    AppLogger.configure(logLevel: .debug)
-    
+    // Configure all our category loggers with the same log level
+    var serverLogger = Logger.server
+    serverLogger.logLevel = logger.logLevel
+    Logger.server = serverLogger
+
     // Load environment variables from .env file
     loadEnvironment(logger: logger)
     
@@ -77,14 +79,18 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     let fluent = Fluent(logger: logger)
     // add sqlite database
     if args.inMemoryDatabase {
-        fluent.databases.use(.sqlite(.memory), as: .sqlite)
+        // Use a string for memory database instead of enum
+        let memoryConfig = SQLiteConfiguration(storage: .memory)
+        fluent.databases.use(.sqlite(memoryConfig), as: .sqlite)
     } else {
         // Use absolute path to the database file in the server directory
         let fileManager = FileManager.default
         let serverDirectory = fileManager.currentDirectoryPath
         let dbPath = serverDirectory + "/db.sqlite"
         logger.info("Using database at path: \(dbPath)")
-        fluent.databases.use(.sqlite(.file(dbPath)), as: .sqlite)
+        // Create a SQLite configuration with file path
+        let fileConfig = SQLiteConfiguration(storage: .file(path: dbPath))
+        fluent.databases.use(.sqlite(fileConfig), as: .sqlite)
     }
 
     // add migrations
@@ -105,7 +111,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     let fileManager = FileManager.default
     let serverDirectory = fileManager.currentDirectoryPath
     let dbPath = serverDirectory + "/db.sqlite"
-    let shouldMigrate = args.migrate || args.inMemoryDatabase || !fileManager.fileExists(atPath: dbPath)
+    let shouldMigrate = args.migrate || args.inMemoryDatabase || !FileManager.default.fileExists(atPath: dbPath)
     if shouldMigrate {
         logger.info("Running database migrations...")
         
@@ -185,6 +191,8 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     let router = Router(context: AppRequestContext.self)
     // Important: ErrorHandlerMiddleware should be first in the chain to catch all errors
     router.add(middleware: ErrorHandlerMiddleware())
+    // Add request logging middleware for correlation and context tracking
+    router.add(middleware: RequestLoggingMiddleware())
     router.add(middleware: LogRequestsMiddleware(.debug))
     
     router.get("/") { _, _ in

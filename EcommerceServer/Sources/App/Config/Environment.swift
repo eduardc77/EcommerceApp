@@ -1,40 +1,33 @@
 import Foundation
+import Logging
 
+/// Environment configuration for the application
 enum Environment: String {
     case development = "development"
     case staging = "staging"
     case production = "production"
     case testing = "testing"
 
-    static var current: Environment {
-        // Check environment variable
-        guard let env = ProcessInfo.processInfo.environment["APP_ENV"]?.lowercased() else {
-            #if DEBUG
-            AppLogger.global.warning("No APP_ENV set, defaulting to development")
+    static let current: Environment = {
+        guard let env = ProcessInfo.processInfo.environment["APP_ENV"] else {
+            Logger.server.warning("No APP_ENV set, defaulting to development")
             return .development
-            #else
-            fatalError("APP_ENV must be set in non-debug builds")
-            #endif
         }
         
-        switch env {
-        case "testing":
-            return .testing
-        case "production":
-            return .production
+        switch env.lowercased() {
+        case "dev", "development":
+            return .development
         case "staging":
             return .staging
-        case "development":
-            return .development
+        case "prod", "production":
+            return .production
+        case "test", "testing":
+            return .testing
         default:
-            #if DEBUG
-            AppLogger.global.warning("Unknown environment '\(env)', defaulting to development")
+            Logger.server.warning("Unknown environment '\(env)', defaulting to development")
             return .development
-            #else
-            fatalError("Invalid APP_ENV value: \(env)")
-            #endif
         }
-    }
+    }()
     
     /// Get environment variable with a default value
     static func get(_ key: String, default defaultValue: String) -> String {
@@ -107,7 +100,7 @@ struct AppConfig {
             fatalError("JWT_SECRET must be set in production environment")
         }
         if !secret.isEmpty && secret.count < 32 {
-            AppLogger.global.warning("JWT_SECRET is shorter than recommended length of 32 characters")
+            Logger.server.warning("JWT_SECRET is shorter than recommended length of 32 characters")
             if environment.isProduction {
                 fatalError("JWT_SECRET must be at least 32 characters in production")
             }
@@ -120,7 +113,7 @@ struct AppConfig {
         if environment.isDevelopment || environment.isTesting {
             let bytes = (0..<32).map { _ in UInt8.random(in: 0...255) }
             let randomString = Data(bytes).base64URLEncodedString()
-            AppLogger.global.warning("Using generated JWT secret for \(environment). Please set JWT_SECRET in environment.")
+            Logger.server.warning("Using generated JWT secret for \(environment). Please set JWT_SECRET in environment.")
             return randomString
         }
         fatalError("JWT_SECRET must be set in \(environment) environment")
