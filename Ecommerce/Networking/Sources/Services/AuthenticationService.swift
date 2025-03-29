@@ -1,18 +1,7 @@
 import OSLog
+import Foundation
 
-public protocol AuthenticationServiceProtocol {
-    func login(request: LoginRequest) async throws -> AuthResponse
-    func verifyEmail2FALogin(code: String, tempToken: String) async throws -> AuthResponse
-    func verifyTOTPLogin(code: String, tempToken: String) async throws -> AuthResponse
-    func register(request: CreateUserRequest) async throws -> AuthResponse
-    func logout() async throws
-    func me() async throws -> UserResponse
-    func changePassword(current: String, new: String) async throws -> MessageResponse
-    func requestEmailCode(tempToken: String) async throws -> MessageResponse
-    func forgotPassword(email: String) async throws -> MessageResponse
-    func resetPassword(email: String, code: String, newPassword: String) async throws -> MessageResponse
-}
-
+// Using the protocol defined in AuthenticationServiceProtocol.swift instead of redefining it here
 public actor AuthenticationService: AuthenticationServiceProtocol {
     private let apiClient: APIClient
     private let environment: Store.Environment
@@ -62,6 +51,86 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         }
 
         logger.debug("Login successful: \(response.user.displayName)")
+        return response
+    }
+
+    /// Login with Google OAuth credentials
+    /// - Parameters:
+    ///   - idToken: The ID token received from Google Sign-In
+    ///   - accessToken: The access token received from Google Sign-In (optional)
+    /// - Returns: Authentication response with tokens and user information
+    public func loginWithGoogle(idToken: String, accessToken: String? = nil) async throws -> AuthResponse {
+        let params: [String: Any] = [
+            "idToken": idToken,
+            "accessToken": accessToken as Any
+        ]
+        
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.socialLogin(provider: "google", params: params),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        
+        // Store the tokens
+        let token = Token(
+            accessToken: response.accessToken,
+            refreshToken: response.refreshToken,
+            tokenType: response.tokenType,
+            expiresIn: response.expiresIn,
+            expiresAt: response.expiresAt
+        )
+        await authorizationManager.storeToken(token)
+        
+        logger.debug("Google login successful: \(response.user.displayName)")
+        return response
+    }
+    
+    /// Login with Apple Sign In credentials
+    /// - Parameters:
+    ///   - identityToken: The identity token string from Sign in with Apple
+    ///   - authorizationCode: The authorization code from Sign in with Apple
+    ///   - fullName: User's name components (optional, only provided on first login)
+    ///   - email: User's email (optional, only provided on first login)
+    /// - Returns: Authentication response with tokens and user information
+    public func loginWithApple(
+        identityToken: String,
+        authorizationCode: String,
+        fullName: [String: String?]? = nil,
+        email: String? = nil
+    ) async throws -> AuthResponse {
+        var params: [String: Any] = [
+            "identityToken": identityToken,
+            "authorizationCode": authorizationCode
+        ]
+        
+        // Add optional parameters if provided
+        if let email = email {
+            params["email"] = email
+        }
+        
+        if let fullName = fullName {
+            params["fullName"] = fullName
+        }
+        
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.socialLogin(provider: "apple", params: params),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        
+        // Store the tokens
+        let token = Token(
+            accessToken: response.accessToken,
+            refreshToken: response.refreshToken,
+            tokenType: response.tokenType,
+            expiresIn: response.expiresIn,
+            expiresAt: response.expiresAt
+        )
+        await authorizationManager.storeToken(token)
+        
+        logger.debug("Apple login successful: \(response.user.displayName)")
         return response
     }
 

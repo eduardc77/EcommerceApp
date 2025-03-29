@@ -37,6 +37,23 @@ struct OAuthController {
             .post("token", use: token)
     }
     
+    /// Add public routes (no authentication required)
+    func addPublicRoutes(to group: RouterGroup<Context>) {
+        // OAuth endpoints (publicly accessible)
+        group.get("authorize", use: authorize)
+            .post("token", use: token)
+    }
+    
+    /// Add protected routes (require authentication)
+    func addProtectedRoutes(to group: RouterGroup<Context>) {
+        // Client registration endpoints
+        group.get(use: listClients)
+            .post(use: createClient)
+            .get(":clientId", use: getClient)
+            .put(":clientId", use: updateClient)
+            .delete(":clientId", use: deleteClient)
+    }
+    
     // MARK: - Client Management Endpoints
     
     /// List registered OAuth clients (admin only)

@@ -30,13 +30,23 @@ struct CSRFProtectionMiddleware: MiddlewareProtocol {
         cookieName: String = "XSRF-TOKEN",
         headerName: String = "X-XSRF-TOKEN",
         secureCookies: Bool = true,
-        sameSite: SameSite = .lax,
+        sameSite: String = "lax",
         exemptPaths: [String] = []
     ) {
         self.cookieName = cookieName
         self.headerName = headerName
         self.secureCookies = secureCookies
-        self.sameSite = sameSite
+        
+        // Convert string to SameSite enum
+        switch sameSite.lowercased() {
+        case "strict":
+            self.sameSite = .strict
+        case "none":
+            self.sameSite = .none
+        default:
+            self.sameSite = .lax
+        }
+        
         self.exemptPaths = exemptPaths
     }
     
@@ -118,44 +128,4 @@ struct CSRFProtectionMiddleware: MiddlewareProtocol {
         
         return cookies
     }
-}
-
-// Extension to add CSRF protection configuration to AppConfig
-extension AppConfig {
-    // CSRF Protection Configuration
-    static let csrfProtectionEnabled: Bool = {
-        let enabled = Environment.get("ENABLE_CSRF", default: "")
-        if !enabled.isEmpty {
-            return enabled.lowercased() == "true"
-        }
-        // Enable by default in production and staging
-        return environment.isProduction || environment.isStaging
-    }()
-    
-    static let csrfCookieName: String = Environment.get("CSRF_COOKIE_NAME", default: "XSRF-TOKEN")
-    
-    static let csrfHeaderName: String = Environment.get("CSRF_HEADER_NAME", default: "X-XSRF-TOKEN")
-    
-    static let csrfSecureCookies: Bool = {
-        let secure = Environment.get("CSRF_SECURE_COOKIES", default: "")
-        if !secure.isEmpty {
-            return secure.lowercased() == "true"
-        }
-        // Secure by default in production and staging
-        return environment.isProduction || environment.isStaging
-    }()
-    
-    static let csrfSameSite: CSRFProtectionMiddleware.SameSite = {
-        let sameSite = Environment.get("CSRF_SAME_SITE", default: "")
-        switch sameSite.lowercased() {
-        case "strict":
-            return .strict
-        case "none":
-            return .none
-        default:
-            return .lax
-        }
-    }()
-    
-    static let csrfExemptPaths: [String] = Environment.getArray("CSRF_EXEMPT_PATHS", default: ["/api/v1/auth/sign-in", "/api/v1/auth/refresh"])
 }

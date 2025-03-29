@@ -98,6 +98,9 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     await fluent.migrations.add(OAuthClient.Migration())
     await fluent.migrations.add(AuthorizationCode.Migration())
     
+    // Add social login related migrations
+    await fluent.migrations.add(ExternalProviderIdentity.Migration())
+    
     // migrate
     let fileManager = FileManager.default
     let serverDirectory = fileManager.currentDirectoryPath
@@ -240,35 +243,13 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
             useXRealIP: AppConfig.environment.isProduction || AppConfig.environment.isStaging
         ))
     
-    let userController = UserController(
-        jwtKeyCollection: userJWTAuthenticator.jwtKeyCollection,
-        kid: jwtLocalSignerKid,
-        fluent: fluent,
-        tokenStore: tokenStore,
-        emailService: emailService
-    )
+    // Initialize TOTP controller
+    let totpController = TOTPController(fluent: fluent)
     
-    // Add user routes - split into public and protected
-    let usersGroup = api.group("users")
+    // Initialize Email MFA controller
+    let emailVerificationController = EmailMFAController(fluent: fluent, emailService: emailService)
     
-    // Add public routes (registration, availability)
-    userController.addPublicRoutes(to: usersGroup)
-    
-    // Add protected routes (me, update)
-    userController.addProtectedRoutes(to: usersGroup.add(middleware: userJWTAuthenticator))
-    
-    // Create a protected auth group that will be used for all protected routes
-    let protectedAuthGroup = api.group("auth")
-        .add(middleware: jwtAuthenticator)
-    
-    // Initialize controllers
-    let totpController = TOTPController(
-        fluent: fluent
-    )
-    let emailVerificationController = EmailMFAController(
-        fluent: fluent,
-        emailService: emailService
-    )
+    // Initialize MFA Recovery controller
     let mfaRecoveryController = MFARecoveryController(
         fluent: fluent,
         emailService: emailService,
@@ -278,21 +259,70 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
         tokenStore: tokenStore
     )
     
+    // Initialize authentication controller
     let authController = AuthController(
         jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
         kid: jwtLocalSignerKid,
         fluent: fluent,
         tokenStore: tokenStore,
         emailService: emailService,
-        totpController: totpController,
+        totpController: totpController, 
         emailVerificationController: emailVerificationController
     )
     
-    // Add protected auth routes
-    authController.addProtectedRoutes(to: protectedAuthGroup)
+    // Initialize OAuth controller
+    let oauthController = OAuthController(
+        fluent: fluent,
+        jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
+        kid: jwtLocalSignerKid,
+        jwtConfig: jwtConfiguration,
+        tokenStore: tokenStore
+    )
+
+    // Initialize social auth controller
+    let socialAuthController = SocialAuthController(
+        fluent: fluent,
+        jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
+        kid: jwtLocalSignerKid,
+        jwtConfig: jwtConfiguration,
+        tokenStore: tokenStore,
+        httpClient: httpClient,
+        googleClientId: AppConfig.googleClientId,
+        googleClientSecret: AppConfig.googleClientSecret,
+        googleRedirectUri: AppConfig.googleRedirectUri,
+        appleClientId: AppConfig.appleClientId,
+        appleTeamId: AppConfig.appleTeamId,
+        appleKeyId: AppConfig.appleKeyId,
+        applePrivateKey: AppConfig.applePrivateKey,
+        appleRedirectUri: AppConfig.appleRedirectUri
+    )
     
-    // Add public auth routes
-    authController.addPublicRoutes(to: api.group("auth"))
+    // Initialize user controller
+    let userController = UserController(
+        jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
+        kid: jwtLocalSignerKid,
+        fluent: fluent,
+        tokenStore: tokenStore,
+        emailService: emailService
+    )
+
+    // Add controllers to router
+    
+    // Public routes (no authentication required)
+    let apiPublic = api.group()
+    authController.addPublicRoutes(to: apiPublic.group("auth"))
+    oauthController.addPublicRoutes(to: apiPublic.group("oauth"))
+    
+    // Add social auth routes (no authentication required)
+    socialAuthController.addRoutes(to: apiPublic.group("auth"))
+    
+    // Protected routes (require authentication)
+    let apiProtected = api.group()
+        .add(middleware: jwtAuthenticator)
+    
+    authController.addProtectedRoutes(to: apiProtected.group("auth"))
+    userController.addProtectedRoutes(to: apiProtected.group("users"))
+    oauthController.addProtectedRoutes(to: apiProtected.group("oauth"))
 
     // Add .well-known endpoints for discovery
     let wellKnownGroup = router.group(".well-known")
@@ -305,18 +335,6 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     // Add OpenID Connect discovery endpoints
     let oidcController = OIDCController(baseUrl: baseUrlWithScheme)
     oidcController.addRoutes(to: wellKnownGroup)
-
-    // Initialize OAuth controller
-    let oauthController = OAuthController(
-        fluent: fluent,
-        jwtKeyCollection: jwtAuthenticator.jwtKeyCollection,
-        kid: jwtLocalSignerKid,
-        jwtConfig: jwtConfiguration,
-        tokenStore: tokenStore
-    )
-    
-    // Add OAuth 2.0 routes
-    oauthController.addRoutes(to: api.group("oauth"))
 
     // Sign up TOTP and Email verification routes independently
     totpController.addProtectedRoutes(to: api.group("mfa/totp").add(middleware: jwtAuthenticator))

@@ -276,4 +276,125 @@ struct AppConfig {
         }
         return name
     }()
+    
+    // CSRF Protection - used by CSRFProtectionMiddleware.swift
+    static let csrfProtectionEnabled: Bool = false // Always disabled for mobile app
+    static let csrfCookieName: String = Environment.get("CSRF_COOKIE_NAME", default: "csrf_token")
+    static let csrfHeaderName: String = Environment.get("CSRF_HEADER_NAME", default: "X-CSRF-Token")
+    static let csrfSecureCookies: Bool = Environment.get("CSRF_SECURE_COOKIES", default: environment.isProduction.description) == "true"
+    static let csrfSameSite: String = Environment.get("CSRF_SAME_SITE", default: "lax")
+    static let csrfExemptPaths: [String] = Environment.getArray("CSRF_EXEMPT_PATHS", default: ["/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/social/login"])
+    
+    // Google OAuth Configuration
+    static let googleClientId: String = Environment.get("GOOGLE_CLIENT_ID", default: "")
+    static let googleClientSecret: String = Environment.get("GOOGLE_CLIENT_SECRET", default: "")
+    static let googleRedirectUri: String = Environment.get("GOOGLE_REDIRECT_URI", default: "http://localhost:8080/api/v1/auth/social/google/callback")
+    
+    // Apple Sign In Configuration
+    static let appleClientId: String = Environment.get("APPLE_CLIENT_ID", default: "")
+    static let appleTeamId: String = Environment.get("APPLE_TEAM_ID", default: "")
+    static let appleKeyId: String = Environment.get("APPLE_KEY_ID", default: "")
+    static let applePrivateKey: String = Environment.get("APPLE_PRIVATE_KEY", default: "")
+    static let appleRedirectUri: String = Environment.get("APPLE_REDIRECT_URI", default: "http://localhost:8080/api/v1/auth/social/apple/callback")
+}
+
+// Load environment struct for unified access to configuration
+let env = AppEnvironment.load()
+
+struct AppEnvironment {
+    struct Database {
+        let host: String
+        let port: Int
+        let username: String
+        let password: String
+        let database: String
+    }
+    
+    struct Email {
+        let apiKey: String
+        let fromAddress: String
+        let fromName: String
+    }
+    
+    struct OAuth {
+        let issuer: String
+        let audience: String
+        let accessTokenExpiration: TimeInterval
+        let refreshTokenExpiration: TimeInterval
+    }
+    
+    struct Google {
+        let clientId: String
+        let clientSecret: String
+        let redirectUri: String
+    }
+    
+    struct Apple {
+        let clientId: String
+        let teamId: String
+        let keyId: String
+        let privateKey: String
+        let redirectUri: String
+    }
+    
+    let database: Database
+    let email: Email
+    let oauth: OAuth
+    let google: Google
+    let apple: Apple
+}
+
+extension AppEnvironment {
+    static func load() -> AppEnvironment {
+        // These would typically come from environment variables
+        // or configuration files in a real-world scenario
+        
+        // Load database config
+        let database = Database(
+            host: ProcessInfo.processInfo.environment["DB_HOST"] ?? "localhost",
+            port: Int(ProcessInfo.processInfo.environment["DB_PORT"] ?? "5432") ?? 5432,
+            username: ProcessInfo.processInfo.environment["DB_USERNAME"] ?? "postgres",
+            password: ProcessInfo.processInfo.environment["DB_PASSWORD"] ?? "postgres",
+            database: ProcessInfo.processInfo.environment["DB_NAME"] ?? "ecommerce"
+        )
+        
+        // Load email config
+        let email = Email(
+            apiKey: ProcessInfo.processInfo.environment["EMAIL_API_KEY"] ?? AppConfig.sendGridAPIKey,
+            fromAddress: ProcessInfo.processInfo.environment["EMAIL_FROM_ADDRESS"] ?? AppConfig.sendGridFromEmail,
+            fromName: ProcessInfo.processInfo.environment["EMAIL_FROM_NAME"] ?? AppConfig.sendGridFromName
+        )
+        
+        // Load OAuth config
+        let oauth = OAuth(
+            issuer: ProcessInfo.processInfo.environment["JWT_ISSUER"] ?? "ecommerce-api",
+            audience: ProcessInfo.processInfo.environment["JWT_AUDIENCE"] ?? "ecommerce-app",
+            accessTokenExpiration: TimeInterval(ProcessInfo.processInfo.environment["ACCESS_TOKEN_EXPIRATION"] ?? "3600") ?? 3600,
+            refreshTokenExpiration: TimeInterval(ProcessInfo.processInfo.environment["REFRESH_TOKEN_EXPIRATION"] ?? "2592000") ?? 2592000
+        )
+        
+        // Load Google OAuth config
+        let google = Google(
+            clientId: ProcessInfo.processInfo.environment["GOOGLE_CLIENT_ID"] ?? AppConfig.googleClientId,
+            clientSecret: ProcessInfo.processInfo.environment["GOOGLE_CLIENT_SECRET"] ?? AppConfig.googleClientSecret,
+            redirectUri: ProcessInfo.processInfo.environment["GOOGLE_REDIRECT_URI"] ?? AppConfig.googleRedirectUri
+        )
+        
+        // Load Apple Sign In config
+        let apple = Apple(
+            clientId: ProcessInfo.processInfo.environment["APPLE_CLIENT_ID"] ?? AppConfig.appleClientId,
+            teamId: ProcessInfo.processInfo.environment["APPLE_TEAM_ID"] ?? AppConfig.appleTeamId,
+            keyId: ProcessInfo.processInfo.environment["APPLE_KEY_ID"] ?? AppConfig.appleKeyId,
+            privateKey: ProcessInfo.processInfo.environment["APPLE_PRIVATE_KEY"] ?? AppConfig.applePrivateKey,
+            redirectUri: ProcessInfo.processInfo.environment["APPLE_REDIRECT_URI"] ?? AppConfig.appleRedirectUri
+        )
+        
+        return AppEnvironment(
+            database: database,
+            email: email,
+            oauth: oauth,
+            google: google,
+            apple: apple
+        )
+    }
 } 

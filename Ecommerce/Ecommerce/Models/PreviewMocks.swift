@@ -136,8 +136,57 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
         MessageResponse(message: "Password reset email sent", success: true)
     }
     
-    func resetPassword(email: String, code: String, newPassword: String) async throws -> MessageResponse {
-        MessageResponse(message: "Password reset successfully", success: true)
+    func resetPassword(email: String, code: String, newPassword: String) async throws -> EmptyResponse {
+        return EmptyResponse()
+    }
+    
+    func loginWithGoogle(idToken: String, accessToken: String? = nil) async throws -> AuthResponse {
+        let token = Token(
+            accessToken: "preview-google-access-token",
+            refreshToken: "preview-google-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+        )
+        await authorizationManager.storeToken(token)
+        
+        return AuthResponse(
+            accessToken: token.accessToken,
+            refreshToken: token.refreshToken,
+            tokenType: token.tokenType,
+            expiresIn: token.expiresIn,
+            expiresAt: token.expiresAt,
+            user: UserResponse.previewUser,
+            requiresTOTP: false,
+            requiresEmailVerification: false
+        )
+    }
+    
+    func loginWithApple(
+        identityToken: String,
+        authorizationCode: String,
+        fullName: [String: String?]? = nil,
+        email: String? = nil
+    ) async throws -> AuthResponse {
+        let token = Token(
+            accessToken: "preview-apple-access-token",
+            refreshToken: "preview-apple-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+        )
+        await authorizationManager.storeToken(token)
+        
+        return AuthResponse(
+            accessToken: token.accessToken,
+            refreshToken: token.refreshToken,
+            tokenType: token.tokenType,
+            expiresIn: token.expiresIn,
+            expiresAt: token.expiresAt,
+            user: UserResponse.previewUser,
+            requiresTOTP: false,
+            requiresEmailVerification: false
+        )
     }
 }
 

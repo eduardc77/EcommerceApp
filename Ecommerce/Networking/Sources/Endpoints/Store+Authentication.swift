@@ -14,6 +14,7 @@ extension Store {
         case resetPassword(email: String, code: String, newPassword: String)
         case verifyTOTPLogin(code: String, tempToken: String)
         case verifyEmail2FALogin(code: String, tempToken: String)
+        case socialLogin(provider: String, params: [String: Any])
 
         public var path: String {
             switch self {
@@ -39,6 +40,8 @@ extension Store {
                     return "/auth/login/verify-totp"
                 case .verifyEmail2FALogin:
                     return "/auth/login/verify-email"
+                case .socialLogin:
+                    return "/auth/social/login"
             }
         }
         
@@ -46,7 +49,7 @@ extension Store {
             switch self {
                 case .login, .register, .refreshToken, .logout, .changePassword,
                      .requestEmailCode, .forgotPassword, .resetPassword, .verifyTOTPLogin,
-                     .verifyEmail2FALogin:
+                     .verifyEmail2FALogin, .socialLogin:
                     return .post
                 case .me:
                     return .get
@@ -112,6 +115,44 @@ extension Store {
                     "code": code,
                     "tempToken": tempToken
                 ]
+            case .socialLogin(let provider, let params):
+                // Construct provider-specific parameters
+                var payload: [String: Any] = [:]
+                
+                switch provider {
+                case "google":
+                    guard let idToken = params["idToken"] as? String else {
+                        break
+                    }
+                    
+                    payload = [
+                        "idToken": idToken,
+                        "accessToken": params["accessToken"] as? String ?? ""
+                    ]
+                case "apple":
+                    guard let identityToken = params["identityToken"] as? String,
+                          let authorizationCode = params["authorizationCode"] as? String else {
+                        break
+                    }
+                    
+                    payload = [
+                        "identityToken": identityToken,
+                        "authorizationCode": authorizationCode
+                    ]
+                    
+                    // Add optional parameters if available
+                    if let fullName = params["fullName"] as? [String: String?] {
+                        payload["fullName"] = fullName
+                    }
+                    
+                    if let email = params["email"] as? String {
+                        payload["email"] = email
+                    }
+                default:
+                    break
+                }
+                
+                return payload
             case .requestEmailCode:
                 return nil  // No body needed
             case .logout, .me:

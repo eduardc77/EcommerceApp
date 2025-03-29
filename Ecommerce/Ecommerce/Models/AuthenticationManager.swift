@@ -224,6 +224,60 @@ public final class AuthenticationManager {
         }
     }
     
+    /// Sign in with Google
+    /// - Parameters:
+    ///   - idToken: The ID token received from Google Sign-In
+    ///   - accessToken: The access token received from Google Sign-In (optional)
+    public func signInWithGoogle(idToken: String, accessToken: String? = nil) async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        // Reset state
+        loginError = nil
+        isAuthenticated = false
+        pendingLoginResponse = nil
+        
+        do {
+            let response = try await authService.loginWithGoogle(idToken: idToken, accessToken: accessToken)
+            await completeLogin(response: response)
+        } catch {
+            await handleLoginError(error)
+        }
+    }
+    
+    /// Sign in with Apple
+    /// - Parameters:
+    ///   - identityToken: The identity token string from Sign in with Apple
+    ///   - authorizationCode: The authorization code from Sign in with Apple
+    ///   - fullName: User's name components (optional, only provided on first login)
+    ///   - email: User's email (optional, only provided on first login)
+    public func signInWithApple(
+        identityToken: String,
+        authorizationCode: String,
+        fullName: [String: String?]? = nil,
+        email: String? = nil
+    ) async {
+        isLoading = true
+        defer { isLoading = false }
+        
+        // Reset state
+        loginError = nil
+        isAuthenticated = false
+        pendingLoginResponse = nil
+        
+        do {
+            let response = try await authService.loginWithApple(
+                identityToken: identityToken,
+                authorizationCode: authorizationCode,
+                fullName: fullName,
+                email: email
+            )
+            await completeLogin(response: response)
+        } catch {
+            await handleLoginError(error)
+        }
+    }
+    
     private func completeLogin(response: AuthResponse) async {
         currentUser = response.user
         
