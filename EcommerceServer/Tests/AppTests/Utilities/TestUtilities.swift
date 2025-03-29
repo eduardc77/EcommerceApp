@@ -32,6 +32,17 @@ struct TestAppArguments: AppArguments {
         setenv("SENDGRID_FROM_EMAIL", "test@example.com", 1)
         setenv("SENDGRID_FROM_NAME", "Test Server", 1)
         
+        // Social auth test configuration
+        setenv("GOOGLE_CLIENT_ID", "test-google-client-id", 1)
+        setenv("GOOGLE_CLIENT_SECRET", "test-google-client-secret", 1)
+        setenv("GOOGLE_REDIRECT_URI", "http://localhost:8080/api/v1/auth/social/google/callback", 1)
+        
+        setenv("APPLE_CLIENT_ID", "test.api.client", 1)
+        setenv("APPLE_TEAM_ID", "TESTTEAM123", 1)
+        setenv("APPLE_KEY_ID", "TESTKEY123", 1)
+        setenv("APPLE_PRIVATE_KEY", "test-private-key", 1)
+        setenv("APPLE_REDIRECT_URI", "http://localhost:8080/api/v1/auth/social/apple/callback", 1)
+        
         // Verify we're in testing environment
         guard Environment.current == .testing else {
             fatalError("TestAppArguments must be used in testing environment only")
