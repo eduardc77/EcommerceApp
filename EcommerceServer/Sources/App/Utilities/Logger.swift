@@ -143,8 +143,8 @@ extension Logger {
     private static func isSensitiveData(request: URLRequest) -> Bool {
         if let url = request.url?.absoluteString.lowercased() {
             // Sensitive paths
-            if url.contains("/login") || 
-               url.contains("/refresh-token") || 
+            if url.contains("/sign-in") ||
+               url.contains("/refresh-token") ||
                url.contains("/auth") || 
                url.contains("/password") ||
                url.contains("/token") {
@@ -187,8 +187,8 @@ extension Logger {
             }
             
             if let url = httpResponse.url?.absoluteString.lowercased() {
-                if url.contains("/login") || 
-                   url.contains("/refresh-token") || 
+                if url.contains("/sign-in") ||
+                   url.contains("/refresh-token") ||
                    url.contains("/auth") || 
                    url.contains("/password") ||
                    url.contains("/token") {

@@ -31,7 +31,7 @@ struct MFAAdvancedTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login to get access token
+            // Sign in to get access token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,

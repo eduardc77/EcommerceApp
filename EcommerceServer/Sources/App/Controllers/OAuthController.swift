@@ -305,7 +305,7 @@ struct OAuthController {
         
         // Check if user is already authenticated
         guard let user = context.identity else {
-            // Not authenticated, redirect to login with return URL
+            // Not authenticated, redirect to sign in with return URL
             // We need to create a return URL that brings the user back to this authorize endpoint
             let path = request.uri.path
             var returnURL = String(path)

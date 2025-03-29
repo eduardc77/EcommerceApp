@@ -13,7 +13,7 @@ struct SocialAuthenticationTests {
         
         try await app.test(.router) { client in
             // Create a test request with mock token
-            let requestBody = SocialLoginRequest(
+            let requestBody = SocialSignInRequest(
                 provider: "google", 
                 parameters: .google(GoogleAuthParams(
                     idToken: "mock_google_id_token", 
@@ -22,7 +22,7 @@ struct SocialAuthenticationTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/social/login",
+                uri: "/api/v1/auth/social/sign-in",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -40,7 +40,7 @@ struct SocialAuthenticationTests {
             // Create a test request with mock token
             let fullName = AppleNameComponents(givenName: "Apple", familyName: "User")
             
-            let requestBody = SocialLoginRequest(
+            let requestBody = SocialSignInRequest(
                 provider: "apple",
                 parameters: .apple(AppleAuthParams(
                     identityToken: "mock_apple_identity_token",
@@ -51,7 +51,7 @@ struct SocialAuthenticationTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/social/login",
+                uri: "/api/v1/auth/social/sign-in",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -61,7 +61,7 @@ struct SocialAuthenticationTests {
         }
     }
     
-    @Test("Social login with existing user returns 401 for mock tokens")
+    @Test("Social sign in with existing user returns 401 for mock tokens")
     func testSocialLoginWithExistingUser() async throws {
         let app = try await buildApplication(TestAppArguments())
         
@@ -87,7 +87,7 @@ struct SocialAuthenticationTests {
             // Complete email verification
             try await client.completeEmailVerification(email: email)
             
-            // Login with the user to verify account is active
+            // Sign in with the user to verify account is active
             let initialAuth = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -98,7 +98,7 @@ struct SocialAuthenticationTests {
                 return authResponse
             }
             
-            // Verify initial login works
+            // Verify initial sign in works
             try await client.execute(
                 uri: "/api/v1/auth/me",
                 method: .get,
@@ -109,8 +109,8 @@ struct SocialAuthenticationTests {
                 #expect(user.username == "social_existing")
             }
             
-            // 2. Now perform a Google login with the same email
-            let socialRequestBody = SocialLoginRequest(
+            // 2. Now perform a Google sign in with the same email
+            let socialRequestBody = SocialSignInRequest(
                 provider: "google",
                 parameters: .google(GoogleAuthParams(
                     idToken: "mock_google_token_for_\(email)",
@@ -119,7 +119,7 @@ struct SocialAuthenticationTests {
             )
             
             try await client.execute(
-                uri: "/api/v1/auth/social/login",
+                uri: "/api/v1/auth/social/sign-in",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(socialRequestBody, allocator: ByteBufferAllocator())
             ) { response in
@@ -149,7 +149,7 @@ struct SocialAuthenticationTests {
             """
             
             try await client.execute(
-                uri: "/api/v1/auth/social/login",
+                uri: "/api/v1/auth/social/sign-in",
                 method: .post,
                 body: ByteBuffer(string: badRequest)
             ) { response in

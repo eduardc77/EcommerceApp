@@ -32,7 +32,7 @@ struct AuthenticationTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
             
-            // 2. Login to get JWT
+            // 2. Sign in to get JWT
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -208,7 +208,7 @@ struct AuthenticationTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
             
-            // 2. Attempt multiple rapid login requests
+            // 2. Attempt multiple rapid sign in requests
             for _ in 1...6 {
                 try await client.execute(
                     uri: "/api/v1/auth/sign-in",

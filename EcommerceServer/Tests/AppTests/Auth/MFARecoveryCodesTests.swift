@@ -31,7 +31,7 @@ struct MFARecoveryCodesTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login to get access token
+            // Sign in to get access token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -182,7 +182,7 @@ struct MFARecoveryCodesTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login to get access token
+            // Sign in to get access token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -229,7 +229,7 @@ struct MFARecoveryCodesTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login and setup TOTP
+            // Sign in and setup TOTP
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -388,7 +388,7 @@ struct MFARecoveryCodesTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login and setup TOTP
+            // Sign in and setup TOTP
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,

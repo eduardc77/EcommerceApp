@@ -31,7 +31,7 @@ struct TokenManagementTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // 2. Login to get initial tokens
+            // 2. Sign in to get initial tokens
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -150,7 +150,7 @@ struct TokenManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and login user
+            // 1. Create and sign in user
             let requestBody = TestCreateUserRequest(
                 username: "blacklistuser",
                 displayName: "Blacklist Test User",
@@ -332,7 +332,7 @@ struct TokenManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and login user
+            // 1. Create and sign in user
             let requestBody = TestCreateUserRequest(
                 username: "versionuser",
                 displayName: "Version Test User",

@@ -30,7 +30,7 @@ struct TOTPTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login to get access token
+            // Sign in to get access token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -115,7 +115,7 @@ struct TOTPTests {
         }
     }
 
-    @Test("Login flow with TOTP works correctly")
+    @Test("Sign in flow with TOTP works correctly")
     func testSignInWithTOTP() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
@@ -214,7 +214,7 @@ struct TOTPTests {
     func testInvalidTOTPCodes() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create and login user
+            // Create and sign in user
             let requestBody = TestCreateUserRequest(
                 username: "totp_test_456",
                 displayName: "TOTP Test User 4",
@@ -339,7 +339,7 @@ struct TOTPTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login to get access token
+            // Sign in to get access token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -423,7 +423,7 @@ struct TOTPTests {
                 #expect(response.status == .unauthorized)
             }
 
-            // Verify can login with new password + TOTP
+            // Verify can sign in with new password + TOTP
             let newSignInResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -435,7 +435,7 @@ struct TOTPTests {
                 return authResponse
             }
 
-            // Complete TOTP verification with new login
+            // Complete TOTP verification with new sign in
             let newTotpCode = try TOTP.generateTestCode(from: setupResponseData.secret)
             try await client.execute(
                 uri: "/api/v1/auth/mfa/totp/verify",
@@ -474,7 +474,7 @@ struct TOTPTests {
                 #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
             }
 
-            // Login to get access token (should still work without email verification)
+            // Sign in to get access token (should still work without email verification)
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,

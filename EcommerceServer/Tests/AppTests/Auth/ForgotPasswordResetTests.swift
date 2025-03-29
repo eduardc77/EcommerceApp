@@ -207,7 +207,7 @@ struct ForgotPasswordResetTests {
                 #expect(messageResponse.message == "Password has been reset successfully. Please log in with your new password.")
             }
             
-            // 4. Verify can login with new password
+            // 4. Verify can sign in with new password
             let _ = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -217,7 +217,7 @@ struct ForgotPasswordResetTests {
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
-            // 5. Verify cannot login with old password
+            // 5. Verify cannot sign in with old password
             try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,

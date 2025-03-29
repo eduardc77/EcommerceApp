@@ -104,7 +104,7 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     await fluent.migrations.add(OAuthClient.Migration())
     await fluent.migrations.add(AuthorizationCode.Migration())
     
-    // Add social login related migrations
+    // Add social sign in related migrations
     await fluent.migrations.add(ExternalProviderIdentity.Migration())
     
     // migrate

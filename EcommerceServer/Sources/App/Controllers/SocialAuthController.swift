@@ -6,7 +6,7 @@ import HummingbirdFluent
 import AsyncHTTPClient
 import NIOCore
 
-/// Controller for handling social login with third-party providers like Google and Apple
+/// Controller for handling social sign in with third-party providers like Google and Apple
 final class SocialAuthController {
     typealias Context = AppRequestContext
     private let fluent: Fluent
@@ -97,26 +97,26 @@ final class SocialAuthController {
         let socialGroup = group.group("social")
         
         // Google authentication endpoints
-        socialGroup.post("login/google", use: loginWithGoogle)
+        socialGroup.post("sign-in/google", use: loginWithGoogle)
         socialGroup.get("google/callback", use: googleCallback)
         
         // Apple authentication endpoints
-        socialGroup.post("login/apple", use: loginWithApple)
+        socialGroup.post("sign-in/apple", use: signInWithApple)
         socialGroup.get("apple/callback", use: appleCallback)
         
-        // Social login endpoint
-        socialGroup.post("login", use: loginWithSocial)
+        // Social sign in endpoint
+        socialGroup.post("sign-in", use: signInWithSocial)
     }
     
     // MARK: - Google Authentication
     
-    /// Handle Google login
+    /// Handle Google sign in
     @Sendable func loginWithGoogle(_ request: Request, context: Context) async throws -> EditedResponse<AuthResponse> {
         // Parse the request to get the Google ID token
-        let loginRequest = try await request.decode(as: GoogleLoginRequest.self, context: context)
+        let signInRequest = try await request.decode(as: GoogleLoginRequest.self, context: context)
         
         // Verify the ID token with Google
-        return try await authenticateWithGoogle(idToken: loginRequest.idToken, accessToken: loginRequest.accessToken, request: request, context: context)
+        return try await authenticateWithGoogle(idToken: signInRequest.idToken, accessToken: signInRequest.accessToken, request: request, context: context)
     }
     
     /// Handle Google OAuth callback - for web flow
@@ -127,8 +127,8 @@ final class SocialAuthController {
     
     // MARK: - Apple Authentication
     
-    /// Handle Apple login
-    @Sendable func loginWithApple(_ request: Request, context: Context) async throws -> EditedResponse<AuthResponse> {
+    /// Handle Apple sign in
+    @Sendable func signInWithApple(_ request: Request, context: Context) async throws -> EditedResponse<AuthResponse> {
         // Parse the request to get the Apple identity token
         let loginRequest = try await request.decode(as: AppleLoginRequest.self, context: context)
         
@@ -149,17 +149,17 @@ final class SocialAuthController {
         throw HTTPError(.notImplemented)
     }
     
-    // MARK: - Social Login
-    
-    /// Handle social login for both Google and Apple
-    @Sendable func loginWithSocial(_ request: Request, context: Context) async throws -> EditedResponse<AuthResponse> {
-        // Parse the social login request
-        let loginRequest = try await request.decode(as: SocialLoginRequest.self, context: context)
+    // MARK: - Social Sign In
+
+    /// Handle social sign in for both Google and Apple
+    @Sendable func signInWithSocial(_ request: Request, context: Context) async throws -> EditedResponse<AuthResponse> {
+        // Parse the social sign in request
+        let signInRequest = try await request.decode(as: SocialSignInRequest.self, context: context)
         
         // Handle based on provider
-        switch loginRequest.provider {
+        switch signInRequest.provider {
         case "google":
-            if case let .google(params) = loginRequest.parameters {
+            if case let .google(params) = signInRequest.parameters {
                 return try await authenticateWithGoogle(
                     idToken: params.idToken,
                     accessToken: params.accessToken,
@@ -170,7 +170,7 @@ final class SocialAuthController {
             throw HTTPError(.badRequest, message: "Invalid Google authentication parameters")
             
         case "apple":
-            if case let .apple(params) = loginRequest.parameters {
+            if case let .apple(params) = signInRequest.parameters {
                 return try await authenticateWithApple(
                     identityToken: params.identityToken,
                     authorizationCode: params.authorizationCode,
@@ -186,7 +186,7 @@ final class SocialAuthController {
             throw HTTPError(.badRequest, message: "Invalid Apple authentication parameters")
             
         default:
-            throw HTTPError(.badRequest, message: "Unsupported provider: \(loginRequest.provider)")
+            throw HTTPError(.badRequest, message: "Unsupported provider: \(signInRequest.provider)")
         }
     }
     
@@ -418,7 +418,7 @@ final class SocialAuthController {
             return existingUser
         }
         
-        // Create a new user with the social login info
+        // Create a new user with the social sign in info
         let username = email.split(separator: "@").first?.lowercased() ?? "user_\(UUID().uuidString.prefix(8))"
         
         let user = User(
@@ -492,7 +492,7 @@ final class SocialAuthController {
 
 // MARK: - Request Models
 
-/// Request model for Google login
+/// Request model for Google sign in
 struct GoogleLoginRequest: Codable {
     /// The ID token from Google
     let idToken: String
@@ -501,7 +501,7 @@ struct GoogleLoginRequest: Codable {
     let accessToken: String?
 }
 
-/// Request model for Apple login
+/// Request model for Apple sign in
 struct AppleLoginRequest: Codable {
     /// The identity token from Apple
     let identityToken: String

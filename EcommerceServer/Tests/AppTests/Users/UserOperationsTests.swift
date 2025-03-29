@@ -23,7 +23,7 @@ struct UserOperationsTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            // Register user
+            // Sign up user
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
@@ -35,7 +35,7 @@ struct UserOperationsTests {
             // Complete email verification
             try await client.completeEmailVerification(email: user.email)
             
-            // Login to get token and user ID
+            // Sign in to get token and user ID
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -76,7 +76,7 @@ struct UserOperationsTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
 
-            // Register first user
+            // Sign up first user
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
@@ -88,7 +88,7 @@ struct UserOperationsTests {
             // Complete email verification for first user
             try await client.completeEmailVerification(email: user1.email)
 
-            // Login as first user to get ID
+            // Sign in as first user to get ID
             let user1Auth = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -109,7 +109,7 @@ struct UserOperationsTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            // Register second user
+            // Sign up second user
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
@@ -121,7 +121,7 @@ struct UserOperationsTests {
             // Complete email verification for second user
             try await client.completeEmailVerification(email: user2.email)
             
-            // Login as second user
+            // Sign in as second user
             let user2Auth = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -158,7 +158,7 @@ struct UserOperationsTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
 
-            // Register user
+            // Sign up user
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
@@ -170,7 +170,7 @@ struct UserOperationsTests {
             // Complete email verification
             try await client.completeEmailVerification(email: user.email)
             
-            // Login to get token and user ID
+            // Sign in to get token and user ID
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -216,7 +216,7 @@ struct UserOperationsTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
 
-            // Register first user
+            // Sign up first user
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
@@ -228,7 +228,7 @@ struct UserOperationsTests {
             // Complete email verification for first user
             try await client.completeEmailVerification(email: user1.email)
 
-            // Login as first user to get ID
+            // Sign in as first user to get ID
             let user1Auth = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -249,7 +249,7 @@ struct UserOperationsTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            // Register second user
+            // Sign up second user
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
@@ -258,7 +258,7 @@ struct UserOperationsTests {
                 #expect(response.status == .created)
             }
             
-            // 3. Login as second user
+            // 3. Sign in as second user
             var user2Token: String = ""
             try await client.execute(
                 uri: "/api/v1/auth/sign-in",
@@ -297,7 +297,7 @@ struct UserOperationsTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            // Register first user
+            // Sign up first user
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
@@ -309,7 +309,7 @@ struct UserOperationsTests {
             // Complete email verification for first user
             try await client.completeEmailVerification(email: user1.email)
             
-            // Login as first user to get ID
+            // Sign in as first user to get ID
             let user1Auth = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -330,7 +330,7 @@ struct UserOperationsTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            // Register second user
+            // Sign up second user
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
@@ -342,7 +342,7 @@ struct UserOperationsTests {
             // Complete email verification for second user
             try await client.completeEmailVerification(email: user2.email)
             
-            // Login as second user
+            // Sign in as second user
             let user2Auth = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -395,7 +395,7 @@ struct UserOperationsTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            // Register admin
+            // Sign up admin
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
@@ -416,7 +416,7 @@ struct UserOperationsTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            // Register regular user
+            // Sign up regular user
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
@@ -428,7 +428,7 @@ struct UserOperationsTests {
             // Complete email verification for regular user
             try await client.completeEmailVerification(email: regularUser.email)
             
-            // Login as regular user to get ID
+            // Sign in as regular user to get ID
             let regularUserAuth = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -440,7 +440,7 @@ struct UserOperationsTests {
             
             let regularUserId = regularUserAuth.user!.id
             
-            // Login as admin
+            // Sign in as admin
             let adminAuth = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,

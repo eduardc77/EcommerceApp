@@ -33,7 +33,7 @@ struct PasswordChangeTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and login user
+            // 1. Create and sign in user
             let createUserRequest = TestCreateUserRequest(
                 username: "password_user_123",
                 displayName: "Password Test User",
@@ -53,7 +53,7 @@ struct PasswordChangeTests {
             // Complete email verification
             try await client.completeEmailVerification(email: createUserRequest.email)
             
-            // 2. Login to get token
+            // 2. Sign in to get token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -85,7 +85,7 @@ struct PasswordChangeTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and login user
+            // 1. Create and sign in user
             let createUserRequest = TestCreateUserRequest(
                 username: "password_user_456",
                 displayName: "Password Test User 2",
@@ -105,7 +105,7 @@ struct PasswordChangeTests {
             // Complete email verification
             try await client.completeEmailVerification(email: createUserRequest.email)
             
-            // 2. Login to get token
+            // 2. Sign in to get token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -137,7 +137,7 @@ struct PasswordChangeTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and login user
+            // 1. Create and sign in user
             let createUserRequest = TestCreateUserRequest(
                 username: "password_user_789",
                 displayName: "Password Test User 3",
@@ -157,7 +157,7 @@ struct PasswordChangeTests {
             // Complete email verification
             try await client.completeEmailVerification(email: createUserRequest.email)
             
-            // 2. Login to get token
+            // 2. Sign in to get token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -194,7 +194,7 @@ struct PasswordChangeTests {
                 #expect(response.status == .unauthorized)
             }
             
-            // 5. Verify can login with new password
+            // 5. Verify can sign in with new password
             let _ = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -204,7 +204,7 @@ struct PasswordChangeTests {
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
             }
             
-            // 6. Verify cannot login with old password
+            // 6. Verify cannot sign in with old password
             try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -220,7 +220,7 @@ struct PasswordChangeTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and login user
+            // 1. Create and sign in user
             let createUserRequest = TestCreateUserRequest(
                 username: "password_user_101",
                 displayName: "Password Test User 4",
@@ -240,7 +240,7 @@ struct PasswordChangeTests {
             // Complete email verification
             try await client.completeEmailVerification(email: createUserRequest.email)
             
-            // 2. Login to get token
+            // 2. Sign in to get token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -265,7 +265,7 @@ struct PasswordChangeTests {
                 #expect(response.status == .ok)
             }
             
-            // 4. Login with new password
+            // 4. Sign in with new password
             let newAuthResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,

@@ -276,8 +276,8 @@ struct AppConfig {
     static let csrfHeaderName: String = Environment.get("CSRF_HEADER_NAME", default: "X-CSRF-Token")
     static let csrfSecureCookies: Bool = Environment.get("CSRF_SECURE_COOKIES", default: environment.isProduction.description) == "true"
     static let csrfSameSite: String = Environment.get("CSRF_SAME_SITE", default: "lax")
-    static let csrfExemptPaths: [String] = Environment.getArray("CSRF_EXEMPT_PATHS", default: ["/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/social/login"])
-    
+    static let csrfExemptPaths: [String] = Environment.getArray("CSRF_EXEMPT_PATHS", default: ["/api/v1/auth/sign-in", "/api/v1/auth/sign-up", "/api/v1/auth/social/sign-in"])
+
     // Google OAuth Configuration
     static let googleClientId: String = Environment.get("GOOGLE_CLIENT_ID", default: "")
     static let googleClientSecret: String = Environment.get("GOOGLE_CLIENT_SECRET", default: "")

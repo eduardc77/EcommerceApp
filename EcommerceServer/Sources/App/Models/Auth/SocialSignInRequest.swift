@@ -1,9 +1,9 @@
 import Foundation
 import Hummingbird
 
-/// Base request for social login via Google or Apple
-struct SocialLoginRequest: Codable {
-    /// The provider for this social login (google, apple)
+/// Base request for social sign in via Google or Apple
+struct SocialSignInRequest: Codable {
+    /// The provider for this social sign in (google, apple)
     let provider: String
     
     /// Provider-specific parameters
@@ -15,7 +15,7 @@ struct SocialLoginRequest: Codable {
     }
 }
 
-/// Provider-specific parameters needed for social login
+/// Provider-specific parameters needed for social sign in
 enum SocialLoginParameters: Codable {
     /// Google authentication parameters
     case google(GoogleAuthParams)
@@ -36,7 +36,7 @@ enum SocialLoginParameters: Codable {
             throw DecodingError.dataCorruptedError(
                 forKey: .type,
                 in: container,
-                debugDescription: "Unknown social login parameter type: \(type)"
+                debugDescription: "Unknown social sign in parameter type: \(type)"
             )
         }
     }

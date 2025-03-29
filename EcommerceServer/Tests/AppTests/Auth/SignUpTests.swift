@@ -19,7 +19,7 @@ struct SignUpTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            // 1. Register user
+            // 1. Sign up user
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
@@ -33,7 +33,7 @@ struct SignUpTests {
             // 2. Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
             
-            // 3. Verify can now login
+            // 3. Verify can now sign in
             try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,

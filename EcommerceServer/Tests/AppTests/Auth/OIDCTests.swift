@@ -80,7 +80,7 @@ struct OIDCTests {
             // 2. Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // 3. Login to get access token
+            // 3. Sign in to get access token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -164,7 +164,7 @@ struct OIDCTests {
             // 2. Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // 3. Login to get user ID
+            // 3. Sign in to get user ID
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,

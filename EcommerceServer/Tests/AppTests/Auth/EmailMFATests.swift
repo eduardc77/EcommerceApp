@@ -31,7 +31,7 @@ struct EmailMFATests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login to get access token
+            // Sign in to get access token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -147,7 +147,7 @@ struct EmailMFATests {
         }
     }
 
-    @Test("Login flow with Email MFA works correctly")
+    @Test("Sign in flow with Email MFA works correctly")
     func testSignInWithEmailMFA() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
@@ -268,7 +268,7 @@ struct EmailMFATests {
     func testInvalidEmailMFACodes() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create and login user
+            // Create and sign in user
             let requestBody = TestCreateUserRequest(
                 username: "email_test_456",
                 displayName: "Email Test User 4",
@@ -413,7 +413,7 @@ struct EmailMFATests {
                 #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
             }
 
-            // Login to get access token (should still work without email verification)
+            // Sign in to get access token (should still work without email verification)
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -477,7 +477,7 @@ struct EmailMFATests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login to get access token
+            // Sign in to get access token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -571,7 +571,7 @@ struct EmailMFATests {
                 #expect(response.status == .unauthorized)
             }
 
-            // Verify can login with new password + Email MFA
+            // Verify can sign in with new password + Email MFA
             let newSignInResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -594,7 +594,7 @@ struct EmailMFATests {
                 #expect(messageResponse.success)
             }
 
-            // Complete Email MFA verification with new login
+            // Complete Email MFA verification with new sign in
             try await client.execute(
                 uri: "/api/v1/auth/mfa/email/verify",
                 method: .post,

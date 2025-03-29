@@ -6,12 +6,12 @@ import Testing
 
 @Suite("Email Verification Tests")
 struct EmailVerificationTests {
-    @Test("User can register and complete email verification")
+    @Test("User can sign up and complete email verification")
     func testBasicEmailVerification() async throws {
         let app = try await buildApplication(TestAppArguments())
 
         try await app.test(.router) { client in
-            // 1. Register new user
+            // 1. Sign up new user
             let requestBody = TestCreateUserRequest(
                 username: "verifytest",
                 displayName: "Verify Test User",
@@ -86,7 +86,7 @@ struct EmailVerificationTests {
         let app = try await buildApplication(TestAppArguments())
 
         try await app.test(.router) { client in
-            // 1. Register user
+            // 1. Sign up user
             let requestBody = TestCreateUserRequest(
                 username: "invalidcode",
                 displayName: "Invalid Code Test",
@@ -124,7 +124,7 @@ struct EmailVerificationTests {
         let app = try await buildApplication(TestAppArguments())
 
         try await app.test(.router) { client in
-            // 1. Register user
+            // 1. Sign up user
             let requestBody = TestCreateUserRequest(
                 username: "ratelimit",
                 displayName: "Rate Limit Test",

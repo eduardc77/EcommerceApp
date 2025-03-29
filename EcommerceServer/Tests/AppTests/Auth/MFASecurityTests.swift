@@ -31,7 +31,7 @@ struct MFASecurityTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login to get access token
+            // Sign in to get access token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -164,7 +164,7 @@ struct MFASecurityTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login to get access token
+            // Sign in to get access token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -287,7 +287,7 @@ struct MFASecurityTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login to get access token
+            // Sign in to get access token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -381,7 +381,7 @@ struct MFASecurityTests {
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
-            // Login to get "device 1" token
+            // Sign in to get "device 1" token
             let device1Token = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -392,7 +392,7 @@ struct MFASecurityTests {
                 return authResponse.accessToken!
             }
             
-            // Login again to get "device 2" token
+            // Sign in again to get "device 2" token
             let device2Token = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
