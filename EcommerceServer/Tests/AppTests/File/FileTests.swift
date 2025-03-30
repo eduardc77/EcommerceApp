@@ -6,12 +6,12 @@ import HummingbirdTesting
 
 @Suite("File Tests")
 struct MultipartFormTests {
-    // Helper function to create test user and get auth token
+    // Helper function to sign up test user and get auth token
     private static func createTestUserAndGetToken(
         client: some TestClientProtocol,
         email: String
     ) async throws -> String {
-        let requestBody = TestCreateUserRequest(
+        let requestBody = TestSignUpRequest(
             username: "testuser",
             displayName: "Test User",
             email: email,

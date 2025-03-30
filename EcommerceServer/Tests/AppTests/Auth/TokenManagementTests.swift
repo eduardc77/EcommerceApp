@@ -12,8 +12,8 @@ struct TokenManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "refreshuser",
                 displayName: "Refresh Test User",
                 email: "refresh@example.com",
@@ -87,8 +87,8 @@ struct TokenManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "logoutuser",
                 displayName: "Logout Test User",
                 email: "logout@example.com",
@@ -150,8 +150,8 @@ struct TokenManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and sign in user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up and sign in user
+            let requestBody = TestSignUpRequest(
                 username: "blacklistuser",
                 displayName: "Blacklist Test User",
                 email: "blacklist@example.com",
@@ -212,8 +212,8 @@ struct TokenManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "emailupdate",
                 displayName: "Email Update User",
                 email: "original@example.com",
@@ -275,8 +275,8 @@ struct TokenManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user first
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user first
+            let requestBody = TestSignUpRequest(
                 username: "expireduser",
                 displayName: "Expired Token User",
                 email: "expired@example.com",
@@ -332,8 +332,8 @@ struct TokenManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and sign in user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up and sign in user
+            let requestBody = TestSignUpRequest(
                 username: "versionuser",
                 displayName: "Version Test User",
                 email: "version@example.com",
@@ -386,8 +386,8 @@ struct TokenManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "canceluser",
                 displayName: "Cancel Test User",
                 email: "cancel@example.com",

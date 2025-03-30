@@ -2,7 +2,7 @@
 import Foundation
 
 // Shared request models for testing
-struct TestCreateUserRequest: Encodable {
+struct TestSignUpRequest: Encodable {
     let username: String
     let displayName: String
     let email: String

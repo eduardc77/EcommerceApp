@@ -12,8 +12,8 @@ struct MFARecoveryCodesTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // Create test user
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user
+            let requestBody = TestSignUpRequest(
                 username: "recovery_test_123",
                 displayName: "Recovery Test User",
                 email: "recovery_test_123@example.com",
@@ -163,8 +163,8 @@ struct MFARecoveryCodesTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // Create test user without MFA
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user without MFA
+            let requestBody = TestSignUpRequest(
                 username: "recovery_no_mfa",
                 displayName: "Recovery No MFA User",
                 email: "recovery_no_mfa@example.com",
@@ -210,8 +210,8 @@ struct MFARecoveryCodesTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // Create test user
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user
+            let requestBody = TestSignUpRequest(
                 username: "recovery_reuse",
                 displayName: "Recovery Reuse Test",
                 email: "recovery_reuse@example.com",
@@ -369,8 +369,8 @@ struct MFARecoveryCodesTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // Create test user
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user
+            let requestBody = TestSignUpRequest(
                 username: "recovery_regen",
                 displayName: "Recovery Regenerate Test",
                 email: "recovery_regen@example.com",

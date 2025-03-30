@@ -13,8 +13,8 @@ struct AuthenticationTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "test_user_123",
                 displayName: "Test User",
                 email: "testuser@example.com",
@@ -60,8 +60,8 @@ struct AuthenticationTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user first
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user first
+            let requestBody = TestSignUpRequest(
                 username: "test_user_123",
                 displayName: "Test User",
                 email: "testuser@example.com",
@@ -152,8 +152,8 @@ struct AuthenticationTests {
                 #expect(error.error.message.contains("Invalid credentials"))
             }
             
-            // 2. Create user for wrong password test
-            let requestBody = TestCreateUserRequest(
+            // 2. Sign up user for wrong password test
+            let requestBody = TestSignUpRequest(
                 username: "credential_user_123",
                 displayName: "Credential Test User",
                 email: "credentials@example.com",
@@ -189,8 +189,8 @@ struct AuthenticationTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "rate_limit_123",
                 displayName: "Rate Limit Test User",
                 email: "ratelimit@example.com",
@@ -231,8 +231,8 @@ struct AuthenticationTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "lockout_user_123",
                 displayName: "Lockout Test User",
                 email: "lockout@example.com",

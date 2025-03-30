@@ -12,8 +12,8 @@ struct MFASecurityTests {
     func testRateLimitingForTOTP() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create test user with TOTP MFA
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user with TOTP MFA
+            let requestBody = TestSignUpRequest(
                 username: "totp_ratelimit",
                 displayName: "TOTP Rate Limit Test",
                 email: "totp_ratelimit@example.com",
@@ -145,8 +145,8 @@ struct MFASecurityTests {
     func testRateLimitingForEmailMFA() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create test user with Email MFA
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user with Email MFA
+            let requestBody = TestSignUpRequest(
                 username: "email_ratelimit",
                 displayName: "Email Rate Limit Test",
                 email: "email_ratelimit@example.com",
@@ -268,8 +268,8 @@ struct MFASecurityTests {
     func testMFATokenExpiration() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create test user with TOTP MFA
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user with TOTP MFA
+            let requestBody = TestSignUpRequest(
                 username: "token_expiry",
                 displayName: "Token Expiry Test",
                 email: "token_expiry@example.com",
@@ -362,8 +362,8 @@ struct MFASecurityTests {
     func testTokenInvalidationAcrossDevices() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create test user
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user
+            let requestBody = TestSignUpRequest(
                 username: "token_invalidation",
                 displayName: "Token Invalidation Test",
                 email: "token_invalidation@example.com",

@@ -60,8 +60,8 @@ struct OIDCTests {
         let app = try await buildApplication(TestAppArguments())
 
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "oidctest",
                 displayName: "OIDC Test User",
                 email: "oidctest@example.com",
@@ -144,8 +144,8 @@ struct OIDCTests {
         let app = try await buildApplication(TestAppArguments())
 
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "expiredtest",
                 displayName: "Expired Token Test User",
                 email: "expiredtest@example.com",

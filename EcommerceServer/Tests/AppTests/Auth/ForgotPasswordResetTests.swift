@@ -33,8 +33,8 @@ struct ForgotPasswordResetTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let createUserRequest = TestCreateUserRequest(
+            // 1. Sign up user
+            let signUpRequest = TestSignUpRequest(
                 username: "reset_user_123",
                 displayName: "Reset Test User",
                 email: "resettest@example.com",
@@ -45,7 +45,7 @@ struct ForgotPasswordResetTests {
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
             }
@@ -99,8 +99,8 @@ struct ForgotPasswordResetTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let createUserRequest = TestCreateUserRequest(
+            // 1. Sign up user
+            let signUpRequest = TestSignUpRequest(
                 username: "reset_user_456",
                 displayName: "Reset Test User 2",
                 email: "resettest2@example.com",
@@ -111,7 +111,7 @@ struct ForgotPasswordResetTests {
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
             }
@@ -160,8 +160,8 @@ struct ForgotPasswordResetTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let createUserRequest = TestCreateUserRequest(
+            // 1. Sign up user
+            let signUpRequest = TestSignUpRequest(
                 username: "reset_user_789",
                 displayName: "Reset Test User 3",
                 email: "resettest3@example.com",
@@ -172,7 +172,7 @@ struct ForgotPasswordResetTests {
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
             }
@@ -233,8 +233,8 @@ struct ForgotPasswordResetTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let createUserRequest = TestCreateUserRequest(
+            // 1. Sign up user
+            let signUpRequest = TestSignUpRequest(
                 username: "reset_user_101",
                 displayName: "Reset Test User 4",
                 email: "resettest4@example.com",
@@ -245,7 +245,7 @@ struct ForgotPasswordResetTests {
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
             }

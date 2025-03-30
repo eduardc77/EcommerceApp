@@ -25,7 +25,7 @@ struct InputValidationTests {
             ]
             
             for invalidEmail in invalidEmails {
-                let requestBody = TestCreateUserRequest(
+                let requestBody = TestSignUpRequest(
                     username: "emailtest\(invalidEmails.firstIndex(of: invalidEmail)!)",
                     displayName: "Email Test User",
                     email: invalidEmail,
@@ -53,7 +53,7 @@ struct InputValidationTests {
             ]
             
             for (index, validEmail) in validEmails.enumerated() {
-                let validRequest = TestCreateUserRequest(
+                let validRequest = TestSignUpRequest(
                     username: "validmail\(index)",
                     displayName: "Valid Email User",
                     email: validEmail,
@@ -96,7 +96,7 @@ struct InputValidationTests {
             ]
             
             for invalidUsername in invalidUsernames {
-                let requestBody = TestCreateUserRequest(
+                let requestBody = TestSignUpRequest(
                     username: invalidUsername,
                     displayName: "Username Test User",
                     email: "username.test@example.com",
@@ -125,7 +125,7 @@ struct InputValidationTests {
             ]
             
             for (_, validUsername) in validUsernames.enumerated() {
-                let validRequest = TestCreateUserRequest(
+                let validRequest = TestSignUpRequest(
                     username: validUsername,
                     displayName: "Username Test User",
                     email: "\(validUsername)@example.com",
@@ -152,7 +152,7 @@ struct InputValidationTests {
         
         try await app.test(.router) { client in
             // Test too short password
-            let shortPasswordRequest = TestCreateUserRequest(
+            let shortPasswordRequest = TestSignUpRequest(
                 username: "testuser1",
                 displayName: "Test User 1",
                 email: "test1@example.com",
@@ -170,7 +170,7 @@ struct InputValidationTests {
             }
             
             // Test password without uppercase
-            let noUppercaseRequest = TestCreateUserRequest(
+            let noUppercaseRequest = TestSignUpRequest(
                 username: "testuser2",
                 displayName: "Test User 2",
                 email: "test2@example.com",
@@ -188,7 +188,7 @@ struct InputValidationTests {
             }
             
             // Test common password pattern
-            let commonPasswordRequest = TestCreateUserRequest(
+            let commonPasswordRequest = TestSignUpRequest(
                 username: "testuser3",
                 displayName: "Test User 3",
                 email: "test3@example.com",
@@ -206,7 +206,7 @@ struct InputValidationTests {
             }
             
             // Test password with repeated characters
-            let repeatedCharsRequest = TestCreateUserRequest(
+            let repeatedCharsRequest = TestSignUpRequest(
                 username: "testuser4",
                 displayName: "Test User 4",
                 email: "test4@example.com",
@@ -224,7 +224,7 @@ struct InputValidationTests {
             }
             
             // Test password with sequential characters
-            let sequentialRequest = TestCreateUserRequest(
+            let sequentialRequest = TestSignUpRequest(
                 username: "testuser5",
                 displayName: "Test User 5",
                 email: "test5@example.com",
@@ -242,7 +242,7 @@ struct InputValidationTests {
             }
             
             // Test password containing username
-            let usernameInPasswordRequest = TestCreateUserRequest(
+            let usernameInPasswordRequest = TestSignUpRequest(
                 username: "johndoe",
                 displayName: "John Doe",
                 email: "john@example.com",
@@ -260,7 +260,7 @@ struct InputValidationTests {
             }
             
             // Test valid password
-            let validRequest = TestCreateUserRequest(
+            let validRequest = TestSignUpRequest(
                 username: "validuser",
                 displayName: "Valid User",
                 email: "valid@example.com",

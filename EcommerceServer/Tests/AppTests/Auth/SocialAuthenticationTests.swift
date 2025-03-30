@@ -66,9 +66,9 @@ struct SocialAuthenticationTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create a regular user first
+            // 1. Sign up a regular user first
             let email = "social_existing@example.com"
-            let requestBody = TestCreateUserRequest(
+            let requestBody = TestSignUpRequest(
                 username: "social_existing",
                 displayName: "Existing User",
                 email: email,

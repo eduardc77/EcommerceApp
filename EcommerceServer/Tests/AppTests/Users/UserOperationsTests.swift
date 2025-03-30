@@ -14,8 +14,8 @@ struct UserOperationsTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // Create a user
-            let user = TestCreateUserRequest(
+            // Sign up a user
+            let user = TestSignUpRequest(
                 username: "testuser",
                 displayName: "Test User",
                 email: "testuser@example.com",
@@ -67,8 +67,8 @@ struct UserOperationsTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create first user
-            let user1 = TestCreateUserRequest(
+            // 1. Sign up first user
+            let user1 = TestSignUpRequest(
                 username: "user1",
                 displayName: "User One",
                 email: "user1@example.com",
@@ -100,8 +100,8 @@ struct UserOperationsTests {
             
             let user1Id = user1Auth.user!.id
             
-            // 2. Create second user
-            let user2 = TestCreateUserRequest(
+            // 2. Sign up second user
+            let user2 = TestSignUpRequest(
                 username: "user2",
                 displayName: "User Two",
                 email: "user2@example.com",
@@ -149,8 +149,8 @@ struct UserOperationsTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // Create a user
-            let user = TestCreateUserRequest(
+            // Sign up a user
+            let user = TestSignUpRequest(
                 username: "deletetest",
                 displayName: "Delete Test",
                 email: "deletetest@example.com",
@@ -207,8 +207,8 @@ struct UserOperationsTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create first user
-            let user1 = TestCreateUserRequest(
+            // 1. Sign up first user
+            let user1 = TestSignUpRequest(
                 username: "user1delete",
                 displayName: "User One Delete",
                 email: "user1delete@example.com",
@@ -240,8 +240,8 @@ struct UserOperationsTests {
             
             let user1Id = user1Auth.user!.id
             
-            // 2. Create second user
-            let user2 = TestCreateUserRequest(
+            // 2. Sign up second user
+            let user2 = TestSignUpRequest(
                 username: "user2delete",
                 displayName: "User Two Delete",
                 email: "user2delete@example.com",
@@ -288,8 +288,8 @@ struct UserOperationsTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // Create first user
-            let user1 = TestCreateUserRequest(
+            // Sign up first user
+            let user1 = TestSignUpRequest(
                 username: "user1public",
                 displayName: "User One Public",
                 email: "user1public@example.com",
@@ -321,8 +321,8 @@ struct UserOperationsTests {
             
             let user1Id = user1Auth.user!.id
             
-            // Create second user
-            let user2 = TestCreateUserRequest(
+            // Sign up second user
+            let user2 = TestSignUpRequest(
                 username: "user2public",
                 displayName: "User Two Public",
                 email: "user2public@example.com",
@@ -387,7 +387,7 @@ struct UserOperationsTests {
         
         try await app.test(.router) { client in
             // 1. Create an admin user
-            let adminUser = TestCreateUserRequest(
+            let adminUser = TestSignUpRequest(
                 username: "adminuser",
                 displayName: "Admin User",
                 email: "admin@example.com",
@@ -407,8 +407,8 @@ struct UserOperationsTests {
             // Set admin role directly in database
             try await client.setUserRole(app: app, email: adminUser.email, role: .admin)
             
-            // 2. Create a regular user
-            let regularUser = TestCreateUserRequest(
+            // 2. Sign up a regular user
+            let regularUser = TestSignUpRequest(
                 username: "regularuser",
                 displayName: "Regular User",
                 email: "regular@example.com",

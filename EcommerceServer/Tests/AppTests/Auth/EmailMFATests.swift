@@ -10,8 +10,8 @@ struct EmailMFATests {
     func testEmailMFAEnableDisable() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create test user
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user
+            let requestBody = TestSignUpRequest(
                 username: "email_test_123",
                 displayName: "Email Test User",
                 email: "email_test_123@example.com",
@@ -152,7 +152,7 @@ struct EmailMFATests {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
             // Sign up and sign in user
-            let requestBody = TestCreateUserRequest(
+            let requestBody = TestSignUpRequest(
                 username: "email_test_789",
                 displayName: "Email Test User 3",
                 email: "email_test_789@example.com",
@@ -268,8 +268,8 @@ struct EmailMFATests {
     func testInvalidEmailMFACodes() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create and sign in user
-            let requestBody = TestCreateUserRequest(
+            // Sign up and sign in user
+            let requestBody = TestSignUpRequest(
                 username: "email_test_456",
                 displayName: "Email Test User 4",
                 email: "email_test_456@example.com",
@@ -394,8 +394,8 @@ struct EmailMFATests {
     func testCannotEnableEmailMFAWithoutVerification() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create test user without verifying email
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user without verifying email
+            let requestBody = TestSignUpRequest(
                 username: "email_test_unverified",
                 displayName: "Unverified Test User",
                 email: "unverified@example.com",
@@ -459,7 +459,7 @@ struct EmailMFATests {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
             // Create test user
-            let requestBody = TestCreateUserRequest(
+            let requestBody = TestSignUpRequest(
                 username: "email_pwd_change",
                 displayName: "Email MFA Password Change User",
                 email: "email_pwd_change@example.com",

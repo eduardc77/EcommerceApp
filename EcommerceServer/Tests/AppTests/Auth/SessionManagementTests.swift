@@ -13,8 +13,8 @@ struct SessionManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "session_user_1",
                 displayName: "Session Test User",
                 email: "session1@example.com",
@@ -33,7 +33,7 @@ struct SessionManagementTests {
             // 2. Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
             
-            // 3. Sign in to create a session
+            // 3. Sign in to sign up a session
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -66,8 +66,8 @@ struct SessionManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "session_user_2",
                 displayName: "Multiple Session User",
                 email: "session2@example.com",
@@ -129,8 +129,8 @@ struct SessionManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "session_user_3",
                 displayName: "Session Revoke User",
                 email: "session3@example.com",
@@ -228,8 +228,8 @@ struct SessionManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "session_user_4",
                 displayName: "Session Revoke All User",
                 email: "session4@example.com",
@@ -313,8 +313,8 @@ struct SessionManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "session_user_5",
                 displayName: "Session Signout User",
                 email: "session5@example.com",
@@ -399,8 +399,8 @@ struct SessionManagementTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create user
-            let requestBody = TestCreateUserRequest(
+            // 1. Sign up user
+            let requestBody = TestSignUpRequest(
                 username: "session_user_6",
                 displayName: "Concurrent Sessions User",
                 email: "session6@example.com",

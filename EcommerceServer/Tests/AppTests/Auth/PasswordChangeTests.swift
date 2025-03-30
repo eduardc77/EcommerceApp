@@ -33,8 +33,8 @@ struct PasswordChangeTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and sign in user
-            let createUserRequest = TestCreateUserRequest(
+            // 1. Sign up and sign in user
+            let signUpRequest = TestSignUpRequest(
                 username: "password_user_123",
                 displayName: "Password Test User",
                 email: "passwordtest@example.com",
@@ -45,14 +45,14 @@ struct PasswordChangeTests {
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
             }
             
             // Complete email verification
-            try await client.completeEmailVerification(email: createUserRequest.email)
-            
+            try await client.completeEmailVerification(email: signUpRequest.email)
+
             // 2. Sign in to get token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
@@ -85,8 +85,8 @@ struct PasswordChangeTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and sign in user
-            let createUserRequest = TestCreateUserRequest(
+            // 1. Sign up and sign in user
+            let signUpRequest = TestSignUpRequest(
                 username: "password_user_456",
                 displayName: "Password Test User 2",
                 email: "passwordtest2@example.com",
@@ -97,14 +97,14 @@ struct PasswordChangeTests {
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
             }
             
             // Complete email verification
-            try await client.completeEmailVerification(email: createUserRequest.email)
-            
+            try await client.completeEmailVerification(email: signUpRequest.email)
+
             // 2. Sign in to get token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
@@ -137,8 +137,8 @@ struct PasswordChangeTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and sign in user
-            let createUserRequest = TestCreateUserRequest(
+            // 1. Sign up and sign in user
+            let signUpRequest = TestSignUpRequest(
                 username: "password_user_789",
                 displayName: "Password Test User 3",
                 email: "passwordtest3@example.com",
@@ -149,14 +149,14 @@ struct PasswordChangeTests {
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
             }
             
             // Complete email verification
-            try await client.completeEmailVerification(email: createUserRequest.email)
-            
+            try await client.completeEmailVerification(email: signUpRequest.email)
+
             // 2. Sign in to get token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
@@ -220,8 +220,8 @@ struct PasswordChangeTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create and sign in user
-            let createUserRequest = TestCreateUserRequest(
+            // 1. Sign up and sign in user
+            let signUpRequest = TestSignUpRequest(
                 username: "password_user_101",
                 displayName: "Password Test User 4",
                 email: "passwordtest4@example.com",
@@ -232,14 +232,14 @@ struct PasswordChangeTests {
             try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(createUserRequest, allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
             }
             
             // Complete email verification
-            try await client.completeEmailVerification(email: createUserRequest.email)
-            
+            try await client.completeEmailVerification(email: signUpRequest.email)
+
             // 2. Sign in to get token
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",

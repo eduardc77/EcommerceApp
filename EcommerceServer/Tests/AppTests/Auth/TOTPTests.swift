@@ -11,8 +11,8 @@ struct TOTPTests {
     func testTOTPEnableDisable() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create test user
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user
+            let requestBody = TestSignUpRequest(
                 username: "totp_test_123",
                 displayName: "TOTP Test User",
                 email: "totp_test_123@example.com",
@@ -120,7 +120,7 @@ struct TOTPTests {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
             // Sign up and sign in user
-            let requestBody = TestCreateUserRequest(
+            let requestBody = TestSignUpRequest(
                 username: "totp_test_789",
                 displayName: "TOTP Test User 3",
                 email: "totp_test_789@example.com",
@@ -214,8 +214,8 @@ struct TOTPTests {
     func testInvalidTOTPCodes() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create and sign in user
-            let requestBody = TestCreateUserRequest(
+            // Sign up and sign in user
+            let requestBody = TestSignUpRequest(
                 username: "totp_test_456",
                 displayName: "TOTP Test User 4",
                 email: "totp_test_456@example.com",
@@ -320,8 +320,8 @@ struct TOTPTests {
     func testPasswordChangeWithTOTPEnabled() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create test user
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user
+            let requestBody = TestSignUpRequest(
                 username: "totp_pwd_change",
                 displayName: "TOTP Password Change User",
                 email: "totp_pwd_change@example.com",
@@ -456,8 +456,8 @@ struct TOTPTests {
     func testCannotEnableTOTPWithoutVerification() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create test user without verifying email
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user without verifying email
+            let requestBody = TestSignUpRequest(
                 username: "totp_unverified",
                 displayName: "TOTP Unverified User",
                 email: "totp_unverified@example.com",

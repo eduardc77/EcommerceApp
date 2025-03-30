@@ -543,7 +543,7 @@ struct AuthController {
         context: Context
     ) async throws -> EditedResponse<AuthResponse> {
         let createUser = try await request.decode(
-            as: CreateUserRequest.self,
+            as: SignUpRequest.self,
             context: context
         )
         

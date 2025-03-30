@@ -12,7 +12,7 @@ struct EmailVerificationTests {
 
         try await app.test(.router) { client in
             // 1. Sign up new user
-            let requestBody = TestCreateUserRequest(
+            let requestBody = TestSignUpRequest(
                 username: "verifytest",
                 displayName: "Verify Test User",
                 email: "verify@example.com",
@@ -87,7 +87,7 @@ struct EmailVerificationTests {
 
         try await app.test(.router) { client in
             // 1. Sign up user
-            let requestBody = TestCreateUserRequest(
+            let requestBody = TestSignUpRequest(
                 username: "invalidcode",
                 displayName: "Invalid Code Test",
                 email: "invalid@example.com",
@@ -125,7 +125,7 @@ struct EmailVerificationTests {
 
         try await app.test(.router) { client in
             // 1. Sign up user
-            let requestBody = TestCreateUserRequest(
+            let requestBody = TestSignUpRequest(
                 username: "ratelimit",
                 displayName: "Rate Limit Test",
                 email: "ratelimit@example.com",

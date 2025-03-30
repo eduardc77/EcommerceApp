@@ -11,7 +11,7 @@ struct SignUpTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            let requestBody = TestCreateUserRequest(
+            let requestBody = TestSignUpRequest(
                 username: "testuser",
                 displayName: "Test User",
                 email: "testuser@example.com",
@@ -52,8 +52,8 @@ struct SignUpTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create first user
-            let firstUser = TestCreateUserRequest(
+            // 1. Sign up first user
+            let firstUser = TestSignUpRequest(
                 username: "firstuser",
                 displayName: "First User",
                 email: "duplicate@example.com",
@@ -68,8 +68,8 @@ struct SignUpTests {
                 #expect(response.status == .created)
             }
             
-            // 2. Attempt to create second user with same email
-            let secondUser = TestCreateUserRequest(
+            // 2. Attempt to sign up second user with same email
+            let secondUser = TestSignUpRequest(
                 username: "seconduser",
                 displayName: "Second User",
                 email: "duplicate@example.com",
@@ -93,8 +93,8 @@ struct SignUpTests {
         let app = try await buildApplication(TestAppArguments())
         
         try await app.test(.router) { client in
-            // 1. Create first user
-            let firstUser = TestCreateUserRequest(
+            // 1. Sign up first user
+            let firstUser = TestSignUpRequest(
                 username: "duplicateuser",
                 displayName: "First User",
                 email: "first@example.com",
@@ -109,8 +109,8 @@ struct SignUpTests {
                 #expect(response.status == .created)
             }
             
-            // 2. Attempt to create second user with same username
-            let secondUser = TestCreateUserRequest(
+            // 2. Attempt to sign up second user with same username
+            let secondUser = TestSignUpRequest(
                 username: "duplicateuser",
                 displayName: "Second User",
                 email: "second@example.com",

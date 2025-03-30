@@ -168,7 +168,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         }
     }
     
-    init(from userRequest: CreateUserRequest) async throws {
+    init(from userRequest: SignUpRequest) async throws {
         // Validate password first with user info for better validation
         try Self.validatePassword(userRequest.password, userInfo: [
             "username": userRequest.username,

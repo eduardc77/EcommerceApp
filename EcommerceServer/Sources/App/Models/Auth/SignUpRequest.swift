@@ -2,17 +2,8 @@ import Foundation
 import Hummingbird
 import Logging
 
-/// Response for password validation feedback
-struct PasswordValidationResponse: Encodable {
-    let isValid: Bool
-    let errors: [String]
-    let strength: String
-    let strengthColor: String
-    let suggestions: [String]
-}
-
-/// Create user request object decoded from HTTP body for public registration
-struct CreateUserRequest: Decodable, Sendable {
+/// Sign up request object decoded from HTTP body for public registration
+struct SignUpRequest: Decodable, Sendable {
     let username: String
     let displayName: String
     let email: String
@@ -288,66 +279,3 @@ struct CreateUserRequest: Decodable, Sendable {
     }
 }
 
-/// Create user request object for admin user creation
-struct AdminCreateUserRequest: Decodable, Sendable {
-    let username: String
-    let displayName: String
-    let email: String
-    let password: String
-    let profilePicture: String?
-    let role: Role
-
-    enum CodingKeys: String, CodingKey {
-        case username
-        case displayName
-        case email
-        case password
-        case profilePicture
-        case role
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        
-        // Reuse validation logic from CreateUserRequest
-        let baseRequest = try CreateUserRequest(from: decoder)
-        self.username = baseRequest.username
-        self.displayName = baseRequest.displayName
-        self.email = baseRequest.email
-        self.password = baseRequest.password
-        self.profilePicture = baseRequest.profilePicture
-        
-        // Add role validation
-        self.role = try container.decode(Role.self, forKey: .role)
-    }
-
-    init(
-        username: String,
-        displayName: String,
-        email: String,
-        password: String,
-        profilePicture: String? = "https://api.dicebear.com/7.x/avataaars/png",
-        role: Role
-    ) throws {
-        do {
-            // Reuse validation from CreateUserRequest
-            let baseRequest = try CreateUserRequest(
-                username: username,
-                displayName: displayName,
-                email: email,
-                password: password,
-                profilePicture: profilePicture
-            )
-            self.username = baseRequest.username
-            self.displayName = baseRequest.displayName
-            self.email = baseRequest.email
-            self.password = baseRequest.password
-            self.profilePicture = baseRequest.profilePicture
-            self.role = role
-        } catch let error as HTTPError {
-            throw error
-        } catch {
-            throw HTTPError(.badRequest, message: "Invalid user data format")
-        }
-    }
-} 

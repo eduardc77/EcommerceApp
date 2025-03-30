@@ -12,8 +12,8 @@ struct MFAAdvancedTests {
     func testMFAMethodSelection() async throws {
         let app = try await buildApplication(TestAppArguments())
         try await app.test(.router) { client in
-            // Create test user with both Email and TOTP MFA enabled
-            let requestBody = TestCreateUserRequest(
+            // Sign up test user with both Email and TOTP MFA enabled
+            let requestBody = TestSignUpRequest(
                 username: "multiple_mfa_test",
                 displayName: "Multiple MFA Test User",
                 email: "multiple_mfa@example.com",
