@@ -12,10 +12,10 @@ struct SignUpRequest: Decodable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case username
-        case displayName
+        case displayName = "display_name"
         case email
         case password
-        case profilePicture
+        case profilePicture = "profile_picture"
     }
 
     init(from decoder: Decoder) throws {

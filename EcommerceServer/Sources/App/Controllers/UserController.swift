@@ -379,5 +379,13 @@ struct UpdateUserRequest: Codable, Sendable {
     let password: String?
     let profilePicture: String?
     let role: Role?
+
+    enum CodingKeys: String, CodingKey {
+        case displayName = "display_name"
+        case email
+        case password
+        case profilePicture = "profile_picture"
+        case role
+    }
 }
 

@@ -33,6 +33,22 @@ struct OAuthClientResponse: Codable, ResponseEncodable {
         self.createdAt = client.createdAt
         self.updatedAt = client.updatedAt
     }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case clientId = "client_id"
+        case name
+        case redirectURIs = "redirect_uris"
+        case allowedGrantTypes = "allowed_grant_types"
+        case allowedScopes = "allowed_scopes"
+        case isPublic = "is_public"
+        case isActive = "is_active"
+        case description
+        case websiteURL = "website_url"
+        case logoURL = "logo_url"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
 }
 
 /// Response structure for listing OAuth clients
@@ -51,4 +67,15 @@ struct CreateOAuthClientRequest: Codable {
     let description: String?
     let websiteURL: String?
     let logoURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case redirectURIs = "redirect_uris"
+        case allowedGrantTypes = "allowed_grant_types"
+        case allowedScopes = "allowed_scopes"
+        case isPublic = "is_public"
+        case description
+        case websiteURL = "website_url"
+        case logoURL = "logo_url"
+    }
 } 

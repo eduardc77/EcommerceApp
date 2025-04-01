@@ -11,10 +11,10 @@ struct AdminCreateUserRequest: Decodable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case username
-        case displayName
+        case displayName = "display_name"
         case email
         case password
-        case profilePicture
+        case profilePicture = "profile_picture"
         case role
     }
 

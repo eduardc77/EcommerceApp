@@ -15,6 +15,11 @@ struct MFAMethodsResponse: Codable {
         if emailEnabled { methods.append(.email) }
         return methods
     }
+
+    enum CodingKeys: String, CodingKey {
+        case emailEnabled = "email_enabled"
+        case totpEnabled = "totp_enabled"
+    }
 }
 
 extension MFAMethodsResponse: ResponseEncodable {}

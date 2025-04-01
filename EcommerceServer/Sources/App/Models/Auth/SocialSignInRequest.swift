@@ -67,6 +67,11 @@ struct GoogleAuthParams: Codable {
     
     /// Access token received from Google authentication (optional)
     let accessToken: String?
+
+    enum CodingKeys: String, CodingKey {
+        case idToken = "id_token"
+        case accessToken = "access_token"
+    }
 }
 
 /// Apple-specific authentication parameters
@@ -82,12 +87,24 @@ struct AppleAuthParams: Codable {
     
     /// User's email from Apple (may be null for returning users)
     let email: String?
+
+    enum CodingKeys: String, CodingKey {
+        case identityToken = "identity_token"
+        case authorizationCode = "authorization_code"
+        case fullName = "full_name"
+        case email
+    }
 }
 
 /// Apple name components structure
 struct AppleNameComponents: Codable {
     let givenName: String?
     let familyName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case givenName = "given_name"
+        case familyName = "family_name"
+    }
     
     var displayName: String? {
         [givenName, familyName]

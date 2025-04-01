@@ -5,4 +5,9 @@ struct MFASelectionRequest: Codable {
     
     /// The selected MFA method (totp or email)
     let method: MFAMethod
+
+    enum CodingKeys: String, CodingKey {
+        case stateToken = "state_token"
+        case method
+    }
 } 

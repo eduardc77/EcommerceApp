@@ -23,6 +23,18 @@ struct UserResponse: ResponseCodable, Sendable {
         self.createdAt = user.createdAt?.ISO8601Format() ?? ""
         self.updatedAt = user.updatedAt?.ISO8601Format() ?? ""
     }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case username
+        case displayName = "display_name"
+        case email
+        case profilePicture = "profile_picture"
+        case role
+        case emailVerified = "email_verified"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
 }
 
 /// Public user information encoded into HTTP response
@@ -43,5 +55,15 @@ struct PublicUserResponse: ResponseCodable, Sendable {
         self.role = user.role
         self.createdAt = user.createdAt?.ISO8601Format() ?? ""
         self.updatedAt = user.updatedAt?.ISO8601Format() ?? ""
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case username
+        case displayName = "display_name"
+        case profilePicture = "profile_picture"
+        case role
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
 }

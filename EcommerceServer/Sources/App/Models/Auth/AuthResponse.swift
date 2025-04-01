@@ -14,6 +14,19 @@ struct AuthResponse: Codable {
     let maskedEmail: String?  // For showing masked email in MFA/verification UI
     let availableMfaMethods: [MFAMethod]?  // Available MFA methods for the user
     
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case tokenType = "token_type"
+        case expiresIn = "expires_in"
+        case expiresAt = "expires_at"
+        case user
+        case stateToken = "state_token"
+        case status
+        case maskedEmail = "masked_email"
+        case availableMfaMethods = "available_mfa_methods"
+    }
+
     init(
         accessToken: String? = nil,
         refreshToken: String? = nil,
