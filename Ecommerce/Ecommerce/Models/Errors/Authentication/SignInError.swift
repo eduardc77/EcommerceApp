@@ -11,7 +11,8 @@ public enum SignInError: LocalizedError, Equatable {
             return "Invalid email or password"
         case .accountLocked(let retryAfter):
             if let retryAfter = retryAfter {
-                return "Too many sign in attempts. Please try again in \(retryAfter) seconds"
+                let minutes = Int(ceil(Double(retryAfter) / 60.0))
+                return "Too many sign in attempts. Please try again in \(minutes) minute\(minutes == 1 ? "" : "s")"
             }
             return "Too many sign in attempts. Please try again later"
         case .unknown(let message):

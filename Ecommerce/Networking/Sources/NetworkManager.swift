@@ -127,10 +127,20 @@ private extension NetworkManager {
             if response.statusCode == 401,
                let contentType = response.allHeaderFields["Content-Type"] as? String,
                contentType.contains("application/json"),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               (json["requiresTOTP"] as? Bool == true || json["requiresEmailVerification"] as? Bool == true) {
-                // Return the original data to let the caller handle TOTP/email verification
-                return (data, response)
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if json["requiresTOTP"] as? Bool == true || json["requiresEmailVerification"] as? Bool == true {
+                    // Return the original data to let the caller handle TOTP/email verification
+                    return (data, response)
+                }
+                
+                // Try to decode error message
+                if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                    let message = errorResponse.error.message
+                    if message.contains("No token found") || message.contains("Invalid credentials") {
+                        throw NetworkError.unauthorized(description: "Invalid credentials")
+                    }
+                    throw NetworkError.unauthorized(description: message)
+                }
             }
             
             if !isRefreshAttempt {
