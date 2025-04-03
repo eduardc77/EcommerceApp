@@ -81,8 +81,8 @@ struct UserDetailView: View {
             
             Section("Account Details") {
                 LabeledContent("User ID", value: user.id)
-                LabeledContent("Created", value: user.createdAt.formattedAsDate())
-                LabeledContent("Updated", value: user.updatedAt.formattedAsDate())
+                LabeledContent("Created", value: user.createdAt?.formattedAsDate() ?? "")
+                LabeledContent("Updated", value: user.updatedAt?.formattedAsDate() ?? "")
             }
             
             if permissionManager.hasPermission(.manageRoles) {

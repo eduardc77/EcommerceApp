@@ -1,13 +1,7 @@
 import Foundation
 
-public protocol URLSessionProtocol: Sendable {
-    func data(for request: URLRequest) async throws -> (Data, URLResponse)
-}
-
-extension URLSession: URLSessionProtocol {}
-
 public struct NetworkConfiguration {
-    public static var `default`: URLSessionProtocol {
+    public static var `default`: URLSession {
         URLSession(
             configuration: configuration(),
             delegate: nil,

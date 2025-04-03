@@ -2,11 +2,11 @@ import OSLog
 import Foundation
 
 // Using the protocol defined in AuthenticationServiceProtocol.swift instead of redefining it here
-public actor AuthenticationService: AuthenticationServiceProtocol {
+public final class AuthenticationService: AuthenticationServiceProtocol {
     private let apiClient: APIClient
-    private let environment: Store.Environment
     private let authorizationManager: AuthorizationManagerProtocol
-    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Networking", category: "AuthenticationService")
+    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Ecommerce", category: "AuthenticationService")
+    private let environment: Store.Environment
 
     public init(
         apiClient: APIClient,
@@ -18,235 +18,64 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         self.environment = environment
     }
 
-    public func login(request: LoginRequest) async throws -> AuthResponse {
+    public func signIn(request: SignInRequest) async throws -> AuthResponse {
         let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.login(dto: request),
+            from: Store.Authentication.signIn(request: request),
             in: environment,
             allowRetry: false,
             requiresAuthorization: false
         )
-
-        if response.requiresEmailVerification {
-            // Store temporary token for email verification
-            let dateFormatter = ISO8601DateFormatter()
-            let expirationDate = Date().addingTimeInterval(300) // 5 minutes
-            let tempToken = Token(
-                accessToken: response.tempToken ?? "",
-                refreshToken: "",
-                tokenType: "Bearer",
-                expiresIn: 300, // 5 minutes
-                expiresAt: dateFormatter.string(from: expirationDate)
-            )
-            await authorizationManager.storeToken(tempToken)
-        } else if !response.requiresTOTP {
-            // Only store permanent tokens if no verification is required
-            let token = Token(
-                accessToken: response.accessToken,
-                refreshToken: response.refreshToken,
-                tokenType: response.tokenType,
-                expiresIn: response.expiresIn,
-                expiresAt: response.expiresAt
-            )
-            await authorizationManager.storeToken(token)
-        }
-
-        logger.debug("Login successful: \(response.user.displayName)")
+        try await storeTokens(from: response)
         return response
     }
 
-    /// Login with Google OAuth credentials
-    /// - Parameters:
-    ///   - idToken: The ID token received from Google Sign-In
-    ///   - accessToken: The access token received from Google Sign-In (optional)
-    /// - Returns: Authentication response with tokens and user information
-    public func loginWithGoogle(idToken: String, accessToken: String? = nil) async throws -> AuthResponse {
-        let params: [String: Any] = [
-            "idToken": idToken,
-            "accessToken": accessToken as Any
-        ]
-        
-        let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.socialLogin(provider: "google", params: params),
+    public func signUp(request: SignUpRequest) async throws -> AuthResponse {
+        return try await apiClient.performRequest(
+            from: Store.Authentication.signUp(request: request),
             in: environment,
             allowRetry: false,
             requiresAuthorization: false
         )
-        
-        // Store the tokens
-        let token = Token(
-            accessToken: response.accessToken,
-            refreshToken: response.refreshToken,
-            tokenType: response.tokenType,
-            expiresIn: response.expiresIn,
-            expiresAt: response.expiresAt
-        )
-        await authorizationManager.storeToken(token)
-        
-        logger.debug("Google login successful: \(response.user.displayName)")
-        return response
-    }
-    
-    /// Login with Apple Sign In credentials
-    /// - Parameters:
-    ///   - identityToken: The identity token string from Sign in with Apple
-    ///   - authorizationCode: The authorization code from Sign in with Apple
-    ///   - fullName: User's name components (optional, only provided on first login)
-    ///   - email: User's email (optional, only provided on first login)
-    /// - Returns: Authentication response with tokens and user information
-    public func loginWithApple(
-        identityToken: String,
-        authorizationCode: String,
-        fullName: [String: String?]? = nil,
-        email: String? = nil
-    ) async throws -> AuthResponse {
-        var params: [String: Any] = [
-            "identityToken": identityToken,
-            "authorizationCode": authorizationCode
-        ]
-        
-        // Add optional parameters if provided
-        if let email = email {
-            params["email"] = email
-        }
-        
-        if let fullName = fullName {
-            params["fullName"] = fullName
-        }
-        
-        let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.socialLogin(provider: "apple", params: params),
-            in: environment,
-            allowRetry: false,
-            requiresAuthorization: false
-        )
-        
-        // Store the tokens
-        let token = Token(
-            accessToken: response.accessToken,
-            refreshToken: response.refreshToken,
-            tokenType: response.tokenType,
-            expiresIn: response.expiresIn,
-            expiresAt: response.expiresAt
-        )
-        await authorizationManager.storeToken(token)
-        
-        logger.debug("Apple login successful: \(response.user.displayName)")
-        return response
     }
 
-    public func verifyEmail2FALogin(code: String, tempToken: String) async throws -> AuthResponse {
-        let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.verifyEmail2FALogin(code: code, tempToken: tempToken),
-            in: environment,
-            allowRetry: false,
-            requiresAuthorization: false
-        )
-
-        // Store the tokens after successful verification
-        let token = Token(
-            accessToken: response.accessToken,
-            refreshToken: response.refreshToken,
-            tokenType: response.tokenType,
-            expiresIn: response.expiresIn,
-            expiresAt: response.expiresAt
-        )
-        await authorizationManager.storeToken(token)
-
-        logger.debug("Email verification successful: \(response.user.displayName)")
-        return response
-    }
-
-    public func verifyTOTPLogin(code: String, tempToken: String) async throws -> AuthResponse {
-        let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.verifyTOTPLogin(code: code, tempToken: tempToken),
-            in: environment,
-            allowRetry: false,
-            requiresAuthorization: false
-        )
-
-        // Only store permanent tokens if no email verification is required
-        if !response.requiresEmailVerification {
-            let token = Token(
-                accessToken: response.accessToken,
-                refreshToken: response.refreshToken,
-                tokenType: response.tokenType,
-                expiresIn: response.expiresIn,
-                expiresAt: response.expiresAt
-            )
-            await authorizationManager.storeToken(token)
-        }
-
-        logger.debug("TOTP verification successful: \(response.user.displayName)")
-        return response
-    }
-
-    public func register(request: CreateUserRequest) async throws -> AuthResponse {
-        let response: AuthResponse = try await apiClient.performRequest(
-            from: Store.Authentication.register(dto: request),
-            in: environment,
-            allowRetry: false,
-            requiresAuthorization: false
-        )
-
-        // Store the token
-        let token = Token(
-            accessToken: response.accessToken,
-            refreshToken: response.refreshToken,
-            tokenType: response.tokenType,
-            expiresIn: response.expiresIn,
-            expiresAt: response.expiresAt
-        )
-        await authorizationManager.storeToken(token)
-
-        logger.debug("Registration successful: \(response.user.displayName)")
-        return response
-    }
-
-    public func logout() async throws {
+    public func signOut() async throws {
         let _: EmptyResponse = try await apiClient.performRequest(
-            from: Store.Authentication.logout,
+            from: Store.Authentication.signOut,
             in: environment,
             allowRetry: false,
             requiresAuthorization: true
         )
-
-        // Clear the token
         try await authorizationManager.invalidateToken()
-
-        logger.debug("Logged out successfully")
     }
 
     public func me() async throws -> UserResponse {
         let response: UserResponse = try await apiClient.performRequest(
             from: Store.Authentication.me,
             in: environment,
-            allowRetry: true,
-            requiresAuthorization: true
-        )
-        logger.debug("Retrieved user profile: \(response.displayName)")
-        return response
-    }
-
-    public func changePassword(current: String, new: String) async throws -> MessageResponse {
-        let response: MessageResponse = try await apiClient.performRequest(
-            from: Store.Authentication.changePassword(current: current, new: new),
-            in: environment,
             allowRetry: false,
             requiresAuthorization: true
         )
-        logger.debug("Password changed successfully")
         return response
     }
 
-    public func requestEmailCode(tempToken: String) async throws -> MessageResponse {
-        let response: MessageResponse = try await apiClient.performRequest(
-            from: Store.Authentication.requestEmailCode(tempToken: tempToken),
+    public func refreshToken(_ refreshToken: String) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.refreshToken(refreshToken),
             in: environment,
             allowRetry: false,
             requiresAuthorization: false
         )
-        logger.debug("2FA Email verification code requested")
+        try await storeTokens(from: response)
         return response
+    }
+
+    public func changePassword(request: ChangePasswordRequest) async throws {
+        let _: EmptyResponse = try await apiClient.performRequest(
+            from: Store.Authentication.changePassword(request: request),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: true
+        )
     }
 
     public func forgotPassword(email: String) async throws -> MessageResponse {
@@ -260,19 +89,322 @@ public actor AuthenticationService: AuthenticationServiceProtocol {
         return response
     }
 
-    public func resetPassword(email: String, code: String, newPassword: String) async throws -> MessageResponse {
+    public func resetPassword(request: ResetPasswordRequest) async throws -> MessageResponse {
         let response: MessageResponse = try await apiClient.performRequest(
-            from: Store.Authentication.resetPassword(email: email, code: code, newPassword: newPassword),
+            from: Store.Authentication.resetPassword(request: request),
             in: environment,
             allowRetry: false,
             requiresAuthorization: false
         )
-        logger.debug("Password reset successfully")
         return response
     }
 
-    public func refreshToken(_ token: String) async throws -> AuthResponse {
-        // Implementation needed
-        fatalError("Method not implemented")
+    public func verifyTOTPSignIn(code: String, stateToken: String) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.verifyTOTPSignIn(code: code, stateToken: stateToken),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        try await storeTokens(from: response)
+        return response
+    }
+
+    public func verifyEmailMFASignIn(code: String, stateToken: String) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.verifyEmailMFASignIn(code: code, stateToken: stateToken),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        try await storeTokens(from: response)
+        return response
+    }
+
+    public func resendEmailMFASignIn(stateToken: String) async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.resendEmailMFASignIn(stateToken: stateToken),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        return response
+    }
+
+    public func verifyRecoveryCode(code: String, stateToken: String) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.RecoveryCodes.verifyRecoveryCode(code: code, stateToken: stateToken),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        try await storeTokens(from: response)
+        return response
+    }
+
+    public func selectMFAMethod(method: String, stateToken: String) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.selectMFAMethod(method: method, stateToken: stateToken),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        try await storeTokens(from: response)
+        return response
+    }
+
+    public func getMFAMethods(stateToken: String?) async throws -> MFAMethodsResponse {
+        let response: MFAMethodsResponse = try await apiClient.performRequest(
+            from: Store.Authentication.getMFAMethods(stateToken: stateToken),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        return response
+    }
+
+    public func requestEmailCode(stateToken: String) async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.resendEmailMFASignIn(stateToken: stateToken),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        return response
+    }
+
+    public func cancelAuthentication() async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.cancelAuthentication,
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: true
+        )
+        return response
+    }
+
+    public func revokeAccessToken(_ token: String) async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.revokeAccessToken(token),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: true
+        )
+        return response
+    }
+
+    public func revokeSession(sessionId: String) async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.revokeSession(sessionId: sessionId),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: true
+        )
+        return response
+    }
+
+    public func revokeAllOtherSessions() async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.revokeAllOtherSessions,
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: true
+        )
+        return response
+    }
+
+    public func listSessions() async throws -> SessionListResponse {
+        let response: SessionListResponse = try await apiClient.performRequest(
+            from: Store.Authentication.listSessions,
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: true
+        )
+        return response
+    }
+
+    public func getUserInfo() async throws -> UserInfoResponse {
+        let response: UserInfoResponse = try await apiClient.performRequest(
+            from: Store.Authentication.getUserInfo,
+            in: environment,
+            allowRetry: true,
+            requiresAuthorization: true
+        )
+        return response
+    }
+
+    public func signInWithGoogle(idToken: String, accessToken: String? = nil) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.signInWithGoogle(idToken: idToken, accessToken: accessToken),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        try await storeTokens(from: response)
+        return response
+    }
+    
+    public func handleGoogleCallback(code: String) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.handleOAuthCallback(code: code, state: ""),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        try await storeTokens(from: response)
+        return response
+    }
+    
+    public func signInWithApple(
+        identityToken: String,
+        authorizationCode: String,
+        fullName: [String: String?]? = nil,
+        email: String? = nil
+    ) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.signInWithApple(
+                identityToken: identityToken,
+                authorizationCode: authorizationCode,
+                fullName: fullName,
+                email: email
+            ),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        try await storeTokens(from: response)
+        return response
+    }
+    
+    public func handleAppleCallback(code: String) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.handleOAuthCallback(code: code, state: ""),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        try await storeTokens(from: response)
+        return response
+    }
+
+    public func exchangeCodeForTokens(
+        code: String,
+        codeVerifier: String,
+        redirectUri: String
+    ) async throws -> AuthResponse {
+        let response: AuthResponse = try await apiClient.performRequest(
+            from: Store.Authentication.exchangeCodeForTokens(
+                code: code,
+                codeVerifier: codeVerifier,
+                redirectUri: redirectUri
+            ),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        try await storeTokens(from: response)
+        return response
+    }
+
+    public func initiateSocialSignIn(
+        provider: String,
+        redirectUri: String,
+        codeChallenge: String,
+        codeChallengeMethod: String,
+        state: String,
+        scope: String? = nil
+    ) async throws -> URL {
+        let response: URLResponse = try await apiClient.performRequest(
+            from: Store.Authentication.socialSignIn(
+                provider: provider,
+                redirectUri: redirectUri,
+                codeChallenge: codeChallenge,
+                codeChallengeMethod: codeChallengeMethod,
+                state: state,
+                scope: scope
+            ),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        return response.url
+    }
+
+    public func sendEmailMFASignIn(stateToken: String) async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.sendEmailMFASignIn(stateToken: stateToken),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        return response
+    }
+
+    public func sendInitialVerificationEmail(stateToken: String, email: String) async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.sendInitialVerificationEmail(stateToken: stateToken, email: email),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        return response
+    }
+
+    public func resendInitialVerificationEmail(stateToken: String, email: String) async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.resendInitialVerificationEmail(stateToken: stateToken, email: email),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        return response
+    }
+
+    public func resendInitialEmailVerificationCode(stateToken: String, email: String) async throws -> MessageResponse {
+        let response: MessageResponse = try await apiClient.performRequest(
+            from: Store.Authentication.resendInitialVerificationEmail(stateToken: stateToken, email: email),
+            in: environment,
+            allowRetry: false,
+            requiresAuthorization: false
+        )
+        return response
+    }
+
+    // MARK: - Private Helpers
+
+    private func storeTokens(from response: AuthResponse) async throws {
+        // Only store tokens for successful authentication
+        // Skip token storage for verification states that don't have tokens
+        if response.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED ||
+           response.status == AuthResponse.STATUS_MFA_REQUIRED ||
+           response.status == AuthResponse.STATUS_MFA_TOTP_REQUIRED ||
+           response.status == AuthResponse.STATUS_MFA_EMAIL_REQUIRED ||
+           response.status == AuthResponse.STATUS_VERIFICATION_REQUIRED ||
+           response.status == AuthResponse.STATUS_PASSWORD_RESET_REQUIRED ||
+           response.status == AuthResponse.STATUS_PASSWORD_UPDATE_REQUIRED {
+            return
+        }
+        
+        // For successful authentication, ensure we have all required token fields
+        guard let accessToken = response.accessToken,
+              let refreshToken = response.refreshToken,
+              let expiresIn = response.expiresIn,
+              let expiresAt = response.expiresAt else {
+            // Only throw if we're in a success state and missing token fields
+            if response.status == AuthResponse.STATUS_SUCCESS {
+                throw NetworkError.invalidResponse(description: "Missing required token fields")
+            }
+            return
+        }
+        
+        let token = Token(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            tokenType: response.tokenType,
+            expiresIn: expiresIn,
+            expiresAt: expiresAt
+        )
+        
+        await authorizationManager.storeToken(token)
     }
 }

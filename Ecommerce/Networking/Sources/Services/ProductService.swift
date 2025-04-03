@@ -97,7 +97,7 @@ public actor ProductService: ProductServiceProtocol {
     // MARK: - Filtering
 
     public func filterProducts(_ dto: ProductFilterRequest) async throws -> [ProductResponse] {
-        let products = try await apiClient.performRequest(
+        let products: [ProductResponse] = try await apiClient.performRequest(
             from: Store.Product.filter(dto: dto),
             in: environment,
             allowRetry: true,

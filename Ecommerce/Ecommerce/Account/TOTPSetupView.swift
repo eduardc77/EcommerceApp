@@ -56,13 +56,13 @@ struct TOTPSetupView: View {
                 }
             }
             .task {
-                // Start setup process when view appears
-                if currentStep == .intro {
+                // Only start setup if we're authenticated
+                if currentStep == .intro && authManager.isAuthenticated {
                     await startSetup()
                 }
             }
             .sheet(isPresented: $showVerification) {
-                VerificationView(type: .setupTOTP)
+                VerificationView(type: .enableTOTP)
             }
         }
     }
@@ -137,7 +137,7 @@ struct TOTPSetupView: View {
     private func startSetup() async {
         isLoading = true
         do {
-            let setupData = try await authManager.totpManager.setupTOTP()
+            let setupData = try await authManager.totpManager.enableTOTP()
             qrCode = setupData.qrCode
             secret = setupData.secret
             isLoading = false

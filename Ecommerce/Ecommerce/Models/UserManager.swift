@@ -52,11 +52,11 @@ public final class UserManager {
         }
     }
     
-    public func createUser(username: String, displayName: String, email: String, password: String, role: Role? = nil) async {
+    public func createUser(username: String, displayName: String, email: String, password: String, role: Role = .customer) async {
         isLoading = true
         error = nil
         do {
-            let dto = CreateUserRequest(
+            let dto = AdminCreateUserRequest(
                 username: username,
                 displayName: displayName,
                 email: email,

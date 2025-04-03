@@ -11,13 +11,17 @@ struct VerificationView: View {
     @State private var isLoading = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showSuccess = false
+    @State private var successMessage = ""
     @State private var isResendingCode = false
     @State private var resendCooldown = 0
     @State private var expirationTimer = 300 // 5 minutes
     @State private var isExpirationTimerRunning = false
     @State private var showingSkipAlert = false
-    @State private var attemptsRemaining = 3 // Track remaining attempts (client-side limit)
+    @State private var attemptsRemaining = 3 // Track remaining attempts
+    @State private var showMFAEnabledAlert = false
     @FocusState private var isCodeFieldFocused: Bool
+    @State private var isInitialSend = true
 
     var body: some View {
         NavigationStack {
@@ -41,28 +45,35 @@ struct VerificationView: View {
                     ProgressView()
                 }
             }
-            .onAppear {
-                // Initialize view state
-                isCodeFieldFocused = true
-                showError = false
-                errorMessage = ""
-                verificationCode = ""
-                
-                // Send initial code if needed
-                if type.showsResendButton {
-                    if case .emailLogin = type {
-                        // For email login, just start the timers since server already sent the code
-                        startExpirationTimer()
-                        resendCooldown = 120 // Start with full cooldown
-                        startResendCooldown()
-                        return
-                    }
-                    Task {
-                        // Add a small delay to ensure view is fully loaded
-                        try? await Task.sleep(for: .seconds(0.5))
-                        await sendCode()
-                    }
+            .task {
+                // Don't send code if MFA is already verified
+                if isInitialSend {
+                    await handleInitialCodeSending()
                 }
+            }
+            .alert("Skip Verification", isPresented: $showingSkipAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Skip", role: .destructive) {
+                    emailVerificationManager.skipVerification()
+                    // If we have pending credentials, sign in the user
+                    if let credentials = authManager.pendingCredentials {
+                        Task {
+                            await authManager.signIn(identifier: credentials.identifier, password: credentials.password)
+                        }
+                    }
+                    dismiss()
+                }
+            } message: {
+                Text("You can verify your email later from your account settings.")
+            }
+            .alert("MFA Enabled Successfully", isPresented: $showMFAEnabledAlert) {
+                Button("OK") {
+                    // Sign out first before dismissing to prevent underlying view's onAppear
+                    authManager.isAuthenticated = false
+                    dismiss()
+                }
+            } message: {
+                Text("Your account is now more secure. Please sign in again to continue.")
             }
         }
     }
@@ -110,7 +121,12 @@ struct VerificationView: View {
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.red)
                 }
-                if attemptsRemaining < 3 && type.isEmailVerification {
+                if showSuccess {
+                    Text(successMessage)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.green)
+                }
+                if attemptsRemaining < 3 && type.isEmail {
                     Text("\(attemptsRemaining) attempts remaining")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -138,17 +154,18 @@ struct VerificationView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .disabled(verificationCode.count != 6 || isLoading || (type.isEmailVerification && attemptsRemaining == 0))
+                .disabled(verificationCode.count != 6 || isLoading || (type.isEmail && attemptsRemaining == 0))
 
                 if type.showsSkipButton {
                     Button {
                         showingSkipAlert = true
                     } label: {
                         Text("Skip for now")
+                            .frame(maxWidth: .infinity)
                             .font(.subheadline)
                             .foregroundStyle(.blue)
                     }
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -166,6 +183,7 @@ struct VerificationView: View {
                     .foregroundStyle(.secondary)
             } else {
                 AsyncButton("Resend Code", font: .footnote) {
+                    isInitialSend = false  // Mark as resend when using resend button
                     await sendCode()
                 }
                 .buttonStyle(.plain)
@@ -194,86 +212,73 @@ struct VerificationView: View {
 
         do {
             switch type {
-            case .totpLogin(let tempToken):
-                try await authManager.verifyTOTPForLogin(code: verificationCode, tempToken: tempToken)
-                if !authManager.requires2FAEmailVerification {
-                    dismiss()
-                }
-
-            case .emailLogin(let tempToken):
-                try await authManager.verifyEmail2FALogin(code: verificationCode, tempToken: tempToken)
-                authManager.isAuthenticated = true
+            case .initialEmail(let stateToken, let email):
+                let response = try await emailVerificationManager.verifyInitialEmail(code: verificationCode, stateToken: stateToken, email: email)
+                await authManager.completeSignIn(response: response)
                 dismiss()
-
-            case .initialEmail:
-                try await emailVerificationManager.verifyInitialEmail(
-                    email: authManager.currentUser?.email ?? "",
-                    code: verificationCode
-                )
-                authManager.isAuthenticated = true
+            case .initialEmailFromAccountSettings(let email):
+                _ = try await emailVerificationManager.verifyInitialEmail(code: verificationCode, stateToken: "", email: email)
+                // Refresh profile to update UI state
+                await authManager.refreshProfile()
                 dismiss()
-
-            case .setupEmail2FA:
-                try await emailVerificationManager.verify2FA(code: verificationCode)
-                await authManager.signOut()
+            case .enableEmailMFA(let email):
+                try await emailVerificationManager.verifyEmailMFA(code: verificationCode, email: email)
+                showMFAEnabledAlert = true
+            case .enableTOTP:
+                try await authManager.totpManager.verifyTOTP(code: verificationCode)
+                showMFAEnabledAlert = true
+            default:
+                try await authManager.completeMFAVerification(for: type, code: verificationCode)
                 dismiss()
-
-            case .disableEmail2FA:
-                try await emailVerificationManager.disable2FA(code: verificationCode)
-                dismiss()
-                await authManager.signOut()
-
-            case .setupTOTP:
-                try await authManager.totpManager.verifyAndEnableTOTP(code: verificationCode)
-                await authManager.signOut()
-                dismiss()
-
-            case .disableTOTP:
-                try await authManager.totpManager.disableTOTP(code: verificationCode)
-                dismiss()
-                await authManager.signOut()
             }
-        } catch let networkError as NetworkError {
-            showError = true
-            if case .badRequest(let description) = networkError, description.contains("No verification code found") {
-                // Reset verification state and request new code
-                verificationCode = ""
-                if type.isEmailVerification {
-                    attemptsRemaining = 3 // Reset attempts for email verification
-                }
-                errorMessage = "Too many failed attempts. A new code has been requested."
-                Task {
-                    await sendCode() // Request a new verification code
-                }
-            } else {
-                if type.isEmailVerification {
-                    attemptsRemaining -= 1 // Decrement attempts only for email verification
-                }
-                switch type {
-                case .totpLogin:
-                    errorMessage = "Invalid authenticator code. Please try again."
-                case .emailLogin, .initialEmail, .setupEmail2FA, .disableEmail2FA:
-                    errorMessage = "Invalid verification code. Please check your email and try again."
-                case .setupTOTP:
-                    errorMessage = "Invalid authenticator code. Please make sure you entered the correct code from your authenticator app."
-                case .disableTOTP:
-                    errorMessage = "Invalid authenticator code. Please try again."
+        } catch let error as NetworkError {
+            print("DEBUG: Network error in verify(): \(error)")
+            // Show errors for sign-in/sign-up verification regardless of auth state
+            let shouldShowError = type.isSignInOrSignUp || authManager.isAuthenticated
+            if shouldShowError {
+                showError = true
+                if case .badRequest(let description) = error, description.contains("No verification code found") {
+                    // Reset verification state and request new code
+                    verificationCode = ""
+                    if type.isEmail {
+                        attemptsRemaining = 3 // Reset attempts for email verification
+                    }
+                    errorMessage = "Too many failed attempts. A new code has been requested."
+                    Task {
+                        await sendCode() // Request a new verification code
+                    }
+                } else if case .unauthorized(let description) = error, description.contains("session expired") || description.contains("state token expired") {
+                    // Handle expired state token
+                    verificationCode = ""
+                    errorMessage = "Your verification session has expired. Please start the sign-in process again."
+                    // Dismiss after a short delay to allow user to read the message
+                    Task {
+                        try? await Task.sleep(for: .seconds(2))
+                        dismiss()
+                    }
+                } else if case .badRequest = error {
+                    // Handle invalid verification code
+                    if type.isEmail {
+                        attemptsRemaining -= 1 // Decrement attempts only for email verification
+                        if attemptsRemaining == 0 {
+                            errorMessage = "Too many failed attempts. Please generate a new code."
+                        } else {
+                            errorMessage = type.errorMessage
+                        }
+                    } else {
+                        errorMessage = type.errorMessage
+                    }
                 }
             }
         } catch {
-            showError = true
-            if type.isEmailVerification {
-                attemptsRemaining -= 1 // Decrement attempts only for email verification
-            }
-            switch type {
-            case .totpLogin:
-                errorMessage = "Invalid authenticator code. Please try again."
-            case .emailLogin, .initialEmail, .setupEmail2FA, .disableEmail2FA:
-                errorMessage = "Invalid verification code. Please check your email and try again."
-            case .setupTOTP:
-                errorMessage = "Invalid authenticator code. Please make sure you entered the correct code from your authenticator app."
-            case .disableTOTP:
-                errorMessage = "Invalid authenticator code. Please try again."
+            // Show errors for sign-in/sign-up verification regardless of auth state
+            let shouldShowError = type.isSignInOrSignUp || authManager.isAuthenticated
+            if shouldShowError {
+                showError = true
+                if type.isEmail {
+                    attemptsRemaining -= 1
+                }
+                errorMessage = type.errorMessage
             }
         }
     }
@@ -293,54 +298,122 @@ struct VerificationView: View {
         return String(format: "%d:%02d", minutes, remainingSeconds)
     }
 
+    private func handleInitialCodeSending() async {
+        guard resendCooldown == 0 else {
+            showError = true
+            errorMessage = "Please wait \(formatTime(resendCooldown)) before requesting another code."
+            return
+        }
+
+        switch type {
+        case .emailSignIn(let stateToken), .initialEmail(let stateToken, _):
+            if !stateToken.isEmpty, !authManager.isAuthenticated {
+                await sendCode()
+            }
+        case .initialEmailFromAccountSettings, .enableEmailMFA:
+            if authManager.isAuthenticated {
+                await sendCode()
+            }
+        default:
+            break
+        }
+    }
+
     private func sendCode() async {
         isResendingCode = true
         defer { isResendingCode = false }
-        
+
         do {
-            switch type {
-            case .emailLogin(let tempToken):
-                try await authManager.requestEmailCode(tempToken: tempToken)
-            case .initialEmail:
-                try await emailVerificationManager.resendVerificationEmail(email: authManager.currentUser?.email ?? "")
-            case .setupEmail2FA:
-                try await emailVerificationManager.setup2FA()
-            case .disableEmail2FA:
-                // No need to send code for disable - user should have received it via email
-                break
-            case .setupTOTP, .disableTOTP, .totpLogin:
-                // TOTP codes are generated by the authenticator app
-                break
-            }
-            
-            // Start timers
-            startExpirationTimer()
-            resendCooldown = 120 // Default cooldown
-            startResendCooldown()
-            
-            // Reset attempts for email verification when successfully sending new code
-            if type.isEmailVerification {
-                attemptsRemaining = 3
-            }
-            
-        } catch let error as NetworkError {
-            showError = true
-            if case .clientError(let statusCode, _, let headers, _) = error, statusCode == 429 {
-                if let retryAfterStr = headers["Retry-After"], let retryAfter = Int(retryAfterStr) {
-                    resendCooldown = retryAfter
-                    errorMessage = "Please wait \(formatTime(retryAfter)) before requesting another code."
-                } else {
-                    resendCooldown = 120 // Default to 2 minutes if no Retry-After header
-                    errorMessage = "Too many requests. Please wait before trying again."
+            if !isInitialSend {
+                switch type {
+                case .initialEmail(let stateToken, let email):
+                    try await authManager.resendInitialEmailVerificationCode(stateToken: stateToken, email: email)
+                case .initialEmailFromAccountSettings(let email):
+                    try await authManager.resendInitialEmailVerificationCode(stateToken: "", email: email)
+                case .emailSignIn:
+                    try await authManager.resendEmailMFASignIn(stateToken: type.stateToken)
+                case .enableEmailMFA:
+                    try await emailVerificationManager.resendEmailMFACode()
+                default:
+                    try await sendVerificationCode()
                 }
-                startResendCooldown()
             } else {
-                errorMessage = "Failed to send verification code. Please try again."
+                try await sendVerificationCode()
             }
+            
+            // Start timers for all email verification cases
+            if type.isEmail {
+                startTimers()
+            }
+            
+            // Show success message for resends
+            if !isInitialSend && type.isEmail {
+                showError = false
+                showSuccess = true
+                successMessage = type.resendMessage
+            }
+        } catch let error as NetworkError {
+            handleNetworkError(error)
         } catch {
-            showError = true
-            errorMessage = "An unexpected error occurred. Please try again."
+            handleUnexpectedError()
         }
+    }
+    
+    /// Starts both expiration and resend cooldown timers
+    private func startTimers() {
+        startExpirationTimer()
+        resendCooldown = 120 // 2 minutes cooldown
+        startResendCooldown()
+        
+        if type.isEmail {
+            attemptsRemaining = 3
+        }
+    }
+    
+    private func sendVerificationCode() async throws {
+        switch type {
+        case .initialEmail(let stateToken, let email):
+            try await emailVerificationManager.sendInitialVerificationEmail(stateToken: stateToken, email: email)
+        case .initialEmailFromAccountSettings(let email):
+            try await emailVerificationManager.sendInitialVerificationEmail(stateToken: "", email: email)
+        case .emailSignIn(let stateToken):
+            try await authManager.sendEmailMFASignIn(stateToken: stateToken)
+        case .enableEmailMFA:
+            try await emailVerificationManager.enableEmailMFA()
+        default:
+            // No initial code needed for the rest of the cases
+            break
+        }
+    }
+    
+    private func handleNetworkError(_ error: NetworkError) {
+        showError = true
+        if case .clientError(let statusCode, _, let headers, _) = error, statusCode == 429 {
+            handleRateLimitError(headers)
+        } else {
+            errorMessage = "Failed to send verification code. Please try again."
+        }
+    }
+    
+    private func handleRateLimitError(_ headers: [String: String]) {
+        if let retryAfterStr = headers["Retry-After"], let retryAfter = Int(retryAfterStr) {
+            resendCooldown = retryAfter
+            errorMessage = "Please wait \(formatTime(retryAfter)) before requesting another code."
+        } else {
+            resendCooldown = 120 // Default to 2 minutes if no Retry-After header
+            errorMessage = "Too many requests. Please wait before trying again."
+        }
+        startResendCooldown()
+    }
+    
+    private func handleUnexpectedError() {
+        showError = true
+        errorMessage = "An unexpected error occurred. Please try again."
+    }
+
+    private func handleVerificationError(_ error: Error) {
+        showError = true
+        errorMessage = "Verification error. Please try again later."
     }
 }
 
@@ -369,7 +442,7 @@ import Networking
         authorizationManager: authorizationManager
     )
 
-    VerificationView(type: .totpLogin(tempToken: "preview-token"))
+    VerificationView(type: .totpSignIn(stateToken: "preview-token"))
         .environment(authManager)
         .environment(emailVerificationManager)
         .environment(totpManager)

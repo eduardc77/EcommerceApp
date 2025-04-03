@@ -5,8 +5,7 @@ public extension Store {
         case getAll
         case get(id: String)
         case getPublic(id: String)
-        case register(dto: CreateUserRequest)
-        case create(dto: CreateUserRequest)
+        case create(dto: AdminCreateUserRequest)
         case updateProfile(dto: UpdateUserRequest)
         case adminUpdate(id: String, dto: UpdateUserRequest)
         case delete(id: String)
@@ -21,8 +20,6 @@ public extension Store {
                 return "/users/\(id)"
             case .getPublic(let id):
                 return "/users/\(id)/public"
-            case .register:
-                return "/users/register"
             case .create:
                 return "/users"
             case .updateProfile:
@@ -41,7 +38,7 @@ public extension Store {
         
         public var httpMethod: HTTPMethod {
             switch self {
-            case .register, .create:
+            case .create:
                 return .post
             case .updateProfile, .adminUpdate, .updateRole:
                 return .put
@@ -54,7 +51,7 @@ public extension Store {
         
         public var requestBody: Any? {
             switch self {
-            case .register(let dto), .create(let dto):
+            case .create(let dto):
                 return dto
             case .updateProfile(let dto), .adminUpdate(_, let dto):
                 return dto

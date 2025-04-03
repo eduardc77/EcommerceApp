@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 @Observable
-final class LoginFormState {
+final class SignInFormState {
     var identifier = "sare.delamaie2@gmail.com"
     var password = "Str0ng#Pass2@"
 

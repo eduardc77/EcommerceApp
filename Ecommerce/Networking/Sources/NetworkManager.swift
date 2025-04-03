@@ -4,7 +4,7 @@ import OSLog
 /// A manager responsible for handling network requests with caching, authorization, and retry capabilities.
 public actor NetworkManager {
     // MARK: - Dependencies
-    private let urlSession: URLSessionProtocol
+    private let urlSession: URLSession
     private let responseHandler: ResponseHandler
     private let cacheManager: CacheManager
     private let authManager: AuthorizationManagerProtocol
@@ -12,7 +12,7 @@ public actor NetworkManager {
     
     public init(
         authorizationManager: AuthorizationManagerProtocol,
-        urlSession: URLSessionProtocol = NetworkConfiguration.default,
+        urlSession: URLSession = NetworkConfiguration.default,
         responseHandler: ResponseHandler = ResponseHandler(),
         cacheManager: CacheManager = CacheManager(),
         rateLimiter: RateLimiter = RateLimiter(),
@@ -60,13 +60,13 @@ private extension NetworkManager {
                 break
             }
             
-            let (data, response) = try await urlSession.data(for: requestToSend)
-            guard let httpResponse = response as? HTTPURLResponse else {
+            let result = try await urlSession.data(for: requestToSend)
+            guard let httpResponse = result.1 as? HTTPURLResponse else {
                 throw NetworkError.invalidResponse(description: "Invalid response")
             }
             
-            return try await handleResponse(request, data: data, response: httpResponse, isRefreshAttempt: isRefreshAttempt)
-            
+            return try await handleResponse(request, data: result.0, httpResponse: httpResponse, isRefreshAttempt: isRefreshAttempt)
+
         } catch {
             let shouldRetry = await retryHandler.shouldRetry(error: error, attempt: attempt)
             
@@ -86,13 +86,9 @@ private extension NetworkManager {
     func handleResponse(
         _ request: URLRequest,
         data: Data,
-        response: URLResponse,
+        httpResponse: HTTPURLResponse,
         isRefreshAttempt: Bool
     ) async throws -> (Data, HTTPURLResponse) {
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw NetworkError.invalidResponse(description: "Invalid response")
-        }
-        
         Logger.logResponse(httpResponse, data: data)
         let responseDescription = HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
         

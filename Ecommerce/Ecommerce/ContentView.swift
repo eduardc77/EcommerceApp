@@ -13,7 +13,7 @@ struct ContentView: View {
             if authManager.isAuthenticated {
                 MainTabView()
             } else {
-                LoginView()
+                SignInView()
             }
         }
     }

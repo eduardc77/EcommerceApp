@@ -16,6 +16,11 @@ public actor ResponseHandler {
     }
     
     public func decode<T: Decodable>(_ type: T.Type, from data: Data) async throws -> T {
+        // Log raw response data for debugging
+        if let jsonString = String(data: data, encoding: .utf8) {
+            Logger.networking.debug("Raw response data: \(jsonString)")
+        }
+        
         do {
             // First try to decode as EditedResponse
             if let editedResponse = try? decoder.decode(EditedResponse<T>.self, from: data) {

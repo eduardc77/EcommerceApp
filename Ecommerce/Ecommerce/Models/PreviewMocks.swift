@@ -28,95 +28,39 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
         self.authorizationManager = authorizationManager
     }
     
-    func login(request: LoginRequest) async throws -> AuthResponse {
-        let token = Token(
+    func signIn(request: SignInRequest) async throws -> AuthResponse {
+        // Simulate network delay
+        try await Task.sleep(for: .seconds(1))
+        
+        return AuthResponse(
             accessToken: "preview-access-token",
             refreshToken: "preview-refresh-token",
             tokenType: "Bearer",
             expiresIn: 3600,
-            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
-        )
-        await authorizationManager.storeToken(token)
-        
-        return AuthResponse(
-            accessToken: token.accessToken,
-            refreshToken: token.refreshToken,
-            tokenType: token.tokenType,
-            expiresIn: token.expiresIn,
-            expiresAt: token.expiresAt,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
             user: UserResponse.previewUser,
-            requiresTOTP: false,
-            requiresEmailVerification: false
+            status: AuthResponse.STATUS_SUCCESS
         )
     }
     
-    func verifyEmail2FALogin(code: String, tempToken: String) async throws -> Networking.AuthResponse {
-        let token = Token(
-            accessToken: "preview-access-token",
-            refreshToken: "preview-refresh-token",
-            tokenType: "Bearer",
-            expiresIn: 3600,
-            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
-        )
+    func signUp(request: SignUpRequest) async throws -> AuthResponse {
+        // Simulate network delay
+        try await Task.sleep(for: .seconds(1))
         
         return AuthResponse(
-            accessToken: token.accessToken,
-            refreshToken: token.refreshToken,
-            tokenType: token.tokenType,
-            expiresIn: token.expiresIn,
-            expiresAt: token.expiresAt,
-            user: .previewUser,
-            requiresTOTP: false,
-            requiresEmailVerification: false
-        )
-    }
-    
-    func verifyTOTPLogin(code: String, tempToken: String) async throws -> AuthResponse {
-        let token = Token(
-            accessToken: "preview-access-token",
-            refreshToken: "preview-refresh-token",
+            accessToken: nil,
+            refreshToken: nil,
             tokenType: "Bearer",
-            expiresIn: 3600,
-            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
-        )
-        
-        await authorizationManager.storeToken(token)
-        
-        return AuthResponse(
-            accessToken: token.accessToken,
-            refreshToken: token.refreshToken,
-            tokenType: token.tokenType,
-            expiresIn: token.expiresIn,
-            expiresAt: token.expiresAt,
-            user: UserResponse.previewUser,
-            requiresTOTP: false,
-            requiresEmailVerification: false
+            expiresIn: nil,
+            expiresAt: nil,
+            user: nil,
+            stateToken: "preview-state-token",
+            status: AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED,
+            maskedEmail: request.email.maskEmail()
         )
     }
     
-    func register(request: CreateUserRequest) async throws -> AuthResponse {
-        let token = Token(
-            accessToken: "preview-access-token",
-            refreshToken: "preview-refresh-token",
-            tokenType: "Bearer",
-            expiresIn: 3600,
-            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
-        )
-        await authorizationManager.storeToken(token)
-        
-        return AuthResponse(
-            accessToken: token.accessToken,
-            refreshToken: token.refreshToken,
-            tokenType: token.tokenType,
-            expiresIn: token.expiresIn,
-            expiresAt: token.expiresAt,
-            user: UserResponse.previewUser,
-            requiresTOTP: false,
-            requiresEmailVerification: false
-        )
-    }
-    
-    func logout() async throws {
+    func signOut() async throws {
         try await authorizationManager.invalidateToken()
     }
     
@@ -124,11 +68,11 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
         .previewUser
     }
     
-    func changePassword(current: String, new: String) async throws -> MessageResponse {
-        MessageResponse(message: "Password changed successfully", success: true)
+    func changePassword(request: ChangePasswordRequest) async throws {
+        // Simulate successful password change
     }
     
-    func requestEmailCode(tempToken: String) async throws -> MessageResponse {
+    func requestEmailCode(stateToken: String) async throws -> MessageResponse {
         MessageResponse(message: "Email code sent successfully", success: true)
     }
     
@@ -136,63 +80,218 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
         MessageResponse(message: "Password reset email sent", success: true)
     }
     
-    func resetPassword(email: String, code: String, newPassword: String) async throws -> EmptyResponse {
-        return EmptyResponse()
+    func resetPassword(request: ResetPasswordRequest) async throws -> MessageResponse {
+        MessageResponse(message: "Password reset successfully", success: true)
     }
     
-    func loginWithGoogle(idToken: String, accessToken: String? = nil) async throws -> AuthResponse {
-        let token = Token(
-            accessToken: "preview-google-access-token",
-            refreshToken: "preview-google-refresh-token",
-            tokenType: "Bearer",
-            expiresIn: 3600,
-            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
-        )
-        await authorizationManager.storeToken(token)
+    func signInWithGoogle(idToken: String, accessToken: String? = nil) async throws -> AuthResponse {
+        // Simulate network delay
+        try await Task.sleep(for: .seconds(1))
         
         return AuthResponse(
-            accessToken: token.accessToken,
-            refreshToken: token.refreshToken,
-            tokenType: token.tokenType,
-            expiresIn: token.expiresIn,
-            expiresAt: token.expiresAt,
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
             user: UserResponse.previewUser,
-            requiresTOTP: false,
-            requiresEmailVerification: false
+            status: AuthResponse.STATUS_SUCCESS
         )
     }
     
-    func loginWithApple(
+    func signInWithApple(
         identityToken: String,
         authorizationCode: String,
-        fullName: [String: String?]? = nil,
-        email: String? = nil
+        fullName: [String: String?]?,
+        email: String?
     ) async throws -> AuthResponse {
-        let token = Token(
-            accessToken: "preview-apple-access-token",
-            refreshToken: "preview-apple-refresh-token",
-            tokenType: "Bearer",
-            expiresIn: 3600,
-            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
-        )
-        await authorizationManager.storeToken(token)
+        // Simulate network delay
+        try await Task.sleep(for: .seconds(1))
         
         return AuthResponse(
-            accessToken: token.accessToken,
-            refreshToken: token.refreshToken,
-            tokenType: token.tokenType,
-            expiresIn: token.expiresIn,
-            expiresAt: token.expiresAt,
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
             user: UserResponse.previewUser,
-            requiresTOTP: false,
-            requiresEmailVerification: false
+            status: AuthResponse.STATUS_SUCCESS
+        )
+    }
+    
+    func getMFAMethods(stateToken: String?) async throws -> MFAMethodsResponse {
+        MFAMethodsResponse(emailEnabled: true, totpEnabled: true)
+    }
+    
+    func verifyTOTPSignIn(code: String, stateToken: String) async throws -> AuthResponse {
+        return AuthResponse(
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
+            user: UserResponse.previewUser,
+            status: AuthResponse.STATUS_SUCCESS
+        )
+    }
+    
+    func verifyEmailMFASignIn(code: String, stateToken: String) async throws -> AuthResponse {
+        return AuthResponse(
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
+            user: UserResponse.previewUser,
+            status: AuthResponse.STATUS_SUCCESS
+        )
+    }
+    
+    func verifyRecoveryCode(code: String, stateToken: String) async throws -> AuthResponse {
+        return AuthResponse(
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
+            user: UserResponse.previewUser,
+            status: AuthResponse.STATUS_SUCCESS
+        )
+    }
+    
+    func selectMFAMethod(method: String, stateToken: String) async throws -> AuthResponse {
+        return AuthResponse(
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
+            user: UserResponse.previewUser,
+            status: AuthResponse.STATUS_SUCCESS
+        )
+    }
+    
+    func sendEmailMFASignIn(stateToken: String) async throws -> MessageResponse {
+        // Simulate network delay
+        try await Task.sleep(for: .seconds(1))
+        
+        return MessageResponse(message: "Code sent", success: true)
+    }
+    
+    func resendEmailMFASignIn(stateToken: String) async throws -> MessageResponse {
+        // Simulate network delay
+        try await Task.sleep(for: .seconds(1))
+        
+        return MessageResponse(message: "Code resent", success: true)
+    }
+    
+    func getUserInfo() async throws -> UserInfoResponse {
+        let id = UUID().uuidString
+        return UserInfoResponse(
+            sub: id,
+            name: "John Appleseed",
+            email: "john@example.com",
+            emailVerified: true,
+            picture: "https://api.dicebear.com/7.x/avataaars/png",
+            updatedAt: Int(Date().timeIntervalSince1970),
+            role: Role.customer.rawValue
+        )
+    }
+    
+    func handleGoogleCallback(code: String) async throws -> AuthResponse {
+        return AuthResponse(
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
+            user: UserResponse.previewUser,
+            status: AuthResponse.STATUS_SUCCESS
+        )
+    }
+    
+    func handleAppleCallback(code: String) async throws -> AuthResponse {
+        return AuthResponse(
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
+            user: UserResponse.previewUser,
+            status: AuthResponse.STATUS_SUCCESS
+        )
+    }
+    
+    func exchangeCodeForTokens(
+        code: String,
+        codeVerifier: String,
+        redirectUri: String
+    ) async throws -> AuthResponse {
+        return AuthResponse(
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
+            user: UserResponse.previewUser,
+            status: AuthResponse.STATUS_SUCCESS
+        )
+    }
+    
+    func resendInitialEmailVerificationCode(stateToken: String, email: String) async throws -> MessageResponse {
+        // Simulate network delay
+        try await Task.sleep(for: .seconds(1))
+        
+        return MessageResponse(message: "Initial email verification Code resent", success: true)
+    }
+    
+    func initiateSocialSignIn(
+        provider: String,
+        redirectUri: String,
+        codeChallenge: String,
+        codeChallengeMethod: String,
+        state: String,
+        scope: String?
+    ) async throws -> URL {
+        return URL(string: "https://example.com/oauth/authorize?provider=\(provider)&redirect_uri=\(redirectUri)&code_challenge=\(codeChallenge)&code_challenge_method=\(codeChallengeMethod)&state=\(state)\(scope.map { "&scope=\($0)" } ?? "")")!
+    }
+    
+    func cancelAuthentication() async throws -> MessageResponse {
+        return MessageResponse(message: "Authentication cancelled", success: true)
+    }
+    
+    func revokeAccessToken(_ token: String) async throws -> MessageResponse {
+        return MessageResponse(message: "Token revoked", success: true)
+    }
+    
+    func revokeSession(sessionId: String) async throws -> MessageResponse {
+        return MessageResponse(message: "Session revoked", success: true)
+    }
+    
+    func revokeAllOtherSessions() async throws -> MessageResponse {
+        return MessageResponse(message: "All other sessions revoked", success: true)
+    }
+    
+    func listSessions() async throws -> SessionListResponse {
+        return SessionListResponse(sessions: [], currentSessionId: "")
+    }
+    
+    func refreshToken(_ refreshToken: String) async throws -> AuthResponse {
+        return AuthResponse(
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
+            user: UserResponse.previewUser,
+            status: AuthResponse.STATUS_SUCCESS
         )
     }
 }
 
 // MARK: - User Service
 struct PreviewUserService: UserServiceProtocol {
-    func getUserPublic(id: String) async throws -> Networking.PublicUserResponse {
+    func getUserPublic(id: String) async throws -> PublicUserResponse {
         PublicUserResponse(
             id: id,
             username: "john_appleseed",
@@ -204,15 +303,11 @@ struct PreviewUserService: UserServiceProtocol {
         )
     }
     
-    func register(_ dto: Networking.CreateUserRequest) async throws -> Networking.UserResponse {
-        .previewUser
-    }
-    
-    func deleteUser(id: String) async throws -> Networking.MessageResponse {
+    func deleteUser(id: String) async throws -> MessageResponse {
         MessageResponse(message: "User deleted successfully", success: true)
     }
     
-    func updateRole(userId: String, request: Networking.UpdateRoleRequest) async throws -> Networking.UserResponse {
+    func updateRole(userId: String, request: UpdateRoleRequest) async throws -> UserResponse {
         .previewUser
     }
     
@@ -224,7 +319,7 @@ struct PreviewUserService: UserServiceProtocol {
         .previewUser
     }
     
-    func createUser(_ dto: CreateUserRequest) async throws -> UserResponse {
+    func createUser(_ dto: AdminCreateUserRequest) async throws -> UserResponse {
         .previewUser
     }
     
@@ -265,16 +360,22 @@ actor PreviewTokenStore: TokenStoreProtocol {
 
 // MARK: - Preview Data
 extension UserResponse {
-    static let previewUser = UserResponse(
-        id: UUID().uuidString,
-        username: "john_appleseed",
-        displayName: "John Appleseed",
-        email: "appleseed@icloud.com",
-        profilePicture: "https://api.dicebear.com/7.x/avataaars/png",
-        role: .customer,
-        createdAt: "2025-02-23T21:51:49.000Z",
-        updatedAt: "2025-02-23T21:51:49.000Z"
-    )
+    static var previewUser: UserResponse {
+        let id = UUID().uuidString
+        return UserResponse(
+            id: id,
+            username: "john_appleseed",
+            displayName: "John Appleseed",
+            email: "john@example.com",
+            profilePicture: "https://api.dicebear.com/7.x/avataaars/png",
+            role: .customer,
+            emailVerified: true,
+            createdAt: "2025-02-23T21:51:49.000Z",
+            updatedAt: "2025-02-23T21:51:49.000Z",
+            mfaEnabled: false,
+            lastSignInAt: "2025-02-23T21:51:49.000Z"
+        )
+    }
 }
 
 struct PreviewAPIClient: APIClient {
@@ -314,8 +415,7 @@ struct PreviewAPIClient: APIClient {
                 expiresIn: 3600,
                 expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
                 user: .previewUser,
-                requiresTOTP: false,
-                requiresEmailVerification: false
+                status: AuthResponse.STATUS_SUCCESS
             ) as! T
         case is AvailabilityResponse.Type:
             return AvailabilityResponse(
@@ -393,57 +493,74 @@ extension CategoryResponse {
 // MARK: - Email Verification Service
 struct PreviewEmailVerificationService: EmailVerificationServiceProtocol {
     
-    func getInitialStatus() async throws -> Networking.EmailVerificationStatusResponse {
+    func getInitialStatus() async throws -> EmailVerificationStatusResponse {
         EmailVerificationStatusResponse(enabled: false, verified: true)
     }
     
-    func get2FAStatus() async throws -> Networking.EmailVerificationStatusResponse {
+    func getEmailMFAStatus() async throws -> EmailVerificationStatusResponse {
         EmailVerificationStatusResponse(enabled: false, verified: true)
     }
     
-    func setup2FA() async throws -> Networking.MessageResponse {
+    func sendInitialVerificationEmail(stateToken: String, email: String) async throws -> MessageResponse {
         MessageResponse(message: "Verification code sent", success: true)
     }
     
-    func verify2FA(code: String) async throws -> Networking.MessageResponse {
-        MessageResponse(message: "2FA enabled successfully", success: true)
-    }
-    
-    func disable2FA(code: String) async throws -> Networking.MessageResponse {
-        MessageResponse(message: "2FA disabled successfully", success: true)
-    }
-    
-    func verifyInitialEmail(email: String, code: String) async throws -> Networking.MessageResponse {
-        MessageResponse(message: "Initial email verified successfully", success: true)
-    }
-    
-    func resendVerificationEmail(email: String) async throws -> Networking.MessageResponse {
+    func resendInitialVerificationEmail(stateToken: String, email: String) async throws -> MessageResponse {
         MessageResponse(message: "Verification email resent", success: true)
+    }
+    
+    func verifyInitialEmail(code: String, stateToken: String, email: String) async throws -> AuthResponse {
+        return AuthResponse(
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
+            user: UserResponse.previewUser,
+            status: AuthResponse.STATUS_SUCCESS
+        )
+    }
+    
+    func enableEmailMFA() async throws -> MessageResponse {
+        MessageResponse(message: "Email MFA enabled successfully", success: true)
+    }
+    
+    func verifyEmailMFA(code: String, email: String) async throws -> MessageResponse {
+        MessageResponse(message: "Email MFA verified successfully", success: true)
+    }
+    
+    func disableEmailMFA(password: String) async throws -> MessageResponse {
+        MessageResponse(message: "Email MFA disabled successfully", success: true)
+    }
+    
+    func resendEmailMFACode() async throws -> MessageResponse {
+        MessageResponse(message: "Verification code resent", success: true)
+    }
+    
+    func getEmailVerificationStatus() async throws -> EmailVerificationStatusResponse {
+        EmailVerificationStatusResponse(enabled: false, verified: true)
     }
 }
 
 // MARK: - TOTP Service
 struct PreviewTOTPService: TOTPServiceProtocol {
-    func setup() async throws -> Networking.TOTPSetupResponse {
+    
+    func enableTOTP() async throws -> TOTPSetupResponse {
         TOTPSetupResponse(
             secret: "ABCDEFGHIJKLMNOP",
             qrCodeUrl: "otpauth://totp/Preview:user@example.com?secret=ABCDEFGHIJKLMNOP&issuer=Preview"
         )
     }
     
-    func verify(code: String) async throws -> Networking.MessageResponse {
-        MessageResponse(message: "TOTP code verified", success: true)
+    func verifyTOTP(code: String) async throws -> MessageResponse {
+        MessageResponse(message: "TOTP MFA enabled successfully", success: true)
     }
     
-    func enable(code: String) async throws -> Networking.MessageResponse {
-        MessageResponse(message: "TOTP enabled", success: true)
+    func disableTOTP(password: String) async throws -> MessageResponse {
+        MessageResponse(message: "TOTP MFA enabled successfully", success: true)
     }
     
-    func disable(code: String) async throws -> Networking.MessageResponse {
-        MessageResponse(message: "TOTP disabled", success: true)
-    }
-    
-    func getStatus() async throws -> Networking.TOTPStatusResponse {
-        TOTPStatusResponse(enabled: false)
+    func getTOTPStatus() async throws -> TOTPStatusResponse {
+        TOTPStatusResponse(enabled: true)
     }
 }

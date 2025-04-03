@@ -1,10 +1,11 @@
-public struct CreateUserRequest: Codable, Sendable {
+/// Create user request object for admin user creation
+public struct AdminCreateUserRequest: Codable, Sendable {
     public let username: String
     public let displayName: String
     public let email: String
     public let password: String
     public let profilePicture: String?
-    public let role: Role?
+    public let role: Role
     
     public init(
         username: String,
@@ -12,7 +13,7 @@ public struct CreateUserRequest: Codable, Sendable {
         email: String,
         password: String,
         profilePicture: String? = "https://api.dicebear.com/7.x/avataaars/png",
-        role: Role? = nil
+        role: Role
     ) {
         self.username = username
         self.displayName = displayName
@@ -21,4 +22,4 @@ public struct CreateUserRequest: Codable, Sendable {
         self.profilePicture = profilePicture
         self.role = role
     }
-} 
+}

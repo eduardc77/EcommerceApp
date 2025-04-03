@@ -1,9 +1,9 @@
 import SwiftUI
 
-struct RegisterView: View {
+struct SignUpView: View {
     @Environment(AuthenticationManager.self) private var authManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
-    @State private var formState = RegisterFormState()
+    @State private var formState = SignUpFormState()
     @FocusState private var focusedField: Field?
     @State private var showError = false
 
@@ -17,9 +17,9 @@ struct RegisterView: View {
 
     var body: some View {
         Form {
-            registerFieldsSection
+            signUpFieldsSection
         }
-        .navigationTitle("Create Account")
+        .navigationTitle("Sign Up")
         .sheet(isPresented: .init(
             get: { emailVerificationManager.requiresEmailVerification },
             set: { newValue in
@@ -28,7 +28,7 @@ struct RegisterView: View {
                 }
             }
         )) {
-            VerificationView(type: .initialEmail)
+            VerificationView(type: .initialEmail(stateToken: authManager.pendingSignInResponse?.stateToken ?? "", email: formState.email))
         }
         .onChange(of: focusedField) { oldValue, newValue in
             if let oldValue = oldValue {
@@ -45,11 +45,11 @@ struct RegisterView: View {
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Register") {
+                Button("Done") {
                     formState.validateAll()
                     if formState.isValid {
                         Task {
-                            await register()
+                            await signUp()
                         }
                     }
                 }
@@ -60,21 +60,21 @@ struct RegisterView: View {
             formState.reset()
             focusedField = nil
         }
-        .alert("Registration Failed", isPresented: .init(
-            get: { authManager.registrationError != nil },
-            set: { if !$0 { authManager.registrationError = nil } }
+        .alert("Sign Up Failed", isPresented: .init(
+            get: { authManager.signUpError != nil },
+            set: { if !$0 { authManager.signUpError = nil } }
         )) {
             Button("OK") {
-                authManager.registrationError = nil
+                authManager.signUpError = nil
             }
         } message: {
-            if let error = authManager.registrationError {
+            if let error = authManager.signUpError {
                 Text(error.localizedDescription)
             }
         }
     }
 
-    private var registerFieldsSection: some View {
+    private var signUpFieldsSection: some View {
         Section {
             ValidatedFormField(
                 title: "Username",
@@ -85,7 +85,6 @@ struct RegisterView: View {
                 validate: { formState.validateUsername() },
                 capitalization: .never
             )
-
             ValidatedFormField(
                 title: "Display Name",
                 text: $formState.displayName,
@@ -94,7 +93,6 @@ struct RegisterView: View {
                 error: formState.fieldErrors["displayName"],
                 validate: { formState.validateDisplayName() }
             )
-
             ValidatedFormField(
                 title: "Email",
                 text: $formState.email,
@@ -104,7 +102,6 @@ struct RegisterView: View {
                 validate: { formState.validateEmail() },
                 capitalization: .never
             )
-
             ValidatedFormField(
                 title: "Password",
                 text: $formState.password,
@@ -115,7 +112,6 @@ struct RegisterView: View {
                 secureField: true,
                 isNewPassword: true
             )
-
             ValidatedFormField(
                 title: "Confirm Password",
                 text: $formState.confirmPassword,
@@ -128,13 +124,32 @@ struct RegisterView: View {
         }
     }
 
-    private func register() async {
-        _ = await authManager.register(
-            username: formState.username,
-            displayName: formState.displayName,
-            email: formState.email,
-            password: formState.password
-        )
+    private func signUp() async {
+        do {
+            try await authManager.signUp(
+                username: formState.username,
+                email: formState.email,
+                password: formState.password,
+                displayName: formState.displayName
+            )
+        } catch let networkError as NetworkError {
+            switch networkError {
+            case let .clientError(statusCode, description, _, _):
+                switch statusCode {
+                case 409:
+                    authManager.signUpError = .accountExists
+                case 422:
+                    authManager.signUpError = .validationError(description)
+                default:
+                    authManager.signUpError = .unknown(description)
+                }
+            default:
+                authManager.signUpError = .unknown(networkError.localizedDescription)
+            }
+        } catch {
+            // Handle any other errors
+            authManager.signUpError = .unknown(error.localizedDescription)
+        }
     }
 }
 
@@ -149,7 +164,7 @@ import Networking
         refreshClient: refreshClient,
         tokenStore: tokenStore
     )
-
+    
     let totpService = PreviewTOTPService()
     let totpManager = TOTPManager(totpService: totpService)
     let emailVerificationService = PreviewEmailVerificationService()
@@ -164,10 +179,9 @@ import Networking
     )
 
     NavigationStack {
-        RegisterView()
+        SignUpView()
             .environment(authManager)
             .environment(emailVerificationManager)
-            .environment(totpManager)
     }
 }
 #endif

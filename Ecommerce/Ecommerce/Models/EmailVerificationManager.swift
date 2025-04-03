@@ -13,8 +13,8 @@ public final class EmailVerificationManager {
     /// Whether email verification is currently required
     public var requiresEmailVerification = false
 
-    /// Whether email 2FA is enabled for the account
-    private(set) public var is2FAEnabled = false
+    /// Whether email MFA is enabled for the account
+    private(set) public var isMFAEnabled = false
 
     public init(emailVerificationService: EmailVerificationServiceProtocol) {
         self.emailVerificationService = emailVerificationService
@@ -23,51 +23,59 @@ public final class EmailVerificationManager {
     /// Resets verification state
     public func reset() {
         requiresEmailVerification = false
-        is2FAEnabled = false
+        isMFAEnabled = false
         isLoading = false
     }
 
-    /// Gets the current 2FA status from the server
-    public func get2FAStatus() async throws {
+    /// Gets the current MFA status from the server
+    public func getEmailMFAStatus() async throws {
         isLoading = true
         defer { isLoading = false }
 
-        let status = try await emailVerificationService.get2FAStatus()
-        is2FAEnabled = status.enabled
+        let status = try await emailVerificationService.getEmailMFAStatus()
+        isMFAEnabled = status.enabled
     }
 
-    /// Sets up 2FA email verification
-    public func setup2FA() async throws {
+    /// Sets up MFA email verification
+    public func enableEmailMFA() async throws {
         isLoading = true
         defer { isLoading = false }
 
-        _ = try await emailVerificationService.setup2FA()
+        _ = try await emailVerificationService.enableEmailMFA()
     }
 
-    /// Verifies the code and enables 2FA
-    public func verify2FA(code: String) async throws {
+    /// Verifies the code and enables MFA
+    public func verifyEmailMFA(code: String, email: String) async throws {
         isLoading = true
         defer { isLoading = false }
 
-        _ = try await emailVerificationService.verify2FA(code: code)
-        is2FAEnabled = true
+        _ = try await emailVerificationService.verifyEmailMFA(code: code, email: email)
+        isMFAEnabled = true
     }
 
-    /// Disables 2FA email verification
-    public func disable2FA(code: String) async throws {
+    /// Disables MFA email verification
+    public func disableEmailMFA(password: String) async throws {
         isLoading = true
         defer { isLoading = false }
 
-        _ = try await emailVerificationService.disable2FA(code: code)
-        is2FAEnabled = false
+        _ = try await emailVerificationService.disableEmailMFA(password: password)
+        isMFAEnabled = false
+    }
+    
+    /// Resends email MFA code
+    public func resendEmailMFACode() async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
+        _ = try await emailVerificationService.resendEmailMFACode()
     }
 
-    /// Skips the email verification requirement but maintains the requirement state
-    public func skipEmailVerification() {
-        requiresEmailVerification = true
+    /// Skips the email verification requirement
+    public func skipVerification() {
+        requiresEmailVerification = false
     }
 
-    /// Fetches the initial verification status from the server
+    /// Gets the initial verification status from the server
     public func getInitialStatus() async throws {
         isLoading = true
         defer { isLoading = false }
@@ -75,35 +83,42 @@ public final class EmailVerificationManager {
         let status = try await emailVerificationService.getInitialStatus()
         requiresEmailVerification = !status.verified
     }
-
-    /// Verifies initial email during registration
+    
+    /// Sends the initial verification email
     /// - Parameters:
-    ///   - email: The email address to verify
+    ///   - stateToken: The state token from the signup response
+    ///   - email: The email address to send the verification code to
+    public func sendInitialVerificationEmail(stateToken: String, email: String) async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
+        _ = try await emailVerificationService.sendInitialVerificationEmail(stateToken: stateToken, email: email)
+    }
+
+    /// Verifies the initial email address
+    /// - Parameters:
     ///   - code: The verification code
-    public func verifyInitialEmail(email: String, code: String) async throws {
+    ///   - stateToken: The state token from the signup response
+    ///   - email: The email address to verify
+    /// - Returns: The authentication response containing tokens on success
+    public func verifyInitialEmail(code: String, stateToken: String, email: String) async throws -> AuthResponse {
         isLoading = true
         defer { isLoading = false }
-
-        _ = try await emailVerificationService.verifyInitialEmail(email: email, code: code)
+        
+        let response = try await emailVerificationService.verifyInitialEmail(code: code, stateToken: stateToken, email: email)
         requiresEmailVerification = false
+        return response
     }
 
-    /// Requests a new verification code be sent
-    /// - Parameter email: The email address to send the code to
-    public func resendVerificationEmail(email: String) async throws {
+    /// Resends the verification email
+    /// - Parameters:
+    ///   - stateToken: The state token from the signup response
+    ///   - email: The email address to send the verification code to
+    public func resendVerificationEmail(stateToken: String, email: String) async throws {
         isLoading = true
         defer { isLoading = false }
 
-        _ = try await emailVerificationService.resendVerificationEmail(email: email)
+        _ = try await emailVerificationService.resendInitialVerificationEmail(stateToken: stateToken, email: email)
     }
-
-    /// Handles email updates by resetting verification state and sending a new code
-    /// - Parameter email: The new email address to verify
-    public func handleEmailUpdate(email: String) async throws {
-        requiresEmailVerification = true
-        isLoading = true
-        defer { isLoading = false }
-
-        try await resendVerificationEmail(email: email)
-    }
+    
 }

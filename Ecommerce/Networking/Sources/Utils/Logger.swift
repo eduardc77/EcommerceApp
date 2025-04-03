@@ -18,12 +18,11 @@ extension Logger {
         }
     }
     
-    static func logResponse(_ response: URLResponse, data: Data) {
-        guard let httpResponse = response as? HTTPURLResponse else { return }
+    static func logResponse(_ httpResponse: HTTPURLResponse, data: Data) {
         networking.info("Response URL: \(httpResponse.url?.absoluteString ?? "unknown", privacy: .public)")
         networking.info("Response Status Code: \(httpResponse.statusCode, privacy: .public)")
         networking.info("Response Headers: \(sanitize(httpResponse.allHeaderFields), privacy: .private)")
-        if !isSensitiveData(response: response) {
+        if !isSensitiveData(httpResponse: httpResponse) {
             networking.info("Response Data: \(String(data: data, encoding: .utf8) ?? "unknown", privacy: .private)")
         }
     }
@@ -31,7 +30,7 @@ extension Logger {
     private static func isSensitiveData(request: URLRequest) -> Bool {
         // Add logic to determine if the request contains sensitive data
         if let url = request.url?.absoluteString {
-            if url.contains("/login") || url.contains("/refresh-token") {
+            if url.contains("/sign-in") || url.contains("/refresh-token") {
                 return true
             }
         }
@@ -43,16 +42,14 @@ extension Logger {
         return false
     }
     
-    private static func isSensitiveData(response: URLResponse) -> Bool {
+    private static func isSensitiveData(httpResponse: HTTPURLResponse) -> Bool {
         // Add logic to determine if the response contains sensitive data
-        if let httpResponse = response as? HTTPURLResponse {
-            if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            return true
+        }
+        if let headers = httpResponse.allHeaderFields as? [String: String] {
+            if headers.keys.contains("Set-Cookie") {
                 return true
-            }
-            if let headers = httpResponse.allHeaderFields as? [String: String] {
-                if headers.keys.contains("Set-Cookie") {
-                    return true
-                }
             }
         }
         return false

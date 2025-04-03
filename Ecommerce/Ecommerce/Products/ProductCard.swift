@@ -99,36 +99,27 @@ struct ProductCard: View {
 }
 
 #Preview {
-        ProductCard(
-            product: ProductResponse(
+    ProductCard(
+        product: ProductResponse(
+            id: "1",
+            title: "Test Product",
+            description: "This is a test product description that might be long",
+            price: 99.99,
+            images: ["https://picsum.photos/200", "https://picsum.photos/201"],
+            category: CategoryResponse(
                 id: "1",
-                title: "Test Product",
-                description: "This is a test product description that might be long",
-                price: 99.99,
-                images: ["https://picsum.photos/200", "https://picsum.photos/201"],
-                category: CategoryResponse(
-                    id: "1",
-                    name: "Test",
-                    description: "Test category",
-                    image: "",
-                    createdAt: "2025-02-23T21:51:49.000Z",
-                    updatedAt: "2025-02-23T21:51:49.000Z",
-                    productCount: 2
-                ),
-                seller: UserResponse(
-                    id: "1",
-                    username: "testusername",
-                    displayName: "Test Seller",
-                    email: "test@example.com",
-                    profilePicture: "",
-                    role: .seller,
-                    createdAt: "2025-02-23T21:51:49.000Z",
-                    updatedAt: "2025-02-23T21:51:49.000Z"
-                ),
+                name: "Test",
+                description: "Test category",
+                image: "",
                 createdAt: "2025-02-23T21:51:49.000Z",
-                updatedAt: "2025-02-23T21:51:49.000Z"
+                updatedAt: "2025-02-23T21:51:49.000Z",
+                productCount: 2
             ),
-            namespace: Namespace().wrappedValue
-        )
-        .padding()
+            seller: .previewUser,
+            createdAt: "2025-02-23T21:51:49.000Z",
+            updatedAt: "2025-02-23T21:51:49.000Z"
+        ),
+        namespace: Namespace().wrappedValue
+    )
+    .padding()
 }

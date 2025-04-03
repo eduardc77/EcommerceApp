@@ -1,6 +1,11 @@
 import Foundation
 
 struct RequestBuilder {
+    private static let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        return encoder
+    }()
 
     private enum ContentType {
         case json
@@ -32,7 +37,7 @@ struct RequestBuilder {
         } else if let body = endpoint.requestBody {
             setDefaultHeaders(for: &request, contentType: .json)
             if let encodable = body as? Encodable {
-                request.httpBody = try JSONEncoder().encode(encodable)
+                request.httpBody = try encoder.encode(encodable)
             } else {
                 request.httpBody = try JSONSerialization.data(withJSONObject: body)
             }
@@ -64,7 +69,7 @@ struct RequestBuilder {
         return request
     }
     
-    private static func makeURLComponents(from environment: APIEnvironment, path: String, queryParameters: [URLQueryItem]) -> URLComponents {
+    public static func makeURLComponents(from environment: APIEnvironment, path: String, queryParameters: [URLQueryItem]) -> URLComponents {
         var urlComponents = URLComponents()
         urlComponents.scheme = environment.scheme
         urlComponents.host = environment.host

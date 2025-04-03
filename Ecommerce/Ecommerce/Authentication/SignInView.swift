@@ -1,9 +1,9 @@
 import SwiftUI
 
-struct LoginView: View {
+struct SignInView: View {
     @Environment(AuthenticationManager.self) private var authManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
-    @State private var formState = LoginFormState()
+    @State private var formState = SignInFormState()
     @FocusState private var focusedField: Field?
     @State private var showError = false
     @State private var lockedIdentifier: String?
@@ -11,6 +11,9 @@ struct LoginView: View {
     @State private var lockoutStartTime: Date?
     @State private var navigationPath = NavigationPath()
     @State private var authFlow: AuthFlow?
+    @State private var showingEmailVerification = false
+    @State private var showingMFASelection = false
+    @State private var pendingStateToken: String?
 
     private enum Field {
         case identifier
@@ -18,13 +21,15 @@ struct LoginView: View {
     }
 
     private enum AuthFlow: Identifiable {
-        case totpVerification(tempToken: String)
-        case emailVerification(tempToken: String)
-        
+        case totpVerification(stateToken: String)
+        case emailVerification(stateToken: String)
+        case mfaSelection(stateToken: String)
+
         var id: String {
             switch self {
             case .totpVerification: return "totp"
             case .emailVerification: return "email"
+            case .mfaSelection: return "mfa-selection"
             }
         }
     }
@@ -32,7 +37,7 @@ struct LoginView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             Form {
-                loginFieldsSection
+                signInFieldsSection
 
                 if let remainingTime = remainingTime, lockedIdentifier == formState.identifier {
                     Section {
@@ -47,11 +52,11 @@ struct LoginView: View {
                 }
 
                 Section {
-                    loginButton
+                    signInButton
                 } footer: {
                     HStack {
                         Button {
-                            navigationPath.append("register")
+                            navigationPath.append("signup")
                         } label: {
                             Text("Create Account")
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -70,11 +75,11 @@ struct LoginView: View {
                 .listRowInsets(.init())
                 .listRowBackground(Color.clear)
             }
-            .navigationTitle("Login")
+            .navigationTitle("Sign In")
             .navigationDestination(for: String.self) { route in
                 switch route {
-                case "register":
-                    RegisterView()
+                case "signup":
+                    SignUpView()
                 case "forgot-password":
                     Text("")
                 default:
@@ -84,9 +89,18 @@ struct LoginView: View {
             .sheet(item: $authFlow) { flow in
                 switch flow {
                 case .totpVerification(let token):
-                    VerificationView(type: .totpLogin(tempToken: token))
+                    VerificationView(type: .totpSignIn(stateToken: token))
                 case .emailVerification(let token):
-                    VerificationView(type: .emailLogin(tempToken: token))
+                    VerificationView(type: .emailSignIn(stateToken: token))
+                case .mfaSelection(let token):
+                    MFASelectionView(stateToken: token) { option in
+                        switch option {
+                        case .totp:
+                            authFlow = .totpVerification(stateToken: token)
+                        case .email:
+                            authFlow = .emailVerification(stateToken: token)
+                        }
+                    }
                 }
             }
             .onChange(of: focusedField) { oldValue, newValue in
@@ -105,7 +119,7 @@ struct LoginView: View {
                     lockoutStartTime = nil
                 }
             }
-            .onChange(of: authManager.loginError) { _, error in
+            .onChange(of: authManager.signInError) { _, error in
                 if case .accountLocked(let retryAfter) = error,
                    let retryAfter = retryAfter {
                     lockoutStartTime = Date()
@@ -114,16 +128,36 @@ struct LoginView: View {
                     startTimer()
                 }
             }
+            .onChange(of: authManager.availableMFAMethods) { _, methods in
+                if !methods.isEmpty, let token = authManager.pendingSignInResponse?.stateToken {
+                    if methods.count > 1 {
+                        authFlow = .mfaSelection(stateToken: token)
+                    } else if methods.contains(.totp) {
+                        authFlow = .totpVerification(stateToken: token)
+                    } else if methods.contains(.email) {
+                        authFlow = .emailVerification(stateToken: token)
+                    }
+                }
+            }
             .onChange(of: authManager.requiresTOTPVerification) { _, requiresTOTP in
-                if requiresTOTP, let token = authManager.pendingLoginResponse?.tempToken {
-                    authFlow = .totpVerification(tempToken: token)
+                if requiresTOTP, let token = authManager.pendingSignInResponse?.stateToken {
+                    if authManager.requiresEmailMFAVerification {
+                        authFlow = .mfaSelection(stateToken: token)
+                    } else {
+                        authFlow = .totpVerification(stateToken: token)
+                    }
                 }
             }
-            .onChange(of: authManager.requires2FAEmailVerification) { _, requiresEmail in
-                if requiresEmail, let token = authManager.pendingLoginResponse?.tempToken {
-                    authFlow = .emailVerification(tempToken: token)
+            .onChange(of: authManager.requiresEmailMFAVerification) { _, requiresEmail in
+                if requiresEmail, let token = authManager.pendingSignInResponse?.stateToken {
+                    if authManager.requiresTOTPVerification {
+                        authFlow = .mfaSelection(stateToken: token)
+                    } else {
+                        authFlow = .emailVerification(stateToken: token)
+                    }
                 }
             }
+   
             .onDisappear {
                 formState.reset()
                 focusedField = nil
@@ -131,22 +165,22 @@ struct LoginView: View {
                 remainingTime = nil
                 lockoutStartTime = nil
             }
-            .alert("Login Failed", isPresented: .init(
-                get: { authManager.loginError != nil },
-                set: { if !$0 { authManager.loginError = nil } }
+            .alert("Sign In Failed", isPresented: .init(
+                get: { authManager.signInError != nil },
+                set: { if !$0 { authManager.signInError = nil } }
             )) {
                 Button("OK") {
-                    authManager.loginError = nil
+                    authManager.signInError = nil
                 }
             } message: {
-                if let error = authManager.loginError {
+                if let error = authManager.signInError {
                     Text(error.localizedDescription)
                 }
             }
         }
     }
 
-    private var loginFieldsSection: some View {
+    private var signInFieldsSection: some View {
         Section {
             ValidatedFormField(
                 title: "Username or Email",
@@ -170,18 +204,18 @@ struct LoginView: View {
         }
     }
 
-    private var loginButton: some View {
-        AsyncButton("Login") {
+    private var signInButton: some View {
+        AsyncButton("Sign In") {
             formState.validateAll()
             if formState.isValid {
-                await login()
+                await signIn()
             }
         }
         .buttonStyle(.bordered)
         .disabled(lockedIdentifier == formState.identifier && remainingTime != nil)
     }
 
-    private func login() async {
+    private func signIn() async {
         await authManager.signIn(
             identifier: formState.identifier,
             password: formState.password
@@ -243,7 +277,7 @@ import Networking
         authorizationManager: authorizationManager
     )
 
-    LoginView()
+    SignInView()
         .environment(authManager)
         .environment(emailVerificationManager)
         .environment(totpManager)

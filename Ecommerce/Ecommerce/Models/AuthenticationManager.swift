@@ -1,8 +1,9 @@
 import Foundation
 import Networking
+import OSLog
 
 enum AuthenticationError: Error {
-    case noLoginInProgress
+    case noSignInInProgress
     case invalidTOTPToken
     case invalidCredentials
     case networkError(Error)
@@ -12,24 +13,28 @@ enum AuthenticationError: Error {
 
 @Observable
 @MainActor
-public final class AuthenticationManager {
+public final class AuthenticationManager: ObservableObject {
     private let authService: AuthenticationServiceProtocol
     private let userService: UserServiceProtocol
     private let authorizationManager: AuthorizationManagerProtocol
     public let totpManager: TOTPManager
     private let emailVerificationManager: EmailVerificationManager
-    
+    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Ecommerce", category: "AuthenticationManager")
+
     public var currentUser: UserResponse?
     public var isAuthenticated = false
     public var isLoading = false
     public var error: Error?
-    public var loginError: LoginError?
-    public var registrationError: RegistrationError?
+    public var signInError: SignInError?
+    public var signUpError: RegistrationError?
     public var requiresTOTPVerification = false
-    public var requires2FAEmailVerification = false
-    var pendingLoginResponse: AuthResponse?
-    private var pendingCredentials: (identifier: String, password: String)?
-    
+    public var requiresEmailMFAVerification = false
+    public var requiresPasswordUpdate = false
+    public var requiresEmailVerification: Bool = false
+    public var pendingSignInResponse: AuthResponse?
+    public var pendingCredentials: (identifier: String, password: String)?
+    public var availableMFAMethods: [MFAMethod] = []
+
     public init(
         authService: AuthenticationServiceProtocol,
         userService: UserServiceProtocol,
@@ -42,152 +47,110 @@ public final class AuthenticationManager {
         self.totpManager = totpManager
         self.emailVerificationManager = emailVerificationManager
         self.authorizationManager = authorizationManager
-        
+
         // Check token validity on init
         Task {
             await validateSession()
         }
     }
-    
-    public func validateSession() async {
+
+    private func validateSession() async {
         isLoading = true
-        
+        defer { isLoading = false }
+
         do {
-            // Try to get a valid token (will refresh if needed)
-            _ = try await authorizationManager.getValidToken()
-            
-            // Load profile and check verification status first
-            do {
-                currentUser = try await userService.getProfile()
-                await totpManager.getTOTPStatus()
-                // Check email verification status
-                try await emailVerificationManager.getInitialStatus()
-                
-                // Only set authenticated if no 2FA methods are enabled
-                if !totpManager.isEnabled && !emailVerificationManager.is2FAEnabled {
-                    isAuthenticated = true
-                }
-            } catch {
-                // On initial load, ANY profile error should reset auth state
-                self.error = error
-                isAuthenticated = false
-                currentUser = nil
-                try? await authorizationManager.invalidateToken()
-            }
+            let response = try await authService.me()
+            currentUser = response
+            isAuthenticated = true
         } catch {
-            self.error = error
             isAuthenticated = false
             currentUser = nil
             try? await authorizationManager.invalidateToken()
         }
-        
-        isLoading = false
     }
-    
-    public func register(username: String, displayName: String, email: String, password: String) async -> Bool {
+
+    public func signUp(
+        username: String,
+        email: String,
+        password: String,
+        displayName: String
+    ) async throws {
         isLoading = true
         defer { isLoading = false }
-        registrationError = nil // Clear previous registration errors
-        isAuthenticated = false
         
         do {
-            let dto = CreateUserRequest(
+            // Store credentials before making the request - use email as identifier for future signin
+            pendingCredentials = (identifier: email, password: password)
+            
+            let request = SignUpRequest(
                 username: username,
                 displayName: displayName,
                 email: email,
                 password: password
             )
             
-            let authResponse = try await authService.register(request: dto)
-            currentUser = authResponse.user
-            
-            // Set email verification state
-            let requiresVerification = authResponse.requiresEmailVerification
-            emailVerificationManager.requiresEmailVerification = requiresVerification
-            
-            return requiresVerification
-            
-        } catch let networkError as NetworkError {
-            switch networkError {
-            case let .clientError(statusCode, description, _, _):
-                switch statusCode {
-                case 409:
-                    registrationError = .accountExists
-                case 422:
-                    registrationError = .validationError(description)
-                default:
-                    registrationError = .unknown(description)
-                }
-            default:
-                registrationError = .unknown(networkError.localizedDescription)
-            }
-            isAuthenticated = false
-            currentUser = nil
-            try? await authorizationManager.invalidateToken()
-            return false
+            let response = try await authService.signUp(request: request)
+            await completeSignIn(response: response)
         } catch {
-            registrationError = .unknown(error.localizedDescription)
-            isAuthenticated = false
-            currentUser = nil
-            try? await authorizationManager.invalidateToken()
-            return false
+            pendingCredentials = nil
+            throw error
         }
     }
-    
+
     public func signOut() async {
         isLoading = true
-        error = nil
-        
+        defer { isLoading = false }
+
         do {
-            // Clear token and cached data
-            try await authorizationManager.invalidateToken()
-            URLCache.shared.removeAllCachedResponses()
+            try await authService.signOut()
         } catch {
-            self.error = error
+            logger.error("Error during sign out: \(error)")
         }
-        
-        // Reset all state regardless of token invalidation result
-        currentUser = nil
+
+        // Reset state regardless of sign out success
         isAuthenticated = false
-        loginError = nil
-        registrationError = nil
-        totpManager.reset()
-        emailVerificationManager.reset()
-        
-        isLoading = false
+        currentUser = nil
+        pendingSignInResponse = nil
+        pendingCredentials = nil
+        requiresTOTPVerification = false
+        requiresEmailMFAVerification = false
+        requiresPasswordUpdate = false
+        requiresEmailVerification = false
+        availableMFAMethods = []
+        try? await authorizationManager.invalidateToken()
     }
-    
-    private func handleLoginError(_ error: Error) async {
+
+    private func handleSignInError(_ error: Error) async {
         if let networkError = error as? NetworkError {
             switch networkError {
             case let .clientError(statusCode, _, headers, data):
                 switch statusCode {
                 case 423:
-                    loginError = .accountLocked(retryAfter: nil)
+                    signInError = .accountLocked(retryAfter: nil)
                 case 429:
                     let retryAfter = headers["Retry-After"].flatMap(Int.init) ?? 900 // Default to 15 minutes
-                    loginError = .accountLocked(retryAfter: retryAfter)
+                    signInError = .accountLocked(retryAfter: retryAfter)
                 case 401:
                     // Check if this is a TOTP required response
                     if let data = data,
                        let response = try? JSONDecoder().decode(AuthResponse.self, from: data),
-                       response.requiresTOTP {
+                       response.status == AuthResponse.STATUS_MFA_TOTP_REQUIRED {
                         // Handle TOTP requirement without setting error state
                         requiresTOTPVerification = true
-                        pendingLoginResponse = response
+                        pendingSignInResponse = response
                         return
                     }
-                    loginError = .invalidCredentials
+                    signInError = .invalidCredentials
                 default:
-                    loginError = .unknown(networkError.localizedDescription)
+                    signInError = .unknown(networkError.localizedDescription)
                 }
             default:
-                loginError = .unknown(networkError.localizedDescription)
+                signInError = .unknown(networkError.localizedDescription)
             }
         } else {
-            loginError = .unknown(error.localizedDescription)
+            signInError = .unknown(error.localizedDescription)
         }
-        
+
         isAuthenticated = false
         currentUser = nil
         try? await authorizationManager.invalidateToken()
@@ -196,61 +159,45 @@ public final class AuthenticationManager {
     public func signIn(identifier: String, password: String) async {
         isLoading = true
         defer { isLoading = false }
-        
+
         // Reset state
-        loginError = nil
+        signInError = nil
         isAuthenticated = false
-        pendingLoginResponse = nil
+        pendingSignInResponse = nil
         requiresTOTPVerification = false
-        requires2FAEmailVerification = false
-        
+        requiresEmailMFAVerification = false
+        availableMFAMethods = []
+
         do {
-            let dto = LoginRequest(identifier: identifier, password: password)
-            let response = try await authService.login(request: dto)
+            let dto = SignInRequest(identifier: identifier, password: password)
+            let response = try await authService.signIn(request: dto)
             
-            if response.requiresTOTP || response.requiresEmailVerification {
-                pendingLoginResponse = response
-                self.pendingCredentials = (identifier: identifier, password: password)
-                requiresTOTPVerification = response.requiresTOTP
-                requires2FAEmailVerification = response.requiresEmailVerification
-                currentUser = response.user
-                isAuthenticated = false
-                return
-            }
+            self.pendingCredentials = (identifier: identifier, password: password)
             
-            await completeLogin(response: response)
+            // Handle response based on status
+            await completeSignIn(response: response)
         } catch {
-            await handleLoginError(error)
+            await handleSignInError(error)
         }
     }
-    
-    /// Sign in with Google
-    /// - Parameters:
-    ///   - idToken: The ID token received from Google Sign-In
-    ///   - accessToken: The access token received from Google Sign-In (optional)
+
     public func signInWithGoogle(idToken: String, accessToken: String? = nil) async {
         isLoading = true
         defer { isLoading = false }
-        
+
         // Reset state
-        loginError = nil
+        signInError = nil
         isAuthenticated = false
-        pendingLoginResponse = nil
-        
+        pendingSignInResponse = nil
+
         do {
-            let response = try await authService.loginWithGoogle(idToken: idToken, accessToken: accessToken)
-            await completeLogin(response: response)
+            let response = try await authService.signInWithGoogle(idToken: idToken, accessToken: accessToken)
+            await completeSignIn(response: response)
         } catch {
-            await handleLoginError(error)
+            await handleSignInError(error)
         }
     }
-    
-    /// Sign in with Apple
-    /// - Parameters:
-    ///   - identityToken: The identity token string from Sign in with Apple
-    ///   - authorizationCode: The authorization code from Sign in with Apple
-    ///   - fullName: User's name components (optional, only provided on first login)
-    ///   - email: User's email (optional, only provided on first login)
+
     public func signInWithApple(
         identityToken: String,
         authorizationCode: String,
@@ -259,44 +206,202 @@ public final class AuthenticationManager {
     ) async {
         isLoading = true
         defer { isLoading = false }
-        
+
         // Reset state
-        loginError = nil
+        signInError = nil
         isAuthenticated = false
-        pendingLoginResponse = nil
-        
+        pendingSignInResponse = nil
+
         do {
-            let response = try await authService.loginWithApple(
+            let response = try await authService.signInWithApple(
                 identityToken: identityToken,
                 authorizationCode: authorizationCode,
                 fullName: fullName,
                 email: email
             )
-            await completeLogin(response: response)
+            await completeSignIn(response: response)
         } catch {
-            await handleLoginError(error)
+            await handleSignInError(error)
         }
     }
-    
-    private func completeLogin(response: AuthResponse) async {
-        currentUser = response.user
+
+    public func completeSignIn(response: AuthResponse) async {
+        // Store tokens if available and not in a verification state
+        if let accessToken = response.accessToken,
+           let refreshToken = response.refreshToken,
+           let expiresIn = response.expiresIn,
+           let expiresAt = response.expiresAt {
+            let token = Token(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                tokenType: response.tokenType,
+                expiresIn: expiresIn,
+                expiresAt: expiresAt
+            )
+            await authorizationManager.storeToken(token)
+        }
         
-        if response.requiresTOTP || response.requiresEmailVerification {
-            // Store pending state and set flags for required verification
-            pendingLoginResponse = response
-            requiresTOTPVerification = response.requiresTOTP
-            requires2FAEmailVerification = response.requiresEmailVerification
-            isAuthenticated = false
-        } else {
-            // Complete authentication if no verification required
-            pendingLoginResponse = nil
-            requiresTOTPVerification = false
-            requires2FAEmailVerification = false
+        // Update user info if available
+        if let user = response.user {
+            currentUser = user
+        }
+        
+        // Handle different auth states
+        switch response.status {
+        case AuthResponse.STATUS_SUCCESS:
             isAuthenticated = true
-            await storeTokenAndUpdateStatus(response)
+            pendingSignInResponse = nil
+            requiresTOTPVerification = false
+            requiresEmailMFAVerification = false
+            requiresEmailVerification = false
+            requiresPasswordUpdate = false
+            emailVerificationManager.requiresEmailVerification = false
+            availableMFAMethods = []
+            
+        case AuthResponse.STATUS_MFA_REQUIRED:
+            isAuthenticated = false
+            pendingSignInResponse = response
+            availableMFAMethods = response.availableMfaMethods ?? []
+            requiresTOTPVerification = false
+            requiresEmailMFAVerification = false
+            
+        case AuthResponse.STATUS_MFA_TOTP_REQUIRED:
+            isAuthenticated = false
+            requiresTOTPVerification = true
+            requiresEmailMFAVerification = false
+            pendingSignInResponse = response
+            availableMFAMethods = [.totp]
+            
+        case AuthResponse.STATUS_MFA_EMAIL_REQUIRED:
+            isAuthenticated = false
+            requiresTOTPVerification = false
+            requiresEmailMFAVerification = true
+            pendingSignInResponse = response
+            availableMFAMethods = [.email]
+            
+        case AuthResponse.STATUS_VERIFICATION_REQUIRED,
+             AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED:
+            isAuthenticated = false
+            requiresEmailVerification = true
+            emailVerificationManager.requiresEmailVerification = true
+            pendingSignInResponse = response
+            // Keep credentials for auto-signin after verification
+            if let identifier = pendingCredentials?.identifier,
+               let password = pendingCredentials?.password {
+                pendingCredentials = (identifier: identifier, password: password)
+            }
+        case AuthResponse.STATUS_PASSWORD_RESET_REQUIRED,
+             AuthResponse.STATUS_PASSWORD_UPDATE_REQUIRED:
+            isAuthenticated = false
+            requiresPasswordUpdate = true
+            pendingSignInResponse = response
+            
+        default:
+            logger.error("Unknown auth status: \(response.status)")
+            isAuthenticated = false
+            pendingSignInResponse = nil
+            requiresTOTPVerification = false
+            requiresEmailMFAVerification = false
+            requiresEmailVerification = false
+            requiresPasswordUpdate = false
+            availableMFAMethods = []
         }
     }
-    
+
+    public func selectMFAMethod(method: MFAMethod, stateToken: String? = nil) async throws {
+        let token = stateToken ?? pendingSignInResponse?.stateToken
+        guard let token = token else {
+            throw AuthenticationError.noSignInInProgress
+        }
+
+        do {
+            let response = try await authService.selectMFAMethod(method: method.rawValue, stateToken: token)
+            await completeSignIn(response: response)
+        } catch {
+            pendingSignInResponse = nil
+            throw error
+        }
+    }
+
+    public func verifyTOTPSignIn(code: String, stateToken: String) async throws {
+        guard pendingSignInResponse != nil else {
+            throw AuthenticationError.noSignInInProgress
+        }
+
+        do {
+            let response = try await authService.verifyTOTPSignIn(code: code, stateToken: stateToken)
+            await completeSignIn(response: response)
+        } catch {
+            pendingSignInResponse = nil
+            throw error
+        }
+    }
+
+    public func verifyEmailMFASignIn(code: String, stateToken: String) async throws {
+        guard pendingSignInResponse != nil else {
+            throw AuthenticationError.noSignInInProgress
+        }
+
+        do {
+            let response = try await authService.verifyEmailMFASignIn(code: code, stateToken: stateToken)
+            await completeSignIn(response: response)
+            self.pendingSignInResponse = nil
+        } catch {
+            self.pendingSignInResponse = nil
+            throw error
+        }
+    }
+
+    public func resendEmailMFASignIn(stateToken: String) async throws {
+        guard pendingSignInResponse != nil else {
+            throw AuthenticationError.noSignInInProgress
+        }
+
+        do {
+            _ = try await authService.resendEmailMFASignIn(stateToken: stateToken)
+        } catch {
+            throw error
+        }
+    }
+
+    /// Request a new email verification code during sign-in
+    public func requestEmailCode(stateToken: String) async throws {
+        guard pendingSignInResponse != nil else {
+            throw AuthenticationError.noSignInInProgress
+        }
+        _ = try await authService.requestEmailCode(stateToken: stateToken)
+    }
+
+    /// Send email MFA verification code during sign-in
+    public func sendEmailMFASignIn(stateToken: String) async throws {
+        guard pendingSignInResponse != nil else {
+            throw AuthenticationError.noSignInInProgress
+        }
+        _ = try await authService.sendEmailMFASignIn(stateToken: stateToken)
+    }
+
+    /// Send initial MFA code based on the verification type
+    public func sendInitialMFACode(for type: VerificationType) async throws {
+        switch type {
+        case .emailSignIn(let stateToken):
+            _ = try await authService.sendEmailMFASignIn(stateToken: stateToken)
+        default:
+            break // These are handled by their respective managers
+        }
+    }
+
+    /// Complete MFA verification based on the verification type
+    public func completeMFAVerification(for type: VerificationType, code: String) async throws {
+        switch type {
+        case .emailSignIn(let stateToken):
+            try await verifyEmailMFASignIn(code: code, stateToken: stateToken)
+        case .totpSignIn(let stateToken):
+            try await verifyTOTPSignIn(code: code, stateToken: stateToken)
+        default:
+            break // These are handled by their respective managers
+        }
+    }
+
     // MARK: - Profile Management
     
     public func updateProfile(displayName: String, email: String? = nil, profilePicture: String? = nil) async -> String? {
@@ -304,7 +409,7 @@ public final class AuthenticationManager {
         isLoading = true
         defer { isLoading = false }
         error = nil
-        
+         
         do {
             let dto = UpdateUserRequest(
                 displayName: displayName,
@@ -316,8 +421,8 @@ public final class AuthenticationManager {
             // If email was updated, we need to update the JWT since it uses email as subject
             if let newEmail = email {
                 // Reauthenticate to get new tokens with updated email
-                let loginDTO = LoginRequest(identifier: newEmail, password: "") // Password not needed as we're already authenticated
-                let response = try await authService.login(request: loginDTO)
+                let signInDTO = SignInRequest(identifier: newEmail, password: "") // Password not needed as we're already authenticated
+                let response = try await authService.signIn(request: signInDTO)
                 currentUser = response.user
                 return newEmail // Return the new email if it was updated
             }
@@ -327,125 +432,41 @@ public final class AuthenticationManager {
             return nil
         }
     }
-    
+
     public func refreshProfile() async {
-        guard isAuthenticated else { return }
-        
         isLoading = true
-        error = nil
+        defer { isLoading = false }
+
         do {
-            // Regular profile refresh - only clear auth on unauthorized
-            currentUser = try await userService.getProfile()
-            await totpManager.getTOTPStatus()
-        } catch let networkError as NetworkError {
-            self.error = networkError
-            // Only clear auth state on auth errors during refresh
-            if case .unauthorized = networkError {
-                isAuthenticated = false
-                currentUser = nil
-                try? await authorizationManager.invalidateToken()
-            }
+            let response = try await authService.me()
+            currentUser = response
         } catch {
-            // Keep existing profile data on other errors
-            self.error = error
-        }
-        isLoading = false
-    }
-
-    // MARK: - Helpers
-    
-    private func storeTokenAndUpdateStatus(_ response: AuthResponse) async {
-        let token = Token(
-            accessToken: response.accessToken,
-            refreshToken: response.refreshToken,
-            tokenType: response.tokenType,
-            expiresIn: response.expiresIn,
-            expiresAt: response.expiresAt
-        )
-        await authorizationManager.storeToken(token)
-        
-        // Update verification statuses in background
-        Task {
-            try await emailVerificationManager.getInitialStatus()
-            await totpManager.getTOTPStatus()
+            logger.error("Error refreshing profile: \(error)")
+            // Don't sign out on profile refresh failure
         }
     }
 
-    public func verifyTOTPForLogin(code: String, tempToken: String) async throws {
-        isLoading = true
-        defer { isLoading = false }
-        
-        let response = try await authService.verifyTOTPLogin(code: code, tempToken: tempToken)
-        
-        // Update user data
-        currentUser = response.user
-        requiresTOTPVerification = false
-        
-        if response.requiresEmailVerification {
-            // Store temp token and set state for email verification
-            pendingLoginResponse = response
-            requires2FAEmailVerification = true
-            isAuthenticated = false
-            
-            // Request initial email code using the new temp token
-            try await requestEmailCode(tempToken: response.tempToken ?? "")
-        } else {
-            // Complete authentication if no email verification needed
-            pendingLoginResponse = nil
-            requires2FAEmailVerification = false
-            isAuthenticated = true
-            await storeTokenAndUpdateStatus(response)
-        }
-    }
-    
-    public func verifyEmail2FALogin(code: String, tempToken: String) async throws {
-        guard pendingLoginResponse != nil else {
-            throw AuthenticationError.noLoginInProgress
-        }
-        
-        isLoading = true
-        defer { isLoading = false }
-        
-        let response = try await authService.verifyEmail2FALogin(code: code, tempToken: tempToken)
-        
-        // Complete authentication
-        currentUser = response.user
-        isAuthenticated = true
-        
-        // Clear verification states
-        self.pendingLoginResponse = nil
-        requiresTOTPVerification = false
-        requires2FAEmailVerification = false
-        
-        await storeTokenAndUpdateStatus(response)
+    public func resendInitialEmailVerificationCode(stateToken: String, email: String) async throws {
+        _ = try await authService.resendInitialEmailVerificationCode(stateToken: stateToken, email: email)
     }
 
-    /// Request a new email verification code during login
-    public func requestEmailCode(tempToken: String) async throws {
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            _ = try await authService.requestEmailCode(tempToken: tempToken)
-        } catch let networkError as NetworkError {
-            switch networkError {
-            case .clientError(429, _, let headers, _):
-                // Handle rate limit with retry-after
-                if let retryAfter = headers["Retry-After"].flatMap(Int.init) {
-                    throw NetworkError.clientError(
-                        statusCode: 429,
-                        description: "Please wait \(retryAfter) seconds before requesting another code",
-                        headers: headers
-                    )
-                }
-                throw NetworkError.clientError(
-                    statusCode: 429,
-                    description: "Please wait before requesting another code",
-                    headers: headers
-                )
-            default:
-                throw networkError
-            }
-        }
+    /// Refresh available MFA methods
+    public func refreshMFAMethods() async throws {
+        let response = try await authService.getMFAMethods(stateToken: nil)
+        availableMFAMethods = response.methods
+    }
+
+    /// Disables TOTP MFA for the current user
+    /// - Parameter password: The user's password for verification
+    public func disableTOTP(password: String) async throws {
+        try await totpManager.disable(password: password)
+    }
+
+    /// Disables email MFA for the current user
+    /// - Parameter password: The user's password for verification
+    public func disableEmailMFA(password: String) async throws {
+        try await emailVerificationManager.disableEmailMFA(password: password)
     }
 }
+
+

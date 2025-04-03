@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 @Observable
-final class RegisterFormState {
+final class SignUpFormState {
     // MARK: - Properties
     var email = ""
     var password = ""
@@ -156,16 +156,17 @@ final class RegisterFormState {
     }
     
     func validateDisplayName(ignoreEmpty: Bool = true) {
+        let trimmedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         if displayName.isEmpty {
             if !ignoreEmpty {
                 fieldErrors["displayName"] = "Display name is required"
             } else {
                 fieldErrors.removeValue(forKey: "displayName")
             }
-        } else if displayName.count < 2 {
-            fieldErrors["displayName"] = "Display name must be at least 2 characters"
-        } else if displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            fieldErrors["displayName"] = "Display name cannot be only whitespace"
+        } else if trimmedDisplayName.isEmpty {
+            fieldErrors["displayName"] = "Display name cannot be empty or only whitespace"
+        } else if displayName.count > 100 {
+            fieldErrors["displayName"] = "Display name must not exceed 100 characters"
         } else {
             fieldErrors.removeValue(forKey: "displayName")
         }

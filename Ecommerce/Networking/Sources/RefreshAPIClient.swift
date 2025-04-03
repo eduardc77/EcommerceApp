@@ -7,12 +7,12 @@ public protocol RefreshAPIClientProtocol: Sendable {
 
 public actor RefreshAPIClient: RefreshAPIClientProtocol {
     private let environment: Store.Environment
-    private let urlSession: URLSessionProtocol
+    private let urlSession: URLSession
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Networking", category: "RefreshAPIClient")
     
     public init(
         environment: Store.Environment = .develop,
-        urlSession: URLSessionProtocol = NetworkConfiguration.default
+        urlSession: URLSession = NetworkConfiguration.default
     ) {
         self.environment = environment
         self.urlSession = urlSession
@@ -32,12 +32,20 @@ public actor RefreshAPIClient: RefreshAPIClientProtocol {
             
             if httpResponse.statusCode == 200 {
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: data)
+                
+                guard let accessToken = authResponse.accessToken,
+                      let refreshToken = authResponse.refreshToken,
+                      let expiresIn = authResponse.expiresIn,
+                      let expiresAt = authResponse.expiresAt else {
+                    throw NetworkError.invalidResponse(description: "Missing required token fields")
+                }
+                
                 return Token(
-                    accessToken: authResponse.accessToken,
-                    refreshToken: authResponse.refreshToken,
+                    accessToken: accessToken,
+                    refreshToken: refreshToken,
                     tokenType: authResponse.tokenType,
-                    expiresIn: authResponse.expiresIn,
-                    expiresAt: authResponse.expiresAt
+                    expiresIn: expiresIn,
+                    expiresAt: expiresAt
                 )
             }
             

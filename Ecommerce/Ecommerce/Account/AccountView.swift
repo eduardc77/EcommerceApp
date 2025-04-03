@@ -10,19 +10,64 @@ struct AccountView: View {
     @State private var editedName = ""
     @State private var editedEmail = ""
     @State private var isRefreshing = false
-    @State private var showingEmailVerification = false
     @State private var selectedItem: PhotosPickerItem?
     @State private var selectedImageData: Data?
-    @State private var showingTOTPSetup = false
-    @State private var showingDisableTOTPConfirmation = false
-    @State private var showingDisableTOTPVerification = false
-    @State private var disableTOTPCode = ""
-    @State private var disableTOTPError: Error?
-    @State private var showingDisableEmail2FAConfirmation = false
-    @State private var showingDisableEmail2FAVerification = false
-    @State private var disableEmail2FACode = ""
-    @State private var disableEmail2FAError: Error?
-    @State private var showingEnableEmail2FAVerification = false
+    @State private var disableAction: DisableAction?
+    @State private var enableAction: EnableAction?
+    @State private var password = ""
+    @State private var showPasswordPrompt = false
+    @State private var disableError: Error?
+    @State private var showingError = false
+    @State private var showDisableAlert = false
+
+    private enum DisableAction: Identifiable {
+        case totp
+        case email
+        
+        var id: String {
+            switch self {
+            case .totp: return "totp"
+            case .email: return "email"
+            }
+        }
+        
+        var title: String {
+            switch self {
+            case .totp: return "Disable Authenticator"
+            case .email: return "Disable Email MFA"
+            }
+        }
+    }
+
+    private enum EnableAction: Identifiable {
+        case totp
+        case emailMFA
+        case emailVerification
+        
+        var id: String {
+            switch self {
+            case .totp: return "totp"
+            case .emailMFA: return "email-mfa"
+            case .emailVerification: return "email-verification"
+            }
+        }
+        
+        var title: String {
+            switch self {
+            case .totp: return "Enable Authenticator"
+            case .emailMFA: return "Enable Email MFA"
+            case .emailVerification: return "Verify Email"
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .totp: return "plus.circle.fill"
+            case .emailMFA: return "plus.circle.fill"
+            case .emailVerification: return "checkmark.circle.fill"
+            }
+        }
+    }
 
     private var user: UserResponse? {
         authManager.currentUser
@@ -45,46 +90,48 @@ struct AccountView: View {
             .refreshable {
                 await authManager.refreshProfile()
             }
-            .sheet(isPresented: $showingEmailVerification) {
-                VerificationView(type: .initialEmail)
+            .sheet(item: $enableAction) { action in
+                switch action {
+                case .emailVerification:
+                    VerificationView(type: .initialEmailFromAccountSettings(email: user?.email ?? ""))
+                case .emailMFA:
+                    VerificationView(type: .enableEmailMFA(email: user?.email ?? ""))
+                case .totp:
+                    TOTPSetupView()
+                }
             }
-            .sheet(isPresented: $showingTOTPSetup) {
-                TOTPSetupView()
-            }
-            .alert("Disable Two-Factor Authentication", isPresented: $showingDisableTOTPConfirmation) {
-                Button("Cancel", role: .cancel) { }
+            .alert("Disable MFA", isPresented: $showDisableAlert) {
+                Button("Cancel", role: .cancel) { 
+                    disableAction = nil
+                }
                 Button("Continue", role: .destructive) {
-                    showingDisableTOTPVerification = true
+                    showPasswordPrompt = true
                 }
             } message: {
                 Text("This will remove an important security feature from your account. You'll need to verify your identity to continue.")
             }
-            .sheet(isPresented: $showingDisableTOTPVerification) {
-                VerificationView(type: .disableTOTP)
-            }
-            .alert("Disable Email Verification", isPresented: $showingDisableEmail2FAConfirmation) {
-                Button("Cancel", role: .cancel) { }
-                Button("Continue", role: .destructive) {
-                    Task {
-                        await handleDisableEmail2FA()
-                    }
+            .alert("Enter Password", isPresented: $showPasswordPrompt) {
+                SecureField("Password", text: $password)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                Button("Cancel", role: .cancel) {
+                    password = ""
+                    showPasswordPrompt = false
+                }
+                Button("Disable", role: .destructive) {
+                    handleDisableAction()
                 }
             } message: {
-                Text("This will remove email verification as a security feature from your account. You'll need to verify your identity to continue.")
+                Text("Please enter your password to confirm this action.")
             }
-            .sheet(isPresented: $showingDisableEmail2FAVerification) {
-                VerificationView(type: .disableEmail2FA)
-            }
-            .sheet(isPresented: $showingEnableEmail2FAVerification) {
-                VerificationView(type: .setupEmail2FA)
-            }
-            .onChange(of: emailVerificationManager.requiresEmailVerification) { _, requiresEmailVerification in
-                if !requiresEmailVerification {
-                    showingEmailVerification = false
+            .alert("Error", isPresented: $showingError) {
+                Button("OK") {
+                    disableError = nil
                 }
-            }
-            .onChange(of: selectedItem) { _, item in
-                handleProfilePhotoSelection(item)
+            } message: {
+                if let error = disableError {
+                    Text(error.localizedDescription)
+                }
             }
             .toolbar {
                 AccountToolbarContent(
@@ -105,8 +152,20 @@ struct AccountView: View {
                 updateEditingFields(user: newValue)
             }
             .task {
-                await authManager.refreshProfile()
-                try? await emailVerificationManager.get2FAStatus()
+                // Only refresh if we're authenticated
+                if authManager.isAuthenticated {
+                    await authManager.refreshProfile()
+                    try? await emailVerificationManager.getEmailMFAStatus()
+                    try? await authManager.totpManager.getMFAStatus()
+                }
+            }
+            .onChange(of: emailVerificationManager.requiresEmailVerification) { _, requiresEmailVerification in
+                if !requiresEmailVerification {
+                    enableAction = nil
+                }
+            }
+            .onChange(of: selectedItem) { _, item in
+                handleProfilePhotoSelection(item)
             }
         }
     }
@@ -138,123 +197,129 @@ struct AccountView: View {
 
     private var twoFactorSection: some View {
         Section {
-            if emailVerificationManager.requiresEmailVerification {
-                // Show only email verification cell if email is not verified
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.yellow)
-                            .font(.title2)
+            if let currentUser = authManager.currentUser {
+                if !currentUser.emailVerified {
+                    // Show only email verification cell if email is not verified
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.yellow)
+                                .font(.title2)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Email Not Verified")
-                                .font(.headline)
-                            Text("Verify your email to access all features")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Email Not Verified")
+                                    .font(.headline)
+                                Text("Verify your email to access all features")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                    }
-
-                    Button {
-                        showingEmailVerification = true
-                    } label: {
-                        Text("Verify Email")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding(.vertical, 8)
-            } else {
-                // Show TOTP and Email 2FA options when email is verified
-                // TOTP Cell
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "lock.shield.fill")
-                            .font(.title)
-                            .foregroundStyle(authManager.totpManager.isEnabled ? .green : .secondary)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Authenticator App")
-                                .font(.headline)
-                            Text(authManager.totpManager.isEnabled ? "Enabled" : "Not enabled")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    if !authManager.totpManager.isEnabled {
-                        Text("Use an authenticator app to generate verification codes for additional security.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
 
                         Button {
-                            showingTOTPSetup = true
+                            enableAction = .emailVerification
                         } label: {
-                            Label("Enable Authenticator", systemImage: "plus.circle.fill")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .buttonStyle(.bordered)
-                    } else {
-                        Button(role: .destructive) {
-                            showingDisableTOTPConfirmation = true
-                        } label: {
-                            Label("Disable Authenticator", systemImage: "minus.circle.fill")
+                            Text("Verify Email")
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .buttonStyle(.bordered)
                     }
-                }
-                .padding(.vertical, 8)
+                    .padding(.vertical, 8)
+                } else {
+                    // Show TOTP and Email MFA options when email is verified
+                    // TOTP Cell
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "lock.shield.fill")
+                                .font(.title)
+                                .foregroundStyle(authManager.totpManager.isEnabled ? .green : .secondary)
 
-                // Email 2FA Cell
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "shield.lefthalf.filled")
-                            .font(.title)
-                            .foregroundStyle(emailVerificationManager.is2FAEnabled ? .green : .secondary)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Authenticator App")
+                                    .font(.headline)
+                                Text(authManager.totpManager.isEnabled ? "Enabled" : "Not enabled")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Email Verification")
-                                .font(.headline)
-                            Text(emailVerificationManager.is2FAEnabled ? "Enabled" : "Not enabled")
-                                .font(.subheadline)
+                        if !authManager.totpManager.isEnabled {
+                            Text("Use an authenticator app to generate verification codes for additional security.")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
+
+                            Button {
+                                enableAction = .totp
+                            } label: {
+                                Label("Enable Authenticator", systemImage: "plus.circle.fill")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
+                        } else {
+                            Button(role: .destructive) {
+                                disableAction = .totp
+                                showDisableAlert = true
+                            } label: {
+                                Label("Disable Authenticator", systemImage: "minus.circle.fill")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
                         }
                     }
+                    .padding(.vertical, 8)
 
-                    if !emailVerificationManager.is2FAEnabled {
-                        Text("Receive a verification code by email when signing in from a new device.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    // Email MFA Cell
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "shield.righthalf.filled")
+                                .font(.title)
+                                .foregroundStyle(emailVerificationManager.isMFAEnabled ? .green : .secondary)
 
-                        Button {
-                            showingEnableEmail2FAVerification = true
-                        } label: {
-                            Label("Enable Email Verification", systemImage: "plus.circle.fill")
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Email MFA")
+                                    .font(.headline)
+                                Text(emailVerificationManager.isMFAEnabled ? "Enabled" : "Not enabled")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                        .buttonStyle(.bordered)
-                    } else {
-                        Button(role: .destructive) {
-                            showingDisableEmail2FAConfirmation = true
-                        } label: {
-                            Label("Disable Email Verification", systemImage: "minus.circle.fill")
-                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if !emailVerificationManager.isMFAEnabled {
+                            Text("Receive verification codes by email when signing in for additional security.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                
+                            Button {
+                                enableAction = .emailMFA
+                            } label: {
+                                Label("Enable Email MFA", systemImage: "plus.circle.fill")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
+                        } else {
+                            Button(role: .destructive) {
+                                disableAction = .email
+                                showDisableAlert = true
+                            } label: {
+                                Label("Disable Email MFA", systemImage: "minus.circle.fill")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
                     }
+                    .padding(.vertical, 8)
                 }
-                .padding(.vertical, 8)
             }
         } header: {
             Text("Two-Factor Authentication")
         } footer: {
-            if !emailVerificationManager.requiresEmailVerification && 
-               !authManager.totpManager.isEnabled && 
-               !emailVerificationManager.is2FAEnabled {
-                Text("We recommend enabling at least one form of two-factor authentication to better protect your account.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if let currentUser = authManager.currentUser {
+                if currentUser.emailVerified && 
+                   !authManager.totpManager.isEnabled && 
+                   !emailVerificationManager.isMFAEnabled {
+                    Text("We recommend enabling at least one form of two-factor authentication to better protect your account.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -320,7 +385,7 @@ struct AccountView: View {
                     .font(.headline.bold())
             }
 
-            Text("Joined \(user.createdAt.formattedAsDate())")
+            Text("Joined \(user.createdAt?.formattedAsDate() ?? "")")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -421,14 +486,24 @@ struct AccountView: View {
         }
     }
 
-    // MARK: - Event Handlers
-
-    private func handleDisableEmail2FA() async {
-        do {
-            try await emailVerificationManager.setup2FA()
-            showingDisableEmail2FAVerification = true
-        } catch {
-            // Handle error
+    private func handleDisableAction() {
+        Task {
+            do {
+                switch disableAction {
+                case .totp:
+                    try await authManager.disableTOTP(password: password)
+                case .email:
+                    try await authManager.disableEmailMFA(password: password)
+                case .none:
+                    break
+                }
+                password = ""
+                disableAction = nil
+                showPasswordPrompt = false
+            } catch {
+                disableError = error
+                showingError = true
+            }
         }
     }
 }
