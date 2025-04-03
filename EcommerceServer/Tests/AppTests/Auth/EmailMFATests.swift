@@ -25,6 +25,8 @@ struct EmailMFATests {
             ) { response in
                 #expect(response.status == .created)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
                 #expect(authResponse.tokenType == "Bearer")
             }
 
@@ -65,7 +67,7 @@ struct EmailMFATests {
                     allocator: ByteBufferAllocator()
                 )
             ) { response in
-                #expect(response.status == .unauthorized)
+                #expect(response.status == .badRequest)
             }
 
             // Test valid email code
@@ -102,7 +104,10 @@ struct EmailMFATests {
             try await client.execute(
                 uri: "/api/v1/auth/mfa/email/send",
                 method: .post,
-                auth: .bearer(mfaSignInResponse.stateToken!)
+                body: JSONEncoder().encodeAsByteBuffer(
+                    ["state_token": mfaSignInResponse.stateToken!],
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .ok)
                 let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
@@ -166,6 +171,8 @@ struct EmailMFATests {
             ) { response in
                 #expect(response.status == .created)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
                 #expect(authResponse.tokenType == "Bearer")
             }
 
@@ -227,7 +234,10 @@ struct EmailMFATests {
             try await client.execute(
                 uri: "/api/v1/auth/mfa/email/send",
                 method: .post,
-                auth: .bearer(mfaSignInResponse.stateToken!)
+                body: JSONEncoder().encodeAsByteBuffer(
+                    ["state_token": mfaSignInResponse.stateToken!],
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .ok)
                 let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
@@ -283,6 +293,8 @@ struct EmailMFATests {
             ) { response in
                 #expect(response.status == .created)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
                 #expect(authResponse.tokenType == "Bearer")
             }
 
@@ -344,7 +356,10 @@ struct EmailMFATests {
             try await client.execute(
                 uri: "/api/v1/auth/mfa/email/send",
                 method: .post,
-                auth: .bearer(initialLoginResponse.stateToken!)
+                body: JSONEncoder().encodeAsByteBuffer(
+                    ["state_token": initialLoginResponse.stateToken!],
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .ok)
                 let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
@@ -409,8 +424,9 @@ struct EmailMFATests {
             ) { response in
                 #expect(response.status == .created)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
-                #expect(authResponse.tokenType == "Bearer")
                 #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                #expect(authResponse.tokenType == "Bearer")
             }
 
             // Sign in to get access token (should still work without email verification)
@@ -472,6 +488,9 @@ struct EmailMFATests {
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
             }
 
             // Complete email verification
@@ -525,7 +544,10 @@ struct EmailMFATests {
             try await client.execute(
                 uri: "/api/v1/auth/mfa/email/send",
                 method: .post,
-                auth: .bearer(mfaSignInResponse.stateToken!)
+                body: JSONEncoder().encodeAsByteBuffer(
+                    ["state_token": mfaSignInResponse.stateToken!],
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .ok)
                 let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
@@ -587,7 +609,10 @@ struct EmailMFATests {
             try await client.execute(
                 uri: "/api/v1/auth/mfa/email/send",
                 method: .post,
-                auth: .bearer(newSignInResponse.stateToken!)
+                body: JSONEncoder().encodeAsByteBuffer(
+                    ["state_token": newSignInResponse.stateToken!],
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .ok)
                 let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)

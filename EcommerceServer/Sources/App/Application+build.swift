@@ -344,11 +344,13 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
     let oidcController = OIDCController(baseUrl: baseUrlWithScheme)
     oidcController.addRoutes(to: wellKnownGroup)
 
-    // Sign up TOTP and Email verification routes independently
-    totpController.addProtectedRoutes(to: api.group("mfa/totp").add(middleware: jwtAuthenticator))
-    emailVerificationController.addProtectedRoutes(to: api.group("mfa/email").add(middleware: jwtAuthenticator))
-    mfaRecoveryController.addProtectedRoutes(to: api.group("mfa/recovery").add(middleware: jwtAuthenticator))
-    mfaRecoveryController.addPublicRoutes(to: api.group("mfa/recovery"))
+    // Sign up protected MFA management routes
+    totpController.addProtectedRoutes(to: apiProtected.group("mfa/totp"))
+    emailVerificationController.addProtectedRoutes(to: apiProtected.group("mfa/email"))
+    mfaRecoveryController.addProtectedRoutes(to: apiProtected.group("mfa/recovery"))
+    
+    // Add public MFA verification routes
+    mfaRecoveryController.addPublicRoutes(to: apiPublic.group("mfa/recovery"))
 
     // Add file upload routes
     let fileController = FileController(fluent: fluent)

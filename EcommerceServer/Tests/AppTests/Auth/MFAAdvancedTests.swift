@@ -20,16 +20,19 @@ struct MFAAdvancedTests {
                 password: "P@th3r#Bk9$mN",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
-
-            // Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
 
             // Sign in to get access token
             let authResponse = try await client.execute(
@@ -80,9 +83,14 @@ struct MFAAdvancedTests {
             try await client.execute(
                 uri: "/api/v1/auth/mfa/email/send",
                 method: .post,
-                auth: .bearer(freshAuthResponse.stateToken!)
+                body: JSONEncoder().encodeAsByteBuffer(
+                    ["state_token": freshAuthResponse.stateToken!],
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .ok)
+                let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: response.body)
+                #expect(messageResponse.success)
             }
 
             let emailVerifiedAuthResponse = try await client.execute(
@@ -173,7 +181,8 @@ struct MFAAdvancedTests {
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
                     TOTPVerificationRequest(stateToken: totpSelectionResponse.stateToken!, code: totpCode),
-                    allocator: ByteBufferAllocator())
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .ok)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -213,7 +222,10 @@ struct MFAAdvancedTests {
             try await client.execute(
                 uri: "/api/v1/auth/mfa/email/send",
                 method: .post,
-                auth: .bearer(emailSelectionResponse.stateToken!)
+                body: JSONEncoder().encodeAsByteBuffer(
+                    ["state_token": emailSelectionResponse.stateToken!],
+                    allocator: ByteBufferAllocator()
+                )
             ) { response in
                 #expect(response.status == .ok)
             }

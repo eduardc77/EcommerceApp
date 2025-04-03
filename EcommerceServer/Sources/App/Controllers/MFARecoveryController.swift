@@ -392,6 +392,11 @@ struct MFARecoveryController {
 struct RecoveryCodeVerifyRequest: Codable {
     let code: String
     let stateToken: String
+    
+    enum CodingKeys: String, CodingKey {
+        case code
+        case stateToken = "state_token"
+    }
 }
 
 struct RegenerateCodesRequest: Codable {
@@ -402,6 +407,12 @@ struct RecoveryCodesResponse: Codable {
     let codes: [String]
     let message: String
     let expiresAt: String
+    
+    enum CodingKeys: String, CodingKey {
+        case codes
+        case message
+        case expiresAt = "expires_at"
+    }
 }
 
 struct RecoveryCodesStatusResponse: Codable {
@@ -412,6 +423,16 @@ struct RecoveryCodesStatusResponse: Codable {
     let validCodes: Int
     let shouldRegenerate: Bool
     let nextExpirationDate: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case totalCodes = "total_codes"
+        case usedCodes = "used_codes"
+        case remainingCodes = "remaining_codes"
+        case expiredCodes = "expired_codes"
+        case validCodes = "valid_codes"
+        case shouldRegenerate = "should_regenerate"
+        case nextExpirationDate = "next_expiration_date"
+    }
 }
 
 extension RecoveryCodesResponse: ResponseEncodable {}

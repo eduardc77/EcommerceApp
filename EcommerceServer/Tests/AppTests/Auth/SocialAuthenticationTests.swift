@@ -76,16 +76,20 @@ struct SocialAuthenticationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            try await client.execute(
+            // Complete email verification
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // Complete email verification
-            try await client.completeEmailVerification(email: email)
+            try await client.completeEmailVerification(email: email, stateToken: signUpResponse.stateToken!)
             
             // Sign in with the user to verify account is active
             let initialAuth = try await client.execute(
@@ -141,8 +145,8 @@ struct SocialAuthenticationTests {
                 "parameters": {
                     "type": "google",
                     "data": {
-                        "idToken": "invalid_token",
-                        "accessToken": null
+                        "id_token": "invalid_token",
+                        "access_token": null
                     }
                 }
             }

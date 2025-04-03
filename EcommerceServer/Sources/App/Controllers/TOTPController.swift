@@ -170,7 +170,6 @@ struct TOTPController {
         // Disable MFA
         user.twoFactorEnabled = false
         user.twoFactorSecret = nil
-        user.tokenVersion += 1  // Increment token version to invalidate all existing tokens
         try await user.save(on: fluent.db())
         
         return .init(
@@ -205,6 +204,11 @@ struct TOTPController {
 struct TOTPEnableResponse: Codable {
     let secret: String
     let qrCodeUrl: String
+    
+    enum CodingKeys: String, CodingKey {
+        case secret
+        case qrCodeUrl = "qr_code_url"
+    }
 }
 
 struct TOTPVerifyRequest: Codable {

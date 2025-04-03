@@ -21,17 +21,20 @@ struct SessionManagementTests {
                 password: "Secur3P@ssw0rd!",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            
-            try await client.execute(
+
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // 2. Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
             
             // 3. Sign in to sign up a session
             let authResponse = try await client.execute(
@@ -74,17 +77,20 @@ struct SessionManagementTests {
                 password: "Secur3P@ssw0rd!",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            
-            try await client.execute(
+
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // 2. Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
             
             // 3. Sign in with different device names to create multiple sessions
             var accessTokens: [String] = []
@@ -136,18 +142,21 @@ struct SessionManagementTests {
                 email: "session3@example.com",
                 password: "Secur3P@ssw0rd!",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
-            )
+                )
             
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // 2. Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
             
             // 3. Create first session
             let _ = try await client.execute(
@@ -236,17 +245,20 @@ struct SessionManagementTests {
                 password: "Secur3P@ssw0rd!",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            
-            try await client.execute(
+
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // 2. Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
             
             // 3. Create multiple sessions
             var sessions: [AuthResponse] = []
@@ -321,17 +333,20 @@ struct SessionManagementTests {
                 password: "Secur3P@ssw0rd!",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            
-            try await client.execute(
+
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // 2. Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
             
             // 3. Sign in to create a session
             let authResponse = try await client.execute(
@@ -407,17 +422,20 @@ struct SessionManagementTests {
                 password: "Secur3P@ssw0rd!",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            
-            try await client.execute(
+
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // 2. Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
             
             // 3. Create multiple sessions (more than the system max limit, which should be 5)
             var sessions: [AuthResponse] = []

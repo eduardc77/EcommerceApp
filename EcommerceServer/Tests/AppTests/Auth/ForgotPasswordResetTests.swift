@@ -48,6 +48,9 @@ struct ForgotPasswordResetTests {
                 body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
             }
             
             // 2. Request password reset
@@ -114,6 +117,9 @@ struct ForgotPasswordResetTests {
                 body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
             }
             
             // 2. Request password reset
@@ -175,6 +181,9 @@ struct ForgotPasswordResetTests {
                 body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
             }
             
             // 2. Request password reset
@@ -248,6 +257,9 @@ struct ForgotPasswordResetTests {
                 body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
             }
             
             // 2. Request password reset

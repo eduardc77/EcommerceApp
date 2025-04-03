@@ -24,16 +24,20 @@ struct UserOperationsTests {
             )
             
             // Sign up user
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
             // Complete email verification
-            try await client.completeEmailVerification(email: user.email)
+            try await client.completeEmailVerification(email: user.email, stateToken: signUpResponse.stateToken!)
             
             // Sign in to get token and user ID
             let authResponse = try await client.execute(
@@ -77,16 +81,20 @@ struct UserOperationsTests {
             )
 
             // Sign up first user
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user1, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
             // Complete email verification for first user
-            try await client.completeEmailVerification(email: user1.email)
+            try await client.completeEmailVerification(email: user1.email, stateToken: signUpResponse.stateToken!)
 
             // Sign in as first user to get ID
             let user1Auth = try await client.execute(
@@ -110,16 +118,20 @@ struct UserOperationsTests {
             )
             
             // Sign up second user
-            try await client.execute(
+            let signUpResponse2 = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user2, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
             // Complete email verification for second user
-            try await client.completeEmailVerification(email: user2.email)
+            try await client.completeEmailVerification(email: user2.email, stateToken: signUpResponse2.stateToken!)
             
             // Sign in as second user
             let user2Auth = try await client.execute(
@@ -159,16 +171,20 @@ struct UserOperationsTests {
             )
 
             // Sign up user
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
             // Complete email verification
-            try await client.completeEmailVerification(email: user.email)
+            try await client.completeEmailVerification(email: user.email, stateToken: signUpResponse.stateToken!)
             
             // Sign in to get token and user ID
             let authResponse = try await client.execute(
@@ -217,16 +233,20 @@ struct UserOperationsTests {
             )
 
             // Sign up first user
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user1, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
             // Complete email verification for first user
-            try await client.completeEmailVerification(email: user1.email)
+            try await client.completeEmailVerification(email: user1.email, stateToken: signUpResponse.stateToken!)
 
             // Sign in as first user to get ID
             let user1Auth = try await client.execute(
@@ -256,6 +276,10 @@ struct UserOperationsTests {
                 body: JSONEncoder().encodeAsByteBuffer(user2, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
             // 3. Sign in as second user
@@ -298,16 +322,20 @@ struct UserOperationsTests {
             )
             
             // Sign up first user
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user1, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
             // Complete email verification for first user
-            try await client.completeEmailVerification(email: user1.email)
+            try await client.completeEmailVerification(email: user1.email, stateToken: signUpResponse.stateToken!)
             
             // Sign in as first user to get ID
             let user1Auth = try await client.execute(
@@ -331,16 +359,20 @@ struct UserOperationsTests {
             )
             
             // Sign up second user
-            try await client.execute(
+            let signUpResponse2 = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(user2, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
             // Complete email verification for second user
-            try await client.completeEmailVerification(email: user2.email)
+            try await client.completeEmailVerification(email: user2.email, stateToken: signUpResponse2.stateToken!)
             
             // Sign in as second user
             let user2Auth = try await client.execute(
@@ -402,6 +434,10 @@ struct UserOperationsTests {
                 body: JSONEncoder().encodeAsByteBuffer(adminUser, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
             // Set admin role directly in database
@@ -417,16 +453,20 @@ struct UserOperationsTests {
             )
             
             // Sign up regular user
-            try await client.execute(
+            let signUpResponse3 = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(regularUser, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
             // Complete email verification for regular user
-            try await client.completeEmailVerification(email: regularUser.email)
+            try await client.completeEmailVerification(email: regularUser.email, stateToken: signUpResponse3.stateToken!)
             
             // Sign in as regular user to get ID
             let regularUserAuth = try await client.execute(

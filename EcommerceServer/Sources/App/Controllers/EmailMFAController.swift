@@ -33,12 +33,30 @@ struct EmailMFAController {
             throw HTTPError(.unauthorized)
         }
         
-        // Delete any existing verification codes for this user
+        // Get user ID
         let userID = try user.requireID()
-        try await EmailVerificationCode.query(on: fluent.db())
+        
+        // Check for existing verification code and cooldown
+        if let existingCode = try await EmailVerificationCode.query(on: fluent.db())
             .filter(\.$user.$id, .equal, userID)
             .filter(\.$type, .equal, "mfa_enable")
-            .delete()
+            .first() {
+            
+            // Check if within cooldown period
+            if existingCode.isWithinCooldown {
+                let remaining = existingCode.remainingCooldown
+                var headers = HTTPFields()
+                headers.append(HTTPField(name: HTTPField.Name("Retry-After")!, value: "\(remaining)"))
+                throw HTTPError(
+                    .tooManyRequests,
+                    headers: headers,
+                    message: "Please wait \(remaining) seconds before requesting another code"
+                )
+            }
+            
+            // Delete the expired code
+            try await existingCode.delete(on: fluent.db())
+        }
         
         // Generate and store verification code
         let code = EmailVerificationCode.generateCode()
@@ -109,7 +127,7 @@ struct EmailMFAController {
         if verificationCode.code != verifyRequest.code {
             verificationCode.incrementAttempts()
             try await verificationCode.save(on: fluent.db())
-            throw HTTPError(.unauthorized, message: "Invalid verification code")
+            throw HTTPError(.badRequest, message: "Invalid verification code")
         }
         
         // Delete the verification code
@@ -172,10 +190,6 @@ struct EmailMFAController {
         
         // Disable email verification
         user.emailVerificationEnabled = false
-        
-        // Update token version to invalidate existing tokens
-        user.tokenVersion += 1
-        
         try await user.save(on: fluent.db())
         
         return .init(
@@ -200,106 +214,6 @@ struct EmailMFAController {
             response: EmailMFAVerificationStatusResponse(
                 enabled: user.emailVerificationEnabled,
                 verified: user.emailVerified
-            )
-        )
-    }
-    
-    /// Resend initial email verification code
-    @Sendable func resendVerificationEmail(
-        _ request: Request,
-        context: Context
-    ) async throws -> EditedResponse<MessageResponse> {
-        // Get email from request
-        let resendRequest = try await request.decode(as: ResendVerificationRequest.self, context: context)
-        
-        // Find user
-        guard let user = try await User.query(on: fluent.db())
-            .filter(\.$email, .equal, resendRequest.email)
-            .first() else {
-            throw HTTPError(.notFound, message: "User not found")
-        }
-        
-        // Check if already verified
-        if user.emailVerified {
-            throw HTTPError(.badRequest, message: "Email is already verified")
-        }
-        
-        // Delete any existing verification codes
-        let userID = try user.requireID()
-        try await EmailVerificationCode.query(on: fluent.db())
-            .filter(\.$user.$id, .equal, userID)
-            .filter(\.$type, .equal, "email_verify")
-            .delete()
-        
-        // Generate and store new code
-        let code = EmailVerificationCode.generateCode()
-        let verificationCode = EmailVerificationCode(
-            userID: userID,
-            code: code,
-            type: "email_verify",
-            expiresAt: Date().addingTimeInterval(300)
-        )
-        try await verificationCode.save(on: fluent.db())
-        
-        // Send verification email
-        try await emailService.sendVerificationEmail(to: user.email, code: code)
-        
-        return .init(
-            status: .ok,
-            response: MessageResponse(
-                message: "Verification email sent",
-                success: true
-            )
-        )
-    }
-    
-    /// Send initial verification email after registration
-    @Sendable func sendInitialVerificationEmail(
-        _ request: Request,
-        context: Context
-    ) async throws -> EditedResponse<MessageResponse> {
-        // Get email from request
-        let sendRequest = try await request.decode(as: ResendVerificationRequest.self, context: context)
-        
-        // Find user
-        guard let user = try await User.query(on: fluent.db())
-            .filter(\.$email, .equal, sendRequest.email)
-            .first() else {
-            throw HTTPError(.notFound, message: "User not found")
-        }
-        
-        // Check if already verified
-        if user.emailVerified {
-            throw HTTPError(.badRequest, message: "Email is already verified")
-        }
-        
-        // Delete any existing verification codes
-        let userID = try user.requireID()
-        try await EmailVerificationCode.query(on: fluent.db())
-            .filter(\.$user.$id, .equal, userID)
-            .filter(\.$type, .equal, "email_verify")
-            .delete()
-        
-        // Generate and store new code
-        let code = EmailVerificationCode.generateCode()
-        let verificationCode = EmailVerificationCode(
-            userID: userID,
-            code: code,
-            type: "email_verify",
-            expiresAt: Date().addingTimeInterval(300) // 5 minutes
-        )
-        try await verificationCode.save(on: fluent.db())
-        
-        // Send verification email
-        try await emailService.sendVerificationEmail(to: user.email, code: code)
-        
-        context.logger.info("Sent initial verification email to user: \(user.email)")
-        
-        return .init(
-            status: .ok,
-            response: MessageResponse(
-                message: "Verification email sent",
-                success: true
             )
         )
     }
@@ -334,27 +248,22 @@ struct EmailMFAController {
                 )
             }
             
-            // Update the last requested time and reset attempts
-            existingCode.updateLastRequested()
-            existingCode.attempts = 0
-            try await existingCode.save(on: fluent.db())
-            
-            // Send verification email
-            try await emailService.sendMFASetupEmail(to: user.email, code: existingCode.code)
-        } else {
-            // No existing code, generate a new one
-            let code = EmailVerificationCode.generateCode()
-            let verificationCode = EmailVerificationCode(
-                userID: userID,
-                code: code,
-                type: "mfa_enable",
-                expiresAt: Date().addingTimeInterval(300) // 5 minutes
-            )
-            try await verificationCode.save(on: fluent.db())
-            
-            // Send verification email
-            try await emailService.sendMFASetupEmail(to: user.email, code: code)
+            // Delete the existing code since it might be expired
+            try await existingCode.delete(on: fluent.db())
         }
+        
+        // Generate a new code
+        let code = EmailVerificationCode.generateCode()
+        let verificationCode = EmailVerificationCode(
+            userID: userID,
+            code: code,
+            type: "mfa_enable",
+            expiresAt: Date().addingTimeInterval(300) // 5 minutes
+        )
+        try await verificationCode.save(on: fluent.db())
+        
+        // Send verification email
+        try await emailService.sendMFASetupEmail(to: user.email, code: code)
         
         context.logger.info("Resent MFA setup verification code to user: \(user.email)")
         

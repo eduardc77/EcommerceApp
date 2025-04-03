@@ -132,6 +132,16 @@ struct SessionResponse: Codable, ResponseEncodable {
     let lastUsedAt: String
     let isCurrent: Bool
     
+    enum CodingKeys: String, CodingKey {
+        case id
+        case deviceName = "device_name"
+        case ipAddress = "ip_address"
+        case userAgent = "user_agent"
+        case createdAt = "created_at"
+        case lastUsedAt = "last_used_at"
+        case isCurrent = "is_current"
+    }
+    
     init(from session: Session, currentTokenId: String?) {
         self.id = session.id?.uuidString ?? "unknown"
         self.deviceName = session.deviceName
@@ -147,4 +157,9 @@ struct SessionResponse: Codable, ResponseEncodable {
 struct SessionListResponse: Codable, ResponseEncodable {
     let sessions: [SessionResponse]
     let currentSessionId: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case sessions
+        case currentSessionId = "current_session_id"
+    }
 }

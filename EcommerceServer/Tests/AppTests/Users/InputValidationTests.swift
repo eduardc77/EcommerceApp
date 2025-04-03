@@ -37,7 +37,7 @@ struct InputValidationTests {
                     method: .post,
                     body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
                 ) { response in
-                    #expect(response.status == .init(code: 422))
+                    #expect(response.status == .unprocessableContent)
                     let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
                     #expect(error.error.message.contains("Invalid email format"))
                 }
@@ -60,16 +60,20 @@ struct InputValidationTests {
                     password: "TestingV@lid143!#Z",
                     profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
                 )
-                try await client.execute(
+                
+                let signUpResponse = try await client.execute(
                     uri: "/api/v1/auth/sign-up",
                     method: .post,
                     body: JSONEncoder().encodeAsByteBuffer(validRequest, allocator: ByteBufferAllocator())
                 ) { response in
                     #expect(response.status == .created)
+                    let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                    #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                    #expect(authResponse.stateToken != nil)
+                    return authResponse
                 }
                 
-                // Complete email verification for valid registrations
-                try await client.completeEmailVerification(email: validEmail)
+                try await client.completeEmailVerification(email: validEmail, stateToken: signUpResponse.stateToken!)
             }
         }
     }
@@ -108,7 +112,7 @@ struct InputValidationTests {
                     method: .post,
                     body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
                 ) { response in
-                    #expect(response.status == .init(code: 422))
+                    #expect(response.status == .unprocessableContent)
                     let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
                     #expect(error.error.message.contains("Invalid username format"))
                 }
@@ -132,16 +136,20 @@ struct InputValidationTests {
                     password: "TestingV@lid143!#Z",
                     profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
                 )
-                try await client.execute(
+                // Complete email verification for valid registrations
+                let signUpResponse = try await client.execute(
                     uri: "/api/v1/auth/sign-up",
                     method: .post,
                     body: JSONEncoder().encodeAsByteBuffer(validRequest, allocator: ByteBufferAllocator())
                 ) { response in
                     #expect(response.status == .created)
+                    let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                    #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                    #expect(authResponse.stateToken != nil)
+                    return authResponse
                 }
                 
-                // Complete email verification for valid registrations
-                try await client.completeEmailVerification(email: "\(validUsername)@example.com")
+                try await client.completeEmailVerification(email: "\(validUsername)@example.com", stateToken: signUpResponse.stateToken!)
             }
         }
     }
@@ -164,7 +172,7 @@ struct InputValidationTests {
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(shortPasswordRequest, allocator: ByteBufferAllocator())
             ) { response in
-                #expect(response.status == .init(code: 422))
+                #expect(response.status == .unprocessableContent)
                 let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
                 #expect(error.error.message.contains("Invalid password"))
             }
@@ -182,7 +190,7 @@ struct InputValidationTests {
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(noUppercaseRequest, allocator: ByteBufferAllocator())
             ) { response in
-                #expect(response.status == .init(code: 422))
+                #expect(response.status == .unprocessableContent)
                 let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
                 #expect(error.error.message.contains("Invalid password"))
             }
@@ -200,7 +208,7 @@ struct InputValidationTests {
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(commonPasswordRequest, allocator: ByteBufferAllocator())
             ) { response in
-                #expect(response.status == .init(code: 422))
+                #expect(response.status == .unprocessableContent)
                 let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
                 #expect(error.error.message.contains("Invalid password"))
             }
@@ -218,7 +226,7 @@ struct InputValidationTests {
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(repeatedCharsRequest, allocator: ByteBufferAllocator())
             ) { response in
-                #expect(response.status == .init(code: 422))
+                #expect(response.status == .unprocessableContent)
                 let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
                 #expect(error.error.message.contains("Invalid password"))
             }
@@ -236,7 +244,7 @@ struct InputValidationTests {
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(sequentialRequest, allocator: ByteBufferAllocator())
             ) { response in
-                #expect(response.status == .init(code: 422))
+                #expect(response.status == .unprocessableContent)
                 let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
                 #expect(error.error.message.contains("Invalid password"))
             }
@@ -254,7 +262,7 @@ struct InputValidationTests {
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(usernameInPasswordRequest, allocator: ByteBufferAllocator())
             ) { response in
-                #expect(response.status == .init(code: 422))
+                #expect(response.status == .unprocessableContent)
                 let error = try JSONDecoder().decode(ErrorResponse.self, from: response.body)
                 #expect(error.error.message.contains("Invalid password"))
             }
@@ -267,7 +275,9 @@ struct InputValidationTests {
                 password: "V3ryStr0ng&Un!que#",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            try await client.execute(
+
+            // Complete email verification for valid registration
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(validRequest, allocator: ByteBufferAllocator())
@@ -275,10 +285,11 @@ struct InputValidationTests {
                 #expect(response.status == .created)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // Complete email verification for valid registration
-            try await client.completeEmailVerification(email: validRequest.email)
+            try await client.completeEmailVerification(email: validRequest.email, stateToken: signUpResponse.stateToken!)
         }
     }
 }

@@ -368,35 +368,63 @@ struct OAuthController {
     
     // Define TokenResponse at the controller level
     struct TokenResponse: Codable, ResponseEncodable {
-        let access_token: String
-        let token_type: String
-        let expires_in: Int
-        let refresh_token: String?
+        let accessToken: String
+        let tokenType: String
+        let expiresIn: Int
+        let refreshToken: String?
         let scope: String
+        
+        enum CodingKeys: String, CodingKey {
+            case accessToken = "access_token"
+            case tokenType = "token_type"
+            case expiresIn = "expires_in"
+            case refreshToken = "refresh_token"
+            case scope
+        }
     }
     
     // Define TokenRequestBase struct at the controller level
     struct TokenRequestBase: Decodable {
-        let grant_type: String
+        let grantType: String
+        
+        enum CodingKeys: String, CodingKey {
+            case grantType = "grant_type"
+        }
     }
     
     // Define types needed for client authentication
     struct ClientCredentialsRequest: Decodable {
-        let client_id: String
-        let client_secret: String?
+        let clientId: String
+        let clientSecret: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case clientId = "client_id"
+            case clientSecret = "client_secret"
+        }
     }
     
     // Define request type for authorization code grant
     struct AuthCodeRequest: Decodable {
         let code: String
-        let redirect_uri: String
-        let code_verifier: String?
+        let redirectUri: String
+        let codeVerifier: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case code
+            case redirectUri = "redirect_uri"
+            case codeVerifier = "code_verifier"
+        }
     }
     
     // Define request type for refresh token grant
     struct RefreshTokenRequest: Decodable {
-        let refresh_token: String
+        let refreshToken: String
         let scope: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case refreshToken = "refresh_token"
+            case scope
+        }
     }
     
     /// Token endpoint for exchanging authorization code for tokens
@@ -411,7 +439,7 @@ struct OAuthController {
         let baseRequest = try await request.decode(as: TokenRequestBase.self, context: context)
         
         // Handle different grant types
-        switch baseRequest.grant_type {
+        switch baseRequest.grantType {
         case "authorization_code":
             // Get token response directly
             let tokenResponse = try await handleAuthorizationCodeGrant(request, context: context, clientAuth: clientAuth)
@@ -449,7 +477,7 @@ struct OAuthController {
             throw HTTPError(.badRequest, message: "Unsupported grant type: client_credentials")
             
         default:
-            throw HTTPError(.badRequest, message: "Unsupported grant type: \(baseRequest.grant_type)")
+            throw HTTPError(.badRequest, message: "Unsupported grant type: \(baseRequest.grantType)")
         }
     }
     
@@ -487,7 +515,7 @@ struct OAuthController {
             
             // Lookup client
             guard let client = try await OAuthClient.query(on: fluent.db())
-                .filter(\.$clientId, .equal, credentials.client_id)
+                .filter(\.$clientId, .equal, credentials.clientId)
                 .filter(\.$isActive, .equal, true)
                 .first() else {
                 throw HTTPError(.unauthorized, message: "Invalid client")
@@ -496,7 +524,7 @@ struct OAuthController {
             // For confidential clients, verify the secret
             if !client.isPublic {
                 guard let clientSecret = client.clientSecret,
-                      let providedSecret = credentials.client_secret,
+                      let providedSecret = credentials.clientSecret,
                       providedSecret == clientSecret else {
                     throw HTTPError(.unauthorized, message: "Invalid client secret")
                 }
@@ -532,7 +560,7 @@ struct OAuthController {
         }
         
         // Verify the redirect URI matches
-        guard authCode.redirectURI == tokenRequest.redirect_uri else {
+        guard authCode.redirectURI == tokenRequest.redirectUri else {
             throw HTTPError(.badRequest, message: "Redirect URI mismatch")
         }
         
@@ -543,7 +571,7 @@ struct OAuthController {
         
         // For public clients or clients using PKCE, verify the code verifier
         if authCode.codeChallenge != nil || clientAuth.isPublic {
-            guard let codeVerifier = tokenRequest.code_verifier else {
+            guard let codeVerifier = tokenRequest.codeVerifier else {
                 throw HTTPError(.badRequest, message: "code_verifier is required")
             }
             
@@ -601,10 +629,10 @@ struct OAuthController {
         
         // Create token response
         return TokenResponse(
-            access_token: accessToken,
-            token_type: "Bearer",
-            expires_in: Int(jwtConfig.accessTokenExpiration),
-            refresh_token: refreshToken,
+            accessToken: accessToken,
+            tokenType: "Bearer",
+            expiresIn: Int(jwtConfig.accessTokenExpiration),
+            refreshToken: refreshToken,
             scope: authCode.scopes.joined(separator: " ")
         )
     }
@@ -619,12 +647,12 @@ struct OAuthController {
         let refreshRequest = try await request.decode(as: RefreshTokenRequest.self, context: context)
         
         // Verify refresh token is not blacklisted
-        if await tokenStore.isBlacklisted(refreshRequest.refresh_token) {
+        if await tokenStore.isBlacklisted(refreshRequest.refreshToken) {
             throw HTTPError(.unauthorized, message: "Token has been revoked")
         }
         
         // Verify and decode refresh token
-        let refreshPayload = try await self.jwtKeyCollection.verify(refreshRequest.refresh_token, as: JWTPayloadData.self)
+        let refreshPayload = try await self.jwtKeyCollection.verify(refreshRequest.refreshToken, as: JWTPayloadData.self)
         
         // Ensure it's a refresh token
         guard refreshPayload.type == "refresh" else {
@@ -643,7 +671,7 @@ struct OAuthController {
         }
         
         // Blacklist the used refresh token
-        await tokenStore.blacklist(refreshRequest.refresh_token, expiresAt: refreshPayload.expiration.value, reason: .tokenVersionChange)
+        await tokenStore.blacklist(refreshRequest.refreshToken, expiresAt: refreshPayload.expiration.value, reason: .tokenVersionChange)
         
         // Generate new tokens
         let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
@@ -688,10 +716,10 @@ struct OAuthController {
         
         // Create token response
         return TokenResponse(
-            access_token: accessToken,
-            token_type: "Bearer",
-            expires_in: Int(jwtConfig.accessTokenExpiration),
-            refresh_token: newRefreshToken,
+            accessToken: accessToken,
+            tokenType: "Bearer",
+            expiresIn: Int(jwtConfig.accessTokenExpiration),
+            refreshToken: newRefreshToken,
             scope: scope
         )
     }
@@ -707,4 +735,15 @@ struct UpdateClientRequest: Codable {
     let description: String?
     let websiteURL: String?
     let logoURL: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case name
+        case redirectURIs = "redirect_uris"
+        case allowedGrantTypes = "allowed_grant_types"
+        case allowedScopes = "allowed_scopes"
+        case isActive = "is_active"
+        case description
+        case websiteURL = "website_url"
+        case logoURL = "logo_url"
+    }
 } 

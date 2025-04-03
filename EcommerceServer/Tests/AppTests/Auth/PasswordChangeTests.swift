@@ -42,16 +42,20 @@ struct PasswordChangeTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            try await client.execute(
+            // Complete email verification
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // Complete email verification
-            try await client.completeEmailVerification(email: signUpRequest.email)
+            try await client.completeEmailVerification(email: signUpRequest.email, stateToken: signUpResponse.stateToken!)
 
             // 2. Sign in to get token
             let authResponse = try await client.execute(
@@ -94,16 +98,20 @@ struct PasswordChangeTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            try await client.execute(
+            // Complete email verification
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // Complete email verification
-            try await client.completeEmailVerification(email: signUpRequest.email)
+            try await client.completeEmailVerification(email: signUpRequest.email, stateToken: signUpResponse.stateToken!)
 
             // 2. Sign in to get token
             let authResponse = try await client.execute(
@@ -146,16 +154,20 @@ struct PasswordChangeTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            try await client.execute(
+            // Complete email verification
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // Complete email verification
-            try await client.completeEmailVerification(email: signUpRequest.email)
+            try await client.completeEmailVerification(email: signUpRequest.email, stateToken: signUpResponse.stateToken!)
 
             // 2. Sign in to get token
             let authResponse = try await client.execute(
@@ -229,16 +241,20 @@ struct PasswordChangeTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
             
-            try await client.execute(
+            // Complete email verification
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(signUpRequest, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // Complete email verification
-            try await client.completeEmailVerification(email: signUpRequest.email)
+            try await client.completeEmailVerification(email: signUpRequest.email, stateToken: signUpResponse.stateToken!)
 
             // 2. Sign in to get token
             let authResponse = try await client.execute(

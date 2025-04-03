@@ -25,76 +25,76 @@ struct SignUpRequest: Decodable, Sendable {
         do {
             let rawUsername = try container.decode(String.self, forKey: .username)
             guard !rawUsername.isEmpty else {
-                throw HTTPError(.badRequest, message: "Missing required field: username")
+                throw HTTPError(.unprocessableContent, message: "Missing required field: username")
             }
             
             // Sanitize and validate username
             let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !username.isEmpty else {
-                throw HTTPError(.init(code: 422), message: "Invalid username format: Username cannot be empty")
+                throw HTTPError(.unprocessableContent, message: "Invalid username format: Username cannot be empty")
             }
             guard username.count >= 3 && username.count <= 30 else {
-                throw HTTPError(.init(code: 422), message: "Invalid username format: Username must be between 3 and 30 characters")
+                throw HTTPError(.unprocessableContent, message: "Invalid username format: Username must be between 3 and 30 characters")
             }
             
             // Check for valid characters
             let allowedCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
             guard username.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) else {
-                throw HTTPError(.init(code: 422), message: "Invalid username format: Username can only contain letters, numbers, hyphens and underscores")
+                throw HTTPError(.unprocessableContent, message: "Invalid username format: Username can only contain letters, numbers, hyphens and underscores")
             }
             
             // Additional validation rules
             guard !username.hasPrefix("-") && !username.hasSuffix("-") else {
-                throw HTTPError(.init(code: 422), message: "Invalid username format: Username cannot start or end with a hyphen")
+                throw HTTPError(.unprocessableContent, message: "Invalid username format: Username cannot start or end with a hyphen")
             }
             
             guard !username.hasPrefix("_") && !username.hasSuffix("_") else {
-                throw HTTPError(.init(code: 422), message: "Invalid username format: Username cannot start or end with an underscore")
+                throw HTTPError(.unprocessableContent, message: "Invalid username format: Username cannot start or end with an underscore")
             }
             
             // Check if username is not just numbers
             guard !username.allSatisfy({ $0.isNumber }) else {
-                throw HTTPError(.init(code: 422), message: "Invalid username format: Username cannot contain only numbers")
+                throw HTTPError(.unprocessableContent, message: "Invalid username format: Username cannot contain only numbers")
             }
             
             // Check for common patterns to avoid
             let commonPatterns = ["admin", "root", "system", "support", "test"]
             guard !commonPatterns.contains(username.lowercased()) else {
-                throw HTTPError(.init(code: 422), message: "Invalid username format: This username is not allowed")
+                throw HTTPError(.unprocessableContent, message: "Invalid username format: This username is not allowed")
             }
             
             self.username = username
         } catch DecodingError.keyNotFound {
-            throw HTTPError(.badRequest, message: "Missing required field: username")
+            throw HTTPError(.unprocessableContent, message: "Missing required field: username")
         } catch let error as HTTPError {
             throw error
         } catch {
-            throw HTTPError(.badRequest, message: "Invalid username format")
+            throw HTTPError(.unprocessableContent, message: "Invalid username format")
         }
         
         do {
             let rawDisplayName = try container.decode(String.self, forKey: .displayName)
             let displayName = rawDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !displayName.isEmpty else {
-                throw HTTPError(.badRequest, message: "Display name cannot be empty or only whitespace")
+                throw HTTPError(.unprocessableContent, message: "Display name cannot be empty or only whitespace")
             }
             guard displayName.count <= 100 else {
-                throw HTTPError(.badRequest, message: "Display name must not exceed 100 characters")
+                throw HTTPError(.unprocessableContent, message: "Display name must not exceed 100 characters")
             }
             self.displayName = displayName
         } catch DecodingError.keyNotFound {
-            throw HTTPError(.badRequest, message: "Missing required field: displayName")
+            throw HTTPError(.unprocessableContent, message: "Missing required field: displayName")
         } catch let error as HTTPError {
             throw error
         } catch {
-            throw HTTPError(.badRequest, message: "Invalid displayName format")
+            throw HTTPError(.unprocessableContent, message: "Invalid displayName format")
         }
         
         do {
             let rawEmail = try container.decode(String.self, forKey: .email)
             let email = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !email.isEmpty else {
-                throw HTTPError(.badRequest, message: "Missing required field: email")
+                throw HTTPError(.unprocessableContent, message: "Missing required field: email")
             }
             
             // Comprehensive email validation
@@ -110,31 +110,31 @@ struct SignUpRequest: Decodable, Sendable {
                   email.components(separatedBy: "@")[0].count > 0,
                   email.components(separatedBy: "@")[1].count > 0,
                   email.components(separatedBy: "@")[1].contains(".") else {
-                throw HTTPError(.init(code: 422), message: "Invalid email format")
+                throw HTTPError(.unprocessableContent, message: "Invalid email format")
             }
             
             guard email.count <= 254 else { // RFC 5321
-                throw HTTPError(.init(code: 422), message: "Email address is too long")
+                throw HTTPError(.unprocessableContent, message: "Email address is too long")
             }
             
             self.email = email.lowercased() // Store emails in lowercase
         } catch DecodingError.keyNotFound {
-            throw HTTPError(.init(code: 422), message: "Missing required field: email")
+            throw HTTPError(.unprocessableContent, message: "Missing required field: email")
         } catch let error as HTTPError {
             throw error
         } catch {
-            throw HTTPError(.init(code: 422), message: "Invalid email format")
+            throw HTTPError(.unprocessableContent, message: "Invalid email format")
         }
         
         do {
             self.password = try container.decode(String.self, forKey: .password)
             guard !password.isEmpty else {
-                throw HTTPError(.badRequest, message: "Missing required field: password")
+                throw HTTPError(.unprocessableContent, message: "Missing required field: password")
             }
         } catch DecodingError.keyNotFound {
-            throw HTTPError(.badRequest, message: "Missing required field: password")
+            throw HTTPError(.unprocessableContent, message: "Missing required field: password")
         } catch {
-            throw HTTPError(.badRequest, message: "Invalid password format")
+            throw HTTPError(.unprocessableContent, message: "Invalid password format")
         }
         
         // Make profilePicture optional with a default value
@@ -151,7 +151,7 @@ struct SignUpRequest: Decodable, Sendable {
         
         if !result.isValid {
             let message = "Invalid password: " + (result.firstError ?? "Password validation failed")
-            throw HTTPError(.init(code: 422), message: message)
+            throw HTTPError(.unprocessableContent, message: message)
         }
     }
 
@@ -164,31 +164,31 @@ struct SignUpRequest: Decodable, Sendable {
     ) throws {
         // Validate username
         guard !username.isEmpty else {
-            throw HTTPError(.badRequest, message: "Missing required field: username")
+            throw HTTPError(.unprocessableContent, message: "Missing required field: username")
         }
         guard username.count >= 3 else {
-            throw HTTPError(.badRequest, message: "Invalid username: Must be at least 3 characters long")
+            throw HTTPError(.unprocessableContent, message: "Invalid username: Must be at least 3 characters long")
         }
         self.username = username
         
         // Validate displayName
         guard !displayName.isEmpty else {
-            throw HTTPError(.badRequest, message: "Missing required field: displayName")
+            throw HTTPError(.unprocessableContent, message: "Missing required field: displayName")
         }
         self.displayName = displayName
         
         // Validate email
         guard !email.isEmpty else {
-            throw HTTPError(.badRequest, message: "Missing required field: email")
+            throw HTTPError(.unprocessableContent, message: "Missing required field: email")
         }
         guard email.contains("@") && email.contains(".") else {
-            throw HTTPError(.badRequest, message: "Invalid email format: expected valid email address")
+            throw HTTPError(.unprocessableContent, message: "Invalid email format: expected valid email address")
         }
         self.email = email
         
         // Validate password
         guard !password.isEmpty else {
-            throw HTTPError(.badRequest, message: "Missing required field: password")
+            throw HTTPError(.unprocessableContent, message: "Missing required field: password")
         }
         self.password = password
         
@@ -205,7 +205,7 @@ struct SignUpRequest: Decodable, Sendable {
         
         if !result.isValid {
             let message = "Invalid password: " + (result.firstError ?? "Password validation failed")
-            throw HTTPError(.init(code: 422), message: message)
+            throw HTTPError(.unprocessableContent, message: message)
         }
     }
 

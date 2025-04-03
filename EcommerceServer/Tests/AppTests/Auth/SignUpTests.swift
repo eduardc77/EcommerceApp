@@ -18,9 +18,8 @@ struct SignUpTests {
                 password: "TestingV@lid143!#",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            
-            // 1. Sign up user
-            try await client.execute(
+
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
@@ -28,10 +27,11 @@ struct SignUpTests {
                 #expect(response.status == .created)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // 2. Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
             
             // 3. Verify can now sign in
             try await client.execute(
@@ -66,6 +66,9 @@ struct SignUpTests {
                 body: JSONEncoder().encodeAsByteBuffer(firstUser, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
             }
             
             // 2. Attempt to sign up second user with same email
@@ -107,6 +110,9 @@ struct SignUpTests {
                 body: JSONEncoder().encodeAsByteBuffer(firstUser, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
             }
             
             // 2. Attempt to sign up second user with same username

@@ -499,6 +499,11 @@ struct GoogleLoginRequest: Codable {
     
     /// Optional access token from Google
     let accessToken: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case idToken = "id_token"
+        case accessToken = "access_token"
+    }
 }
 
 /// Request model for Apple sign in
@@ -514,4 +519,11 @@ struct AppleLoginRequest: Codable {
     
     /// Optional user's email provided during Apple Sign In
     let email: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case identityToken = "identity_token"
+        case authorizationCode = "authorization_code"
+        case fullName = "full_name"
+        case email
+    }
 }

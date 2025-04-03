@@ -72,6 +72,13 @@ actor TokenStore: TokenStoreProtocol {
         var isExpired: Bool {
             Date() >= expiresAt
         }
+        
+        enum CodingKeys: String, CodingKey {
+            case token
+            case jti
+            case expiresAt = "expires_at"
+            case reason
+        }
     }
     
     /// Reason why a token was blacklisted

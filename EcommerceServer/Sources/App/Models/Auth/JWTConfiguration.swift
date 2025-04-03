@@ -18,9 +18,9 @@ struct JWTConfiguration {
         let environment = Environment.get("ENV", default: "development")
         let isProduction = environment == "production"
         
-        // Default values as TimeInterval - more lenient in development/test
-        let defaultAccessExpiration: TimeInterval = isProduction ? 900 : 3600  // 15 minutes in prod, 1 hour in dev
-        let defaultRefreshExpiration: TimeInterval = isProduction ? 86400 : 604800  // 24 hours in prod, 7 days in dev
+        // Default values as TimeInterval - stricter in development for testing
+        let defaultAccessExpiration: TimeInterval = isProduction ? 900 : 600  // 15 minutes in prod, 10 minutes in dev
+        let defaultRefreshExpiration: TimeInterval = isProduction ? 86400 : 7200  // 24 hours in prod, 2 hours in dev
         let defaultLockoutDuration: TimeInterval = isProduction ? 900 : 300  // 15 minutes in prod, 5 minutes in dev
         
         // Get environment variables with defaults

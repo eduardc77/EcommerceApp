@@ -20,16 +20,19 @@ struct TokenManagementTests {
                 password: "K9#mP2$vL5nQ8*x",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
-
-            // Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
 
             // 2. Sign in to get initial tokens
             let authResponse = try await client.execute(
@@ -45,7 +48,7 @@ struct TokenManagementTests {
             let refreshResponse = try await client.execute(
                 uri: "/api/v1/auth/token/refresh",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(["refreshToken": authResponse.refreshToken], allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(["refresh_token": authResponse.refreshToken], allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .ok)
                 return try JSONDecoder().decode(AuthResponse.self, from: response.body)
@@ -75,7 +78,7 @@ struct TokenManagementTests {
             try await client.execute(
                 uri: "/api/v1/auth/token/refresh",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(["refreshToken": authResponse.refreshToken], allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(["refresh_token": authResponse.refreshToken], allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .unauthorized)
             }
@@ -95,16 +98,19 @@ struct TokenManagementTests {
                 password: "K9#mP2$vL5nQ8*x",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
-
-            // Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
 
             // 2. Sign in to get tokens
             let authResponse = try await client.execute(
@@ -138,7 +144,7 @@ struct TokenManagementTests {
             try await client.execute(
                 uri: "/api/v1/auth/token/refresh",
                 method: .post,
-                body: JSONEncoder().encodeAsByteBuffer(["refreshToken": authResponse.refreshToken], allocator: ByteBufferAllocator())
+                body: JSONEncoder().encodeAsByteBuffer(["refresh_token": authResponse.refreshToken], allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .unauthorized)
             }
@@ -158,16 +164,19 @@ struct TokenManagementTests {
                 password: "K9#mP2$vL5nQ8*x",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
-
-            // Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
 
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
@@ -220,16 +229,19 @@ struct TokenManagementTests {
                 password: "K9#mP2$vL5nQ8*xZ@",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
-
-            // Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
 
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
@@ -283,17 +295,21 @@ struct TokenManagementTests {
                 password: "K9#mP2$vL5nQ8*x",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            let _ = try await client.execute(
+
+            // Complete email verification
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
-                return try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
-
-            // Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
 
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
@@ -340,16 +356,19 @@ struct TokenManagementTests {
                 password: "K9#mP2$vL5nQ8*x",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
-
-            // Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
 
             let authResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
@@ -394,16 +413,19 @@ struct TokenManagementTests {
                 password: "K9#mP2$vL5nQ8*x",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
             
-            // 2. Complete email verification
-            try await client.completeEmailVerification(email: requestBody.email)
+            try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
             
             // 3. Enable TOTP for the user to ensure MFA flow
             guard let fluent = app.services.first(where: { $0 is DatabaseService }) as? DatabaseService else {
@@ -453,7 +475,7 @@ struct TokenManagementTests {
                 uri: "/api/v1/auth/mfa/totp/verify",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
-                    ["stateToken": initialResponse.stateToken!, "code": "123456"],
+                    ["state_token": initialResponse.stateToken!, "code": "123456"],
                     allocator: ByteBufferAllocator()
                 )
             ) { response in

@@ -20,7 +20,7 @@ struct EmailVerificationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
 
-            let _ = try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
@@ -28,6 +28,7 @@ struct EmailVerificationTests {
                 #expect(response.status == .created)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
                 return authResponse
             }
 
@@ -36,7 +37,7 @@ struct EmailVerificationTests {
                 uri: "/api/v1/auth/verify-email/send",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
-                    ResendVerificationRequest(email: requestBody.email),
+                    ["email": requestBody.email, "stateToken": signUpResponse.stateToken!],
                     allocator: ByteBufferAllocator()
                 )
             ) { response in
@@ -48,7 +49,7 @@ struct EmailVerificationTests {
                 uri: "/api/v1/auth/verify-email/confirm",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
-                    EmailVerifyRequest(email: requestBody.email, code: "123456"),
+                    ["email": requestBody.email, "code": "123456", "stateToken": signUpResponse.stateToken!],
                     allocator: ByteBufferAllocator()
                 )
             ) { response in
@@ -95,12 +96,16 @@ struct EmailVerificationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
 
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
 
             // 2. Try invalid code
@@ -108,7 +113,7 @@ struct EmailVerificationTests {
                 uri: "/api/v1/auth/verify-email/confirm",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(
-                    EmailVerifyRequest(email: requestBody.email, code: "000000"),
+                    ["email": requestBody.email, "code": "000000", "stateToken": signUpResponse.stateToken!],
                     allocator: ByteBufferAllocator()
                 )
             ) { response in
@@ -133,12 +138,16 @@ struct EmailVerificationTests {
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
 
-            try await client.execute(
+            let signUpResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
             ) { response in
                 #expect(response.status == .created)
+                let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+                #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+                #expect(authResponse.stateToken != nil)
+                return authResponse
             }
 
             // 2. Request verification code multiple times
@@ -148,7 +157,7 @@ struct EmailVerificationTests {
                     uri: "/api/v1/auth/verify-email/send",
                     method: .post,
                     body: JSONEncoder().encodeAsByteBuffer(
-                        ResendVerificationRequest(email: requestBody.email),
+                        ["email": requestBody.email, "stateToken": signUpResponse.stateToken!],
                         allocator: ByteBufferAllocator()
                     )
                 ) { response in

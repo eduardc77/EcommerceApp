@@ -19,15 +19,19 @@ struct MultipartFormTests {
             profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
         )
 
-        try await client.execute(
+        let signUpResponse = try await client.execute(
             uri: "/api/v1/auth/sign-up",
             method: .post,
             body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
         ) { response in
             #expect(response.status == .created)
+            let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
+            #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
+            #expect(authResponse.stateToken != nil)
+            return authResponse
         }
         
-        try await client.completeEmailVerification(email: requestBody.email)
+        try await client.completeEmailVerification(email: requestBody.email, stateToken: signUpResponse.stateToken!)
         
         let authResponse = try await client.execute(
             uri: "/api/v1/auth/sign-in",

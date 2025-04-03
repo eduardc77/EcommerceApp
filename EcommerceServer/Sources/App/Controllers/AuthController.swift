@@ -750,6 +750,10 @@ struct AuthController {
         // Extract refresh token from request
         struct RefreshRequest: Decodable {
             let refreshToken: String
+            
+            enum CodingKeys: String, CodingKey {
+                case refreshToken = "refresh_token"
+            }
         }
         let refreshRequest = try await request.decode(as: RefreshRequest.self, context: context)
         
@@ -926,25 +930,16 @@ struct AuthController {
         try await user.save(on: fluent.db())
         context.logger.info("Incremented token version for user \(user.email): \(oldVersion) -> \(user.tokenVersion)")
         
+        // Mark all sessions as inactive
+        try await Session.query(on: fluent.db())
+            .filter(\.$user.$id == user.requireID())
+            .filter(\.$isActive == true)
+            .set(\.$isActive, to: false)
+            .update()
+        
         // Add current access token to blacklist if present
         if let token = request.headers.bearer {
             let payload = try await self.jwtKeyCollection.verify(token.token, as: JWTPayloadData.self)
-            
-            // Mark current session as inactive in the database
-            let tokenId = payload.id
-            if let session = try await Session.query(on: fluent.db())
-                .filter(\.$user.$id == user.requireID())
-                .filter(\.$tokenId == tokenId)
-                .filter(\.$isActive == true)
-                .first() {
-                
-                session.isActive = false
-                try await session.save(on: fluent.db())
-                context.logger.info("Marked session as inactive: \(session.id?.uuidString ?? "unknown")")
-            } else {
-                context.logger.warning("No active session found for token ID: \(tokenId)")
-            }
-            
             await tokenStore.blacklist(token.token, expiresAt: payload.expiration.value, reason: .signOut)
             context.logger.info("Blacklisted access token for user \(user.email), expires: \(payload.expiration.value)")
         }
@@ -1376,26 +1371,28 @@ struct AuthController {
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<MessageResponse> {
-        // Get the temporary token from the Authorization header
-        guard let bearerToken = request.headers.bearer?.token else {
-            throw HTTPError(.unauthorized, message: "Missing authorization token")
+        // Get state token from request body
+        struct EmailMFARequest: Codable {
+            let state_token: String
         }
         
-        // Verify and decode temporary token
-        let tempTokenPayload = try await self.jwtKeyCollection.verify(bearerToken, as: JWTPayloadData.self)
+        let mfaRequest = try await request.decode(as: EmailMFARequest.self, context: context)
+        
+        // Verify and decode state token
+        let stateTokenPayload = try await self.jwtKeyCollection.verify(mfaRequest.state_token, as: JWTPayloadData.self)
         
         // Ensure it's a valid token type
-        guard tempTokenPayload.type == "state_token" || tempTokenPayload.type == "email_verification" else {
+        guard stateTokenPayload.type == "state_token" || stateTokenPayload.type == "email_verification" else {
             throw HTTPError(.unauthorized, message: "Invalid token type")
         }
         
         // Get user from database
-        guard let user = try await User.find(UUID(uuidString: tempTokenPayload.subject.value), on: fluent.db()) else {
+        guard let user = try await User.find(UUID(uuidString: stateTokenPayload.subject.value), on: fluent.db()) else {
             throw HTTPError(.unauthorized, message: "User not found")
         }
         
         // Verify token version
-        guard let tokenVersion = tempTokenPayload.tokenVersion,
+        guard let tokenVersion = stateTokenPayload.tokenVersion,
               tokenVersion == user.tokenVersion else {
             throw HTTPError(.unauthorized, message: "Invalid token version")
         }
@@ -1647,12 +1644,9 @@ struct AuthController {
         
         // Check if already verified
         if user.emailVerified {
-            return .init(
-                status: .ok,
-                response: MessageResponse(
-                    message: "Email already verified",
-                    success: true
-                )
+            throw HTTPError(
+                .conflict,
+                message: "Email is already verified"
             )
         }
         
@@ -1683,7 +1677,7 @@ struct AuthController {
             userID: try user.requireID(),
             code: code,
             type: "email_verify",
-            expiresAt: Date().addingTimeInterval(1800) // 30 minutes
+            expiresAt: Date().addingTimeInterval(300) // 5 minutes (changed from 30 minutes for consistency)
         )
         try await verificationCode.save(on: fluent.db())
         
@@ -1705,7 +1699,7 @@ struct AuthController {
     @Sendable func verifyInitialEmail(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<MessageResponse> {
+    ) async throws -> EditedResponse<AuthResponse> {
         // Decode verification request
         struct VerifyRequest: Codable {
             let email: String
@@ -1722,13 +1716,7 @@ struct AuthController {
         
         // Check if already verified
         if user.emailVerified {
-            return .init(
-                status: .ok,
-                response: MessageResponse(
-                    message: "Email already verified",
-                    success: true
-                )
-            )
+            throw HTTPError(.badRequest, message: "Email already verified")
         }
         
         // Find verification code
@@ -1766,11 +1754,66 @@ struct AuthController {
         // Delete verification code
         try await verificationCode.delete(on: fluent.db())
         
+        // Generate tokens
+        let expiresIn = Int(jwtConfig.accessTokenExpiration)
+        let accessExpirationDate = Date(timeIntervalSinceNow: jwtConfig.accessTokenExpiration)
+        let refreshExpirationDate = Date(timeIntervalSinceNow: jwtConfig.refreshTokenExpiration)
+        let issuedAt = Date()
+        
+        // Create access token payload
+        let accessPayload = JWTPayloadData(
+            subject: .init(value: try user.requireID().uuidString),
+            expiration: .init(value: accessExpirationDate),
+            type: "access",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: issuedAt,
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+        
+        // Create refresh token payload
+        let refreshPayload = JWTPayloadData(
+            subject: .init(value: try user.requireID().uuidString),
+            expiration: .init(value: refreshExpirationDate),
+            type: "refresh",
+            issuer: jwtConfig.issuer,
+            audience: jwtConfig.audience,
+            issuedAt: issuedAt,
+            id: UUID().uuidString,
+            role: user.role.rawValue,
+            tokenVersion: user.tokenVersion
+        )
+        
+        // Sign tokens
+        let accessToken = try await self.jwtKeyCollection.sign(accessPayload, kid: self.kid)
+        let refreshToken = try await self.jwtKeyCollection.sign(refreshPayload, kid: self.kid)
+        
+        // Create necessary records
+        await createTokenOnSuccessfulAuthentication(
+            user: user,
+            request: request,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            accessPayload: accessPayload,
+            refreshPayload: refreshPayload,
+            accessExpirationDate: accessExpirationDate,
+            refreshExpirationDate: refreshExpirationDate,
+            context: context
+        )
+        
+        let dateFormatter = ISO8601DateFormatter()
         return .init(
             status: .ok,
-            response: MessageResponse(
-                message: "Email verified successfully",
-                success: true
+            response: AuthResponse(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                tokenType: "Bearer",
+                expiresIn: UInt(expiresIn),
+                expiresAt: dateFormatter.string(from: accessExpirationDate),
+                user: UserResponse(from: user),
+                status: AuthResponse.STATUS_SUCCESS
             )
         )
     }
@@ -2433,11 +2476,20 @@ extension MessageResponse: ResponseEncodable {}
 struct ChangePasswordRequest: Codable {
     let currentPassword: String
     let newPassword: String
+    
+    enum CodingKeys: String, CodingKey {
+        case currentPassword = "current_password"
+        case newPassword = "new_password"
+    }
 }
 
 /// Request structure for initiating a password reset
 struct ForgotPasswordRequest: Codable {
     let email: String
+    
+    enum CodingKeys: String, CodingKey {
+        case email
+    }
 }
 
 /// Request structure for completing a password reset
@@ -2445,6 +2497,12 @@ struct ResetPasswordRequest: Codable {
     let email: String
     let code: String
     let newPassword: String
+    
+    enum CodingKeys: String, CodingKey {
+        case email
+        case code
+        case newPassword = "new_password"
+    }
 }
 
 /// Request structure for token revocation
@@ -2456,6 +2514,11 @@ struct RevokeTokenRequest: Codable {
 struct EmailSignInVerifyRequest: Codable {
     let stateToken: String
     let code: String
+    
+    enum CodingKeys: String, CodingKey {
+        case stateToken = "state_token"
+        case code
+    }
 }
 
 /// Simple message response structure

@@ -55,13 +55,17 @@ extension TestClientProtocol {
     /// Helper function to complete email verification for a user in tests
     /// - Parameters:
     ///   - email: The email address of the user
+    ///   - stateToken: The state token from the sign-up response
     /// - Throws: If verification request fails
-    func completeEmailVerification(email: String) async throws {
+    func completeEmailVerification(email: String, stateToken: String? = nil) async throws {
         // Request new verification code
         try await self.execute(
             uri: "/api/v1/auth/verify-email/send",
             method: .post,
-            body: JSONEncoder().encodeAsByteBuffer(ResendVerificationRequest(email: email), allocator: ByteBufferAllocator())
+            body: JSONEncoder().encodeAsByteBuffer(
+                ["email": email, "stateToken": stateToken],
+                allocator: ByteBufferAllocator()
+            )
         ) { response in
             guard response.status == .ok else {
                 let error = try? JSONDecoder().decode(ErrorResponse.self, from: response.body)
@@ -74,7 +78,10 @@ extension TestClientProtocol {
         try await self.execute(
             uri: "/api/v1/auth/verify-email/confirm",
             method: .post,
-            body: JSONEncoder().encodeAsByteBuffer(EmailVerifyRequest(email: email, code: "123456"), allocator: ByteBufferAllocator())
+            body: JSONEncoder().encodeAsByteBuffer(
+                ["email": email, "code": "123456", "stateToken": stateToken],
+                allocator: ByteBufferAllocator()
+            )
         ) { response in
             guard response.status == .ok else {
                 let error = try? JSONDecoder().decode(ErrorResponse.self, from: response.body)

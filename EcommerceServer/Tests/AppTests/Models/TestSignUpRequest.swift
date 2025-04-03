@@ -9,7 +9,16 @@ struct TestSignUpRequest: Encodable {
     let password: String
     let profilePicture: String?
     let role: Role?
-
+    
+    enum CodingKeys: String, CodingKey {
+        case username
+        case displayName = "display_name"
+        case email
+        case password
+        case profilePicture = "profile_picture"
+        case role
+    }
+    
     init(
         username: String,
         displayName: String,
@@ -25,4 +34,6 @@ struct TestSignUpRequest: Encodable {
         self.profilePicture = profilePicture
         self.role = role
     }
+    
+   
 }
