@@ -438,8 +438,8 @@ struct TokenManagementTests {
                 throw HTTPError(.notFound, message: "User not found")
             }
             
-            user.twoFactorEnabled = true
-            user.twoFactorSecret = TOTPUtils.generateSecret()
+            user.totpMFAEnabled = true
+            user.totpMFASecret = TOTPUtils.generateSecret()
             try await user.save(on: fluent.fluent.db())
             
             // 4. Start authentication to get a state token

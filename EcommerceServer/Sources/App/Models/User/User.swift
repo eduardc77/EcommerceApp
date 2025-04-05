@@ -56,14 +56,14 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
     @Field(key: "require_password_change")
     var requirePasswordChange: Bool
     
-    @Field(key: "two_factor_enabled")
-    var twoFactorEnabled: Bool
+    @Field(key: "totp_mfa_enabled")
+    var totpMFAEnabled: Bool
     
-    @OptionalField(key: "two_factor_secret")
-    var twoFactorSecret: String?
+    @OptionalField(key: "totp_mfa_secret")
+    var totpMFASecret: String?
     
-    @Field(key: "email_verification_enabled")
-    var emailVerificationEnabled: Bool
+    @Field(key: "email_mfa_enabled")
+    var emailMFAEnabled: Bool
     
     @OptionalField(key: "password_history")
     var passwordHistory: [String]?
@@ -100,9 +100,9 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         accountLocked: Bool = false,
         lockoutUntil: Date? = nil,
         requirePasswordChange: Bool = false,
-        twoFactorEnabled: Bool = false,
-        twoFactorSecret: String? = nil,
-        emailVerificationEnabled: Bool = false,
+        totpMFAEnabled: Bool = false,
+        totpMFASecret: String? = nil,
+        emailMFAEnabled: Bool = false,
         passwordUpdatedAt: Date? = nil,
         passwordHistory: [String]? = nil,
         tokenVersion: Int = 0
@@ -121,9 +121,9 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.accountLocked = accountLocked
         self.lockoutUntil = lockoutUntil
         self.requirePasswordChange = requirePasswordChange
-        self.twoFactorEnabled = twoFactorEnabled
-        self.twoFactorSecret = twoFactorSecret
-        self.emailVerificationEnabled = emailVerificationEnabled
+        self.totpMFAEnabled = totpMFAEnabled
+        self.totpMFASecret = totpMFASecret
+        self.emailMFAEnabled = emailMFAEnabled
         self.passwordUpdatedAt = passwordUpdatedAt
         self.passwordHistory = passwordHistory
         self.tokenVersion = tokenVersion
@@ -145,9 +145,9 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.accountLocked = false
         self.lockoutUntil = nil
         self.requirePasswordChange = false
-        self.twoFactorEnabled = false
-        self.twoFactorSecret = nil
-        self.emailVerificationEnabled = false
+        self.totpMFAEnabled = false
+        self.totpMFASecret = nil
+        self.emailMFAEnabled = false
         self.passwordUpdatedAt = nil
         self.passwordHistory = nil
         self.tokenVersion = 0
@@ -188,9 +188,9 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.accountLocked = false
         self.lockoutUntil = nil
         self.requirePasswordChange = false
-        self.twoFactorEnabled = false
-        self.twoFactorSecret = nil
-        self.emailVerificationEnabled = false
+        self.totpMFAEnabled = false
+        self.totpMFASecret = nil
+        self.emailMFAEnabled = false
         
         // Hash the password
         let passwordHash = try await NIOThreadPool.singleton.runIfActive {
@@ -225,9 +225,9 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.accountLocked = false
         self.lockoutUntil = nil
         self.requirePasswordChange = false
-        self.twoFactorEnabled = false
-        self.twoFactorSecret = nil
-        self.emailVerificationEnabled = false
+        self.totpMFAEnabled = false
+        self.totpMFASecret = nil
+        self.emailMFAEnabled = false
         
         // Hash the password
         let passwordHash = try await NIOThreadPool.singleton.runIfActive {
@@ -357,7 +357,7 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
     /// - Parameter code: The TOTP code to verify
     /// - Returns: True if the code is valid, false otherwise
     func verifyTOTPCode(_ code: String) async throws -> Bool {
-        guard let secret = twoFactorSecret else {
+        guard let secret = totpMFASecret else {
             throw HTTPError(.internalServerError, message: "MFA is not properly configured")
         }
         
@@ -381,9 +381,9 @@ extension User {
         static let accountLocked: FluentKit.FieldKey = "account_locked"
         static let lockoutUntil: FluentKit.FieldKey = "lockout_until"
         static let requirePasswordChange: FluentKit.FieldKey = "require_password_change"
-        static let twoFactorEnabled: FluentKit.FieldKey = "two_factor_enabled"
-        static let twoFactorSecret: FluentKit.FieldKey = "two_factor_secret"
-        static let emailVerificationEnabled: FluentKit.FieldKey = "email_verification_enabled"
+        static let totpMFAEnabled: FluentKit.FieldKey = "totp_mfa_enabled"
+        static let totpMFASecret: FluentKit.FieldKey = "totp_mfa_secret"
+        static let emailMFAEnabled: FluentKit.FieldKey = "email_mfa_enabled"
         static let passwordHistory: FluentKit.FieldKey = "password_history"
         static let tokenVersion: FluentKit.FieldKey = "token_version"
         static let createdAt: FluentKit.FieldKey = "created_at"
@@ -413,9 +413,9 @@ extension User {
                 .field(FieldKey.accountLocked, .bool, .required)
                 .field(FieldKey.lockoutUntil, .datetime)
                 .field(FieldKey.requirePasswordChange, .bool, .required)
-                .field(FieldKey.twoFactorEnabled, .bool, .required)
-                .field(FieldKey.twoFactorSecret, .string)
-                .field(FieldKey.emailVerificationEnabled, .bool, .required)
+                .field(FieldKey.totpMFAEnabled, .bool, .required)
+                .field(FieldKey.totpMFASecret, .string)
+                .field(FieldKey.emailMFAEnabled, .bool, .required)
                 .field(FieldKey.passwordHistory, .array(of: .string))
                 .field(FieldKey.tokenVersion, .int, .required)
                 .field(FieldKey.createdAt, .datetime)

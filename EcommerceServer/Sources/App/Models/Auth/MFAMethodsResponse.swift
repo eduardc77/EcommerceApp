@@ -3,22 +3,22 @@ import Hummingbird
 /// Response for available MFA methods
 struct MFAMethodsResponse: Codable {
     /// Whether email-based MFA is enabled for the user
-    let emailEnabled: Bool
+    let emailMFAEnabled: Bool
     
     /// Whether TOTP-based MFA is enabled for the user
-    let totpEnabled: Bool
+    let totpMFAEnabled: Bool
     
     /// List of available MFA methods
     var availableMethods: [MFAMethod] {
         var methods: [MFAMethod] = []
-        if totpEnabled { methods.append(.totp) }
-        if emailEnabled { methods.append(.email) }
+        if totpMFAEnabled { methods.append(.totp) }
+        if emailMFAEnabled { methods.append(.email) }
         return methods
     }
 
     enum CodingKeys: String, CodingKey {
-        case emailEnabled = "email_enabled"
-        case totpEnabled = "totp_enabled"
+        case emailMFAEnabled = "email_mfa_enabled"
+        case totpMFAEnabled = "totp_mfa_enabled"
     }
 }
 

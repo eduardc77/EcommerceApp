@@ -164,7 +164,7 @@ struct EmailMFATests {
                 password: "P@th3r#Bk9$mN",
                 profilePicture: "https://api.dicebear.com/7.x/avataaars/png"
             )
-            try await client.execute(
+            let _ = try await client.execute(
                 uri: "/api/v1/auth/sign-up",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(requestBody, allocator: ByteBufferAllocator())
@@ -174,11 +174,13 @@ struct EmailMFATests {
                 #expect(authResponse.status == AuthResponse.STATUS_EMAIL_VERIFICATION_REQUIRED)
                 #expect(authResponse.stateToken != nil)
                 #expect(authResponse.tokenType == "Bearer")
+                return authResponse
             }
 
             // Complete email verification
             try await client.completeEmailVerification(email: requestBody.email)
 
+            // Sign in after email verification
             let initialAuthResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -187,6 +189,8 @@ struct EmailMFATests {
                 #expect(response.status == .ok)
                 let authResponse = try JSONDecoder().decode(AuthResponse.self, from: response.body)
                 #expect(authResponse.tokenType == "Bearer")
+                #expect(authResponse.status == AuthResponse.STATUS_SUCCESS)
+                #expect(authResponse.accessToken != nil)
                 return authResponse
             }
 
@@ -201,7 +205,7 @@ struct EmailMFATests {
                 #expect(messageResponse.success)
             }
 
-            // Verify email MFA setup
+            // Verify email MFA setup with code
             try await client.execute(
                 uri: "/api/v1/mfa/email/verify",
                 method: .post,
@@ -216,7 +220,7 @@ struct EmailMFATests {
                 #expect(messageResponse.success)
             }
 
-            // Sign in again after enabling email MFA
+            // Sign in after enabling MFA - should require MFA verification
             let mfaSignInResponse = try await client.execute(
                 uri: "/api/v1/auth/sign-in",
                 method: .post,
@@ -230,7 +234,7 @@ struct EmailMFATests {
                 return authResponse
             }
             
-            // Request email code (added this step)
+            // Request email code
             try await client.execute(
                 uri: "/api/v1/auth/mfa/email/send",
                 method: .post,
@@ -244,7 +248,7 @@ struct EmailMFATests {
                 #expect(messageResponse.success)
             }
 
-            // Complete email MFA verification - stateToken in body
+            // Complete email MFA verification
             let finalAuthResponse = try await client.execute(
                 uri: "/api/v1/auth/mfa/email/verify",
                 method: .post,

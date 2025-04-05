@@ -41,6 +41,7 @@ struct MFARecoveryController {
     func addProtectedRoutes(to group: RouterGroup<Context>) {
         group.post("generate", use: generateRecoveryCodes)
             .get("list", use: listRecoveryCodes)
+            .get("status", use: getRecoveryCodesStatus)
             .post("regenerate", use: regenerateRecoveryCodes)
     }
     
@@ -60,7 +61,7 @@ struct MFARecoveryController {
         }
         
         // Ensure user has MFA enabled
-        guard user.twoFactorEnabled || user.emailVerificationEnabled else {
+        guard user.totpMFAEnabled || user.emailMFAEnabled else {
             throw HTTPError(.badRequest, message: "MFA must be enabled to generate recovery codes")
         }
         
@@ -280,14 +281,14 @@ struct MFARecoveryController {
                 } catch RecoveryCodeError.alreadyUsed {
                     continue // Try next code
                 } catch RecoveryCodeError.invalidFormat {
-                    throw HTTPError(.badRequest, message: "Invalid recovery code format")
+                    throw HTTPError(.badRequest, message: "Invalid or expired recovery code format")
                 } catch {
                     throw HTTPError(.internalServerError, message: "Error verifying recovery code")
                 }
             }
             
             // If we get here, no valid code was found
-            throw HTTPError(.unauthorized, message: "Invalid or expired recovery code")
+            throw HTTPError(.badRequest, message: "Invalid or expired recovery code")
         } catch let error as HTTPError {
             throw error
         } catch {
@@ -385,6 +386,36 @@ struct MFARecoveryController {
         // Generate new codes
         return try await generateRecoveryCodes(request, context: context)
     }
+    
+    /// Get recovery codes status
+    @Sendable func getRecoveryCodesStatus(
+        _ request: Request,
+        context: Context
+    ) async throws -> EditedResponse<RecoveryMFAStatusResponse> {
+        guard let user = context.identity else {
+            throw HTTPError(.unauthorized)
+        }
+        
+        let userID = try user.requireID()
+        
+        // Check if user has any valid recovery codes
+        let hasValidCodes = try await MFARecoveryCode.query(on: fluent.db())
+            .filter(\.$user.$id, .equal, userID)
+            .filter(\.$used, .equal, false)
+            .filter(\.$expiresAt, .greaterThan, Date())
+            .count() > 0
+        
+        // MFA status is independent of recovery codes status
+        let mfaEnabled = user.totpMFAEnabled || user.emailMFAEnabled
+        
+        return .init(
+            status: .ok,
+            response: RecoveryMFAStatusResponse(
+                enabled: mfaEnabled,
+                hasValidCodes: hasValidCodes
+            )
+        )
+    }
 }
 
 // MARK: - Request/Response Types
@@ -435,5 +466,16 @@ struct RecoveryCodesStatusResponse: Codable {
     }
 }
 
+struct RecoveryMFAStatusResponse: Codable {
+    let enabled: Bool
+    let hasValidCodes: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case hasValidCodes = "has_valid_codes"
+    }
+}
+
 extension RecoveryCodesResponse: ResponseEncodable {}
-extension RecoveryCodesStatusResponse: ResponseEncodable {} 
+extension RecoveryCodesStatusResponse: ResponseEncodable {}
+extension RecoveryMFAStatusResponse: ResponseEncodable {} 

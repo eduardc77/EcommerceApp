@@ -8,9 +8,11 @@ import HummingbirdBcrypt
 struct TOTPController {
     typealias Context = AppRequestContext
     let fluent: Fluent
+    let mfaService: MFAService
     
-    init(fluent: Fluent) {
+    init(fluent: Fluent, mfaService: MFAService) {
         self.fluent = fluent
+        self.mfaService = mfaService
     }
     
     /// Add protected routes for TOTP management
@@ -32,7 +34,7 @@ struct TOTPController {
         }
         
         // Check if MFA is already enabled
-        if user.twoFactorEnabled {
+        if user.totpMFAEnabled {
             throw HTTPError(.badRequest, message: "MFA is already enabled")
         }
         
@@ -40,7 +42,7 @@ struct TOTPController {
         let secret = TOTPUtils.generateSecret()
         
         // Store secret temporarily (not enabled yet)
-        user.twoFactorSecret = secret
+        user.totpMFASecret = secret
         try await user.save(on: fluent.db())
         
         // Generate QR code URL using the proper method
@@ -63,7 +65,7 @@ struct TOTPController {
     @Sendable func verifyTOTP(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<MessageResponse> {
+    ) async throws -> EditedResponse<TOTPVerifyResponse> {
         guard let user = context.identity else {
             throw HTTPError(.unauthorized)
         }
@@ -77,7 +79,7 @@ struct TOTPController {
         let verifyRequest = try await request.decode(as: TOTPVerifyRequest.self, context: context)
         
         // Ensure we have a secret to verify against
-        guard let secret = user.twoFactorSecret else {
+        guard let secret = user.totpMFASecret else {
             throw HTTPError(.badRequest, message: "No MFA setup in progress")
         }
         
@@ -86,16 +88,24 @@ struct TOTPController {
             throw HTTPError(.unauthorized, message: "Invalid verification code")
         }
         
-        // Enable MFA and invalidate all tokens
-        user.twoFactorEnabled = true
+        // Check if any MFA method was already enabled before this one
+        let wasMFAAlreadyEnabled = user.totpMFAEnabled || user.emailMFAEnabled
+        
+        // Enable TOTP MFA and invalidate tokens
+        user.totpMFAEnabled = true
         user.tokenVersion += 1
+        
         try await user.save(on: fluent.db())
+        
+        // Generate recovery codes only if this is the first MFA method being enabled
+        let recoveryCodes = wasMFAAlreadyEnabled ? nil : try await mfaService.generateRecoveryCodes(for: user)
         
         return .init(
             status: .ok,
-            response: MessageResponse(
+            response: TOTPVerifyResponse(
                 message: "TOTP code verified successfully",
-                success: true
+                success: true,
+                recoveryCodes: recoveryCodes
             )
         )
     }
@@ -112,7 +122,7 @@ struct TOTPController {
         // Verify the current code one last time
         let enableRequest = try await request.decode(as: TOTPVerifyRequest.self, context: context)
         
-        guard let secret = user.twoFactorSecret else {
+        guard let secret = user.totpMFASecret else {
             throw HTTPError(.badRequest, message: "No MFA setup in progress")
         }
         
@@ -121,13 +131,13 @@ struct TOTPController {
         }
         
         // Enable MFA
-        user.twoFactorEnabled = true
+        user.totpMFAEnabled = true
         try await user.save(on: fluent.db())
         
         return .init(
             status: .ok,
             response: MessageResponse(
-                message: "Two-factor authentication enabled successfully",
+                message: "Time-based, One-Time Password authentication enabled successfully",
                 success: true
             )
         )
@@ -143,7 +153,7 @@ struct TOTPController {
         }
         
         // Check if MFA is enabled
-        guard user.twoFactorEnabled, user.twoFactorSecret != nil else {
+        guard user.totpMFAEnabled, user.totpMFASecret != nil else {
             throw HTTPError(.badRequest, message: "MFA is not enabled")
         }
         
@@ -168,9 +178,12 @@ struct TOTPController {
         }
         
         // Disable MFA
-        user.twoFactorEnabled = false
-        user.twoFactorSecret = nil
+        user.totpMFAEnabled = false
+        user.totpMFASecret = nil
         try await user.save(on: fluent.db())
+        
+        // Let the MFA service handle recovery codes if needed
+        try await mfaService.handleMFADisabled(for: user)
         
         return .init(
             status: .ok,
@@ -193,7 +206,7 @@ struct TOTPController {
         return .init(
             status: .ok,
             response: TOTPStatusResponse(
-                enabled: user.twoFactorEnabled
+                totpMFAEnabled: user.totpMFAEnabled
             )
         )
     }
@@ -220,8 +233,19 @@ struct DisableTOTPRequest: Codable {
 }
 
 struct TOTPStatusResponse: Codable {
-    let enabled: Bool
+    let totpMFAEnabled: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case totpMFAEnabled = "totp_mfa_enabled"
+    }
+}
+
+struct TOTPVerifyResponse: Codable {
+    let message: String
+    let success: Bool
+    let recoveryCodes: [String]?
 }
 
 extension TOTPEnableResponse: ResponseEncodable {}
-extension TOTPStatusResponse: ResponseEncodable {} 
+extension TOTPStatusResponse: ResponseEncodable {}
+extension TOTPVerifyResponse: ResponseEncodable {}

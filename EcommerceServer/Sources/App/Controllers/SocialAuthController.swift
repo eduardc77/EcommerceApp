@@ -432,8 +432,8 @@ final class SocialAuthController {
             failedSignInAttempts: 0,
             accountLocked: false,
             requirePasswordChange: false,
-            twoFactorEnabled: false,
-            emailVerificationEnabled: false,
+            totpMFAEnabled: false,
+            emailMFAEnabled: false,
             tokenVersion: 0
         )
         

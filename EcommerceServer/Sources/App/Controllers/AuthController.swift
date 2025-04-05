@@ -213,8 +213,8 @@ struct AuthController {
         try await user.save(on: fluent.db())
         
         // Check if any MFA methods are enabled
-        let hasTOTP = user.twoFactorEnabled
-        let hasEmailMFA = user.emailVerificationEnabled
+        let hasTOTP = user.totpMFAEnabled
+        let hasEmailMFA = user.emailMFAEnabled
         
         // If user has any MFA method enabled
         if hasTOTP || hasEmailMFA {
@@ -632,7 +632,7 @@ struct AuthController {
         }
         
         // Verify TOTP code
-        guard let secret = user.twoFactorSecret else {
+        guard let secret = user.totpMFASecret else {
             throw HTTPError(.badRequest, message: "MFA is not properly configured")
         }
         
@@ -1398,7 +1398,7 @@ struct AuthController {
         }
         
         // Check if email verification is enabled
-        guard user.emailVerificationEnabled else {
+        guard user.emailVerified else {
             throw HTTPError(.badRequest, message: "Email verification is not enabled for this account")
         }
         
@@ -2080,7 +2080,7 @@ struct AuthController {
         return .init(
             status: .ok,
             response: EmailVerificationStatusResponse(
-                enabled: user.emailVerificationEnabled,
+                enabled: user.emailVerified,
                 verified: user.emailVerified
             )
         )
@@ -2101,7 +2101,7 @@ struct AuthController {
         return .init(
             status: .ok,
             response: EmailVerificationStatusResponse(
-                enabled: user.emailVerificationEnabled,
+                enabled: user.emailVerified,
                 verified: user.emailVerified
             )
         )
@@ -2122,8 +2122,8 @@ struct AuthController {
         return .init(
             status: .ok,
             response: MFAMethodsResponse(
-                emailEnabled: user.emailVerificationEnabled,
-                totpEnabled: user.twoFactorEnabled
+                emailMFAEnabled: user.emailMFAEnabled,
+                totpMFAEnabled: user.totpMFAEnabled
             )
         )
     }
@@ -2156,7 +2156,7 @@ struct AuthController {
     @Sendable func verifyTOTP(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<MessageResponse> {
+    ) async throws -> EditedResponse<TOTPVerifyResponse> {
         try await totpController.verifyTOTP(request, context: context)
     }
     
@@ -2186,7 +2186,7 @@ struct AuthController {
     @Sendable func verifyEmailMFA(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<MessageResponse> {
+    ) async throws -> EditedResponse<EmailMFAVerifyResponse> {
         try await emailVerificationController.verifyEmailMFA(request, context: context)
     }
     
@@ -2239,7 +2239,7 @@ struct AuthController {
         // Check the selected method is actually enabled for the user
         switch selectionRequest.method {
         case .totp:
-            if !user.twoFactorEnabled {
+            if !user.totpMFAEnabled {
                 throw HTTPError(.badRequest, message: "TOTP is not enabled for this account")
             }
             
@@ -2253,7 +2253,7 @@ struct AuthController {
             )
             
         case .email:
-            if !user.emailVerificationEnabled {
+            if !user.emailVerified {
                 throw HTTPError(.badRequest, message: "Email MFA is not enabled for this account")
             }
             

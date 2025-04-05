@@ -251,11 +251,14 @@ func buildApplication(_ args: AppArguments) async throws -> some ApplicationProt
             useXRealIP: AppConfig.environment.isProduction || AppConfig.environment.isStaging
         ))
     
+    // Initialize MFA service
+    let mfaService = MFAService(fluent: fluent)
+    
     // Initialize TOTP controller
-    let totpController = TOTPController(fluent: fluent)
+    let totpController = TOTPController(fluent: fluent, mfaService: mfaService)
     
     // Initialize Email MFA controller
-    let emailVerificationController = EmailMFAController(fluent: fluent, emailService: emailService)
+    let emailVerificationController = EmailMFAController(fluent: fluent, emailService: emailService, mfaService: mfaService)
     
     // Initialize MFA Recovery controller
     let mfaRecoveryController = MFARecoveryController(

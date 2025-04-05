@@ -9,10 +9,12 @@ struct EmailMFAController {
     typealias Context = AppRequestContext
     let fluent: HummingbirdFluent.Fluent
     let emailService: EmailService
+    let mfaService: MFAService
     
-    init(fluent: HummingbirdFluent.Fluent, emailService: EmailService) {
+    init(fluent: HummingbirdFluent.Fluent, emailService: EmailService, mfaService: MFAService) {
         self.fluent = fluent
         self.emailService = emailService
+        self.mfaService = mfaService
     }
     
     /// Add protected routes for email verification (MFA)
@@ -86,7 +88,7 @@ struct EmailMFAController {
     @Sendable func verifyEmailMFA(
         _ request: Request,
         context: Context
-    ) async throws -> EditedResponse<MessageResponse> {
+    ) async throws -> EditedResponse<EmailMFAVerifyResponse> {
         guard let user = context.identity else {
             throw HTTPError(.unauthorized)
         }
@@ -97,7 +99,7 @@ struct EmailMFAController {
         }
         
         // Decode verification request
-        let verifyRequest = try await request.decode(as: EmailVerifyRequest.self, context: context)
+        let verifyRequest = try await request.decode(as: EmailMFAVerifyRequest.self, context: context)
         
         // Get user ID first
         let userID = try user.requireID()
@@ -133,16 +135,24 @@ struct EmailMFAController {
         // Delete the verification code
         try await verificationCode.delete(on: fluent.db())
         
-        // Enable email-based MFA
-        user.emailVerificationEnabled = true
-        user.tokenVersion += 1  // Increment token version to invalidate all existing tokens
+        // Check if any MFA method was already enabled before this one
+        let wasMFAAlreadyEnabled = user.totpMFAEnabled || user.emailMFAEnabled
+        
+        // Enable email MFA and invalidate tokens
+        user.emailMFAEnabled = true
+        user.tokenVersion += 1
+        
         try await user.save(on: fluent.db())
+        
+        // Generate recovery codes only if this is the first MFA method being enabled
+        let recoveryCodes = wasMFAAlreadyEnabled ? nil : try await mfaService.generateRecoveryCodes(for: user)
         
         return .init(
             status: .ok,
-            response: MessageResponse(
-                message: "Two-factor authentication enabled successfully",
-                success: true
+            response: EmailMFAVerifyResponse(
+                message: "Email MFA enabled successfully",
+                success: true,
+                recoveryCodes: recoveryCodes
             )
         )
     }
@@ -157,11 +167,11 @@ struct EmailMFAController {
         }
         
         // Check if already disabled
-        if !user.emailVerificationEnabled {
+        if !user.emailMFAEnabled {
             return .init(
                 status: .badRequest,
                 response: MessageResponse(
-                    message: "Email verification is not enabled",
+                    message: "Email MFA is not enabled",
                     success: false
                 )
             )
@@ -188,13 +198,16 @@ struct EmailMFAController {
             throw HTTPError(.unauthorized, message: "Invalid password")
         }
         
-        // Disable email verification
-        user.emailVerificationEnabled = false
+        // Disable email MFA
+        user.emailMFAEnabled = false
         try await user.save(on: fluent.db())
+        
+        // Let the MFA service handle recovery codes if needed
+        try await mfaService.handleMFADisabled(for: user)
         
         return .init(
             response: MessageResponse(
-                message: "Email verification disabled successfully",
+                message: "Multi-Factor Email Authentication disabled successfully",
                 success: true
             )
         )
@@ -212,8 +225,8 @@ struct EmailMFAController {
         return .init(
             status: .ok,
             response: EmailMFAVerificationStatusResponse(
-                enabled: user.emailVerificationEnabled,
-                verified: user.emailVerified
+                emailMFAEnabled: user.emailMFAEnabled,
+                emailVerified: user.emailVerified
             )
         )
     }
@@ -288,12 +301,26 @@ struct ResendVerificationRequest: Codable {
     let email: String
 }
 
-/// Request for disabling email MFA
-
 /// Response for email verification status
 struct EmailMFAVerificationStatusResponse: Codable {
-    let enabled: Bool
-    let verified: Bool
+    let emailMFAEnabled: Bool
+    let emailVerified: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case emailMFAEnabled = "email_mfa_enabled"
+        case emailVerified = "email_verified"
+    }
+}
+
+struct EmailMFAVerifyRequest: Codable {
+    let code: String
+}
+
+struct EmailMFAVerifyResponse: Codable {
+    let message: String
+    let success: Bool
+    let recoveryCodes: [String]?
 }
 
 extension EmailMFAVerificationStatusResponse: ResponseEncodable {}
+extension EmailMFAVerifyResponse: ResponseEncodable {}
