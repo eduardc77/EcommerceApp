@@ -121,6 +121,12 @@ private extension NetworkManager {
     ) async throws -> (Data, HTTPURLResponse) {
         switch response.statusCode {
         case 400:
+            // Try to decode error message first
+            if let contentType = response.allHeaderFields["Content-Type"] as? String,
+               contentType.contains("application/json"),
+               let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                throw NetworkError.badRequest(description: errorResponse.error.message)
+            }
             throw NetworkError.badRequest(description: "Bad Request: \(description)")
         case 401, 403:
             // Check if this is a TOTP required response or email verification after TOTP

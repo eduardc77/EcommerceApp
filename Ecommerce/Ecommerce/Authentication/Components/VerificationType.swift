@@ -10,6 +10,7 @@ import SwiftUI
 public enum VerificationType {
     case emailSignIn(stateToken: String)
     case totpSignIn(stateToken: String)
+    case recoveryCodeSignIn(stateToken: String)
     case initialEmail(stateToken: String, email: String)
     case initialEmailFromAccountSettings(email: String)
     case enableEmailMFA(email: String)
@@ -25,14 +26,12 @@ public enum VerificationType {
 
     var source: VerificationSource {
         switch self {
-        case .emailSignIn:
+        case .emailSignIn, .totpSignIn, .recoveryCodeSignIn:
             return .signInMFA
         case .initialEmail:
             return .registration
         case .enableEmailMFA, .enableTOTP:
             return .account
-        case .totpSignIn:
-            return .signInMFA
         case .initialEmailFromAccountSettings:
             return .account
         }
@@ -44,7 +43,7 @@ public enum VerificationType {
 
     var isSignIn: Bool {
         switch self {
-        case .totpSignIn, .emailSignIn:
+        case .totpSignIn, .emailSignIn, .recoveryCodeSignIn:
             return true
         default:
             return false
@@ -78,9 +77,18 @@ public enum VerificationType {
         }
     }
 
+    var isRecoveryCode: Bool {
+        switch self {
+        case .recoveryCodeSignIn:
+            return true
+        default:
+            return false
+        }
+    }
+
     var isSignInOrSignUp: Bool {
         switch self {
-        case .emailSignIn, .totpSignIn, .initialEmail:
+        case .emailSignIn, .totpSignIn, .recoveryCodeSignIn, .initialEmail:
             return true
         default:
             return false
@@ -99,6 +107,8 @@ public enum VerificationType {
             return "Please enter the verification code from your authenticator app to enable TOTP MFA."
         case .totpSignIn:
             return "Please enter the verification code from your authenticator app to sign in."
+        case .recoveryCodeSignIn:
+            return "Enter one of your recovery codes to sign in. Each code can only be used once."
         case .initialEmailFromAccountSettings:
             return "We've sent a verification code to your email. Please enter it below to verify your email address."
         }
@@ -116,6 +126,8 @@ public enum VerificationType {
             return "Set Up TOTP MFA"
         case .totpSignIn:
             return "Verify TOTP"
+        case .recoveryCodeSignIn:
+            return "Enter Recovery Code"
         case .initialEmailFromAccountSettings:
             return "Verify Email"
         }
@@ -127,6 +139,8 @@ public enum VerificationType {
             return ("lock.shield.fill", .blue)
         case .emailSignIn, .initialEmail, .enableEmailMFA:
             return ("envelope.badge.shield.half.filled.fill", .blue)
+        case .recoveryCodeSignIn:
+            return ("key.horizontal.fill", .blue)
         case .initialEmailFromAccountSettings:
             return ("envelope.badge.shield.half.filled.fill", .blue)
         }
@@ -150,6 +164,8 @@ public enum VerificationType {
             message = "We've sent a verification code to \(userEmail). Please enter it below to enable email verification."
         case .totpSignIn:
             message = "Enter the 6-digit code from your authenticator app to complete sign in."
+        case .recoveryCodeSignIn:
+            message = "Enter one of your recovery codes to sign in. Each code can only be used once."
         case .enableTOTP:
             message = "Enter the 6-digit code from your authenticator app to enable two-factor authentication."
         case .initialEmailFromAccountSettings:
@@ -164,7 +180,7 @@ public enum VerificationType {
             return "Verify Code"
         case .enableTOTP:
             return "Enable MFA"
-        case .totpSignIn:
+        case .totpSignIn, .recoveryCodeSignIn:
             return "Verify Code"
         }
     }
@@ -186,7 +202,7 @@ public enum VerificationType {
         switch self {
         case .emailSignIn, .initialEmail, .initialEmailFromAccountSettings, .enableEmailMFA:
             return "Resend Code"
-        case .enableTOTP, .totpSignIn:
+        case .enableTOTP, .totpSignIn, .recoveryCodeSignIn:
             return ""
         }
     }
@@ -197,6 +213,8 @@ public enum VerificationType {
             return "Invalid authenticator code. Please try again."
         case .emailSignIn, .initialEmail, .initialEmailFromAccountSettings, .enableEmailMFA:
             return "Invalid verification code. Please check your email and try again."
+        case .recoveryCodeSignIn:
+            return "Invalid recovery code. Please check your code and try again."
         case .enableTOTP:
             return "Invalid authenticator code. Please make sure you entered the correct code from your authenticator app."
         }
@@ -206,14 +224,14 @@ public enum VerificationType {
         switch self {
         case .emailSignIn, .initialEmail, .initialEmailFromAccountSettings, .enableEmailMFA:
             return "A new verification code has been sent to your email."
-        case .totpSignIn, .enableTOTP:
+        case .totpSignIn, .enableTOTP, .recoveryCodeSignIn:
             return "Please check your authenticator app for the latest code."
         }
     }
 
     var stateToken: String {
         switch self {
-        case .emailSignIn(let token), .totpSignIn(let token), .initialEmail(let token, _):
+        case .emailSignIn(let token), .totpSignIn(let token), .recoveryCodeSignIn(let token), .initialEmail(let token, _):
             return token
         case .enableEmailMFA, .enableTOTP:
             return ""

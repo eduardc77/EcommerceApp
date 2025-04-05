@@ -19,6 +19,7 @@ public final class AuthenticationManager: ObservableObject {
     private let authorizationManager: AuthorizationManagerProtocol
     public let totpManager: TOTPManager
     private let emailVerificationManager: EmailVerificationManager
+    public let recoveryCodesManager: RecoveryCodesManager
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Ecommerce", category: "AuthenticationManager")
 
     public var currentUser: UserResponse?
@@ -40,12 +41,14 @@ public final class AuthenticationManager: ObservableObject {
         userService: UserServiceProtocol,
         totpManager: TOTPManager,
         emailVerificationManager: EmailVerificationManager,
+        recoveryCodesManager: RecoveryCodesManager,
         authorizationManager: AuthorizationManagerProtocol
     ) {
         self.authService = authService
         self.userService = userService
         self.totpManager = totpManager
         self.emailVerificationManager = emailVerificationManager
+        self.recoveryCodesManager = recoveryCodesManager
         self.authorizationManager = authorizationManager
 
         // Check token validity on init
@@ -397,8 +400,25 @@ public final class AuthenticationManager: ObservableObject {
             try await verifyEmailMFASignIn(code: code, stateToken: stateToken)
         case .totpSignIn(let stateToken):
             try await verifyTOTPSignIn(code: code, stateToken: stateToken)
+        case .recoveryCodeSignIn(let stateToken):
+            try await verifyRecoveryCode(code: code, stateToken: stateToken)
         default:
             break // These are handled by their respective managers
+        }
+    }
+
+    public func verifyRecoveryCode(code: String, stateToken: String) async throws {
+        guard pendingSignInResponse != nil else {
+            throw AuthenticationError.noSignInInProgress
+        }
+
+        do {
+            let response = try await authService.verifyRecoveryCode(code: code, stateToken: stateToken)
+            await completeSignIn(response: response)
+            self.pendingSignInResponse = nil
+        } catch {
+            self.pendingSignInResponse = nil
+            throw error
         }
     }
 
@@ -433,13 +453,19 @@ public final class AuthenticationManager: ObservableObject {
         }
     }
 
+    /// Refreshes the user's profile information
     public func refreshProfile() async {
         isLoading = true
         defer { isLoading = false }
-
+        error = nil
+        
         do {
             let response = try await authService.me()
             currentUser = response
+            // Refresh all MFA statuses
+            try await emailVerificationManager.getEmailMFAStatus()
+            try await totpManager.getMFAStatus()
+            try await recoveryCodesManager.getStatus()
         } catch {
             logger.error("Error refreshing profile: \(error)")
             // Don't sign out on profile refresh failure

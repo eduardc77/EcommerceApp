@@ -28,4 +28,22 @@ public struct RecoveryCodesStatusResponse: Codable, Sendable {
         self.shouldRegenerate = shouldRegenerate
         self.nextExpirationDate = nextExpirationDate
     }
-} 
+}
+
+public struct RegenerateCodesRequest: Codable {
+    public let password: String
+    
+    public init(password: String) {
+        self.password = password
+    }
+}
+
+public struct RecoveryCodeVerifyRequest: Codable {
+    public let code: String
+    public let stateToken: String
+    
+    public init(code: String, stateToken: String) {
+        self.code = code
+        self.stateToken = stateToken
+    }
+}

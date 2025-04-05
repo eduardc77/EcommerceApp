@@ -24,12 +24,14 @@ struct SignInView: View {
         case totpVerification(stateToken: String)
         case emailVerification(stateToken: String)
         case mfaSelection(stateToken: String)
+        case recoveryCodeVerification(stateToken: String)
 
         var id: String {
             switch self {
             case .totpVerification: return "totp"
             case .emailVerification: return "email"
             case .mfaSelection: return "mfa-selection"
+            case .recoveryCodeVerification: return "recovery-code"
             }
         }
     }
@@ -99,8 +101,12 @@ struct SignInView: View {
                             authFlow = .totpVerification(stateToken: token)
                         case .email:
                             authFlow = .emailVerification(stateToken: token)
+                        case .recoveryCode:
+                            authFlow = .recoveryCodeVerification(stateToken: token)
                         }
                     }
+                case .recoveryCodeVerification(let token):
+                    RecoveryCodeEntryView(stateToken: token)
                 }
             }
             .onChange(of: focusedField) { oldValue, newValue in
@@ -268,12 +274,15 @@ import Networking
     let totpManager = TOTPManager(totpService: totpService)
     let emailVerificationService = PreviewEmailVerificationService()
     let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
+    let recoeryCodesService = PreviewRecoveryCodesService()
+    let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
 
     let authManager = AuthenticationManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
         totpManager: totpManager,
         emailVerificationManager: emailVerificationManager,
+        recoveryCodesManager: recoveryCodesManager,
         authorizationManager: authorizationManager
     )
 

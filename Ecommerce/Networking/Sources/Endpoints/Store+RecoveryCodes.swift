@@ -6,17 +6,20 @@ extension Store {
         case listRecoveryCodes
         case regenerateRecoveryCodes(password: String)
         case verifyRecoveryCode(code: String, stateToken: String)
+        case status
         
         public var path: String {
             switch self {
             case .generateRecoveryCodes:
-                return "/auth/mfa/recovery/generate"
+                return "/mfa/recovery/generate"
             case .listRecoveryCodes:
-                return "/auth/mfa/recovery/list"
+                return "/mfa/recovery/list"
             case .regenerateRecoveryCodes:
-                return "/auth/mfa/recovery/regenerate"
+                return "/mfa/recovery/regenerate"
             case .verifyRecoveryCode:
-                return "/auth/mfa/recovery/verify"
+                return "/mfa/recovery/verify"
+            case .status:
+                return "/mfa/recovery/status"
             }
         }
         
@@ -24,7 +27,7 @@ extension Store {
             switch self {
             case .generateRecoveryCodes, .regenerateRecoveryCodes, .verifyRecoveryCode:
                 return .post
-            case .listRecoveryCodes:
+            case .listRecoveryCodes, .status:
                 return .get
             }
         }
@@ -34,7 +37,7 @@ extension Store {
             case .regenerateRecoveryCodes(let password):
                 return ["password": password]
             case .verifyRecoveryCode(let code, let stateToken):
-                return ["code": code, "stateToken": stateToken]
+                return ["code": code, "state_token": stateToken]
             default:
                 return nil
             }
@@ -43,5 +46,14 @@ extension Store {
         public var headers: [String: String]? { nil }
         
         public var formParams: [String: String]? { nil }
+        
+        public var requiresAuthorization: Bool {
+            switch self {
+            case .generateRecoveryCodes, .listRecoveryCodes, .regenerateRecoveryCodes, .status:
+                return true
+            case .verifyRecoveryCode:
+                return false
+            }
+        }
     }
 } 

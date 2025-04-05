@@ -84,6 +84,8 @@ struct MainTabView: View {
         tokenStore: tokenStore
     )
     let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
+    let recoeryCodesService = PreviewRecoveryCodesService()
+    let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
 
     // Initialize auth manager with services
     let authManager = AuthenticationManager(
@@ -91,6 +93,7 @@ struct MainTabView: View {
         userService: userService,
         totpManager: totpManager,
         emailVerificationManager: emailVerificationManager,
+        recoveryCodesManager: recoveryCodesManager,
         authorizationManager: authorizationManager
     )
 

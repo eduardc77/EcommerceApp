@@ -14,7 +14,7 @@ public final class EmailVerificationManager {
     public var requiresEmailVerification = false
 
     /// Whether email MFA is enabled for the account
-    private(set) public var isMFAEnabled = false
+    private(set) public var isEmailMFAEnabled = false
 
     public init(emailVerificationService: EmailVerificationServiceProtocol) {
         self.emailVerificationService = emailVerificationService
@@ -23,7 +23,7 @@ public final class EmailVerificationManager {
     /// Resets verification state
     public func reset() {
         requiresEmailVerification = false
-        isMFAEnabled = false
+        isEmailMFAEnabled = false
         isLoading = false
     }
 
@@ -33,7 +33,8 @@ public final class EmailVerificationManager {
         defer { isLoading = false }
 
         let status = try await emailVerificationService.getEmailMFAStatus()
-        isMFAEnabled = status.enabled
+        isEmailMFAEnabled = status.emailMfaEnabled
+        requiresEmailVerification = !status.emailVerified
     }
 
     /// Sets up MFA email verification
@@ -45,12 +46,24 @@ public final class EmailVerificationManager {
     }
 
     /// Verifies the code and enables MFA
-    public func verifyEmailMFA(code: String, email: String) async throws {
+    /// - Parameters:
+    ///   - code: The verification code
+    ///   - email: The email address to verify
+    /// - Returns: Array of recovery codes
+    public func verifyEmailMFA(code: String, email: String) async throws -> [RecoveryCode] {
         isLoading = true
         defer { isLoading = false }
 
-        _ = try await emailVerificationService.verifyEmailMFA(code: code, email: email)
-        isMFAEnabled = true
+        let response = try await emailVerificationService.verifyEmailMFA(code: code, email: email)
+        if response.success {
+            isEmailMFAEnabled = true
+            if let codes = response.recoveryCodes {
+                return codes.enumerated().map { index, code in
+                    RecoveryCode(id: String(index), code: code, isUsed: false)
+                }
+            }
+        }
+        return []
     }
 
     /// Disables MFA email verification
@@ -59,7 +72,7 @@ public final class EmailVerificationManager {
         defer { isLoading = false }
 
         _ = try await emailVerificationService.disableEmailMFA(password: password)
-        isMFAEnabled = false
+        isEmailMFAEnabled = false
     }
     
     /// Resends email MFA code
@@ -81,7 +94,7 @@ public final class EmailVerificationManager {
         defer { isLoading = false }
 
         let status = try await emailVerificationService.getInitialStatus()
-        requiresEmailVerification = !status.verified
+        requiresEmailVerification = !status.emailVerified
     }
     
     /// Sends the initial verification email

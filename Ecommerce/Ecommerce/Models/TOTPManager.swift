@@ -50,8 +50,8 @@ public final class TOTPManager {
     /// The last error that occurred during TOTP operations
     private(set) public var error: Error?
     
-    /// Whether MFA is currently enabled for the user
-    private(set) public var isEnabled = false
+    /// Whether TOTP MFA is currently enabled for the user
+    private(set) public var isTOTPMFAEnabled = false
     
     public init(totpService: TOTPServiceProtocol) {
         self.totpService = totpService
@@ -61,7 +61,7 @@ public final class TOTPManager {
     public func reset() {
         isLoading = false
         error = nil
-        isEnabled = false
+        isTOTPMFAEnabled = false
     }
     
     /// Enables TOTP MFA and returns the setup data
@@ -73,7 +73,7 @@ public final class TOTPManager {
         defer { isLoading = false }
         
         do {
-            if isEnabled {
+            if isTOTPMFAEnabled {
                 throw TOTPError.alreadyEnabled
             }
             
@@ -96,15 +96,26 @@ public final class TOTPManager {
 
     /// Verifies a TOTP code
     /// - Parameter code: The 6-digit verification code
+    /// - Returns: Array of recovery codes if provided
     /// - Throws: TOTPError if verification fails
-    public func verifyTOTP(code: String) async throws {
+    public func verifyTOTP(code: String) async throws -> [RecoveryCode] {
         isLoading = true
         error = nil
         defer { isLoading = false }
         
         do {
-            _ = try await totpService.verifyTOTP(code: code)
-            isEnabled = true
+            let response = try await totpService.verifyTOTP(code: code)
+            if response.success {
+                isTOTPMFAEnabled = true
+                if let codes = response.recoveryCodes {
+                    return codes.enumerated().map { index, code in
+                        RecoveryCode(id: String(index), code: code, isUsed: false)
+                    }
+                }
+            } else {
+                throw TOTPError.verificationFailed
+            }
+            return []
         } catch let error as TOTPError {
             self.error = error
             throw error
@@ -127,7 +138,7 @@ public final class TOTPManager {
         
         do {
             let status = try await totpService.getTOTPStatus()
-            isEnabled = status.enabled
+            isTOTPMFAEnabled = status.totpMfaEnabled
         } catch let error as TOTPError {
             self.error = error
             throw error
@@ -153,12 +164,12 @@ public final class TOTPManager {
         defer { isLoading = false }
         
         do {
-            if !isEnabled {
+            if !isTOTPMFAEnabled {
                 throw TOTPError.notEnabled
             }
             
             _ = try await totpService.disableTOTP(password: password)
-            isEnabled = false
+            isTOTPMFAEnabled = false
         } catch let error as TOTPError {
             self.error = error
             throw error
@@ -177,6 +188,6 @@ public final class TOTPManager {
     /// - Returns: Whether TOTP is currently enabled
     public func getTOTPStatus() async throws -> Bool {
         try await getMFAStatus()
-        return isEnabled
+        return isTOTPMFAEnabled
     }
 }

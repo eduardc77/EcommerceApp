@@ -169,12 +169,15 @@ import Networking
     let totpManager = TOTPManager(totpService: totpService)
     let emailVerificationService = PreviewEmailVerificationService()
     let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
+    let recoeryCodesService = PreviewRecoveryCodesService()
+    let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
 
     let authManager = AuthenticationManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
         totpManager: totpManager,
         emailVerificationManager: emailVerificationManager,
+        recoveryCodesManager: recoveryCodesManager,
         authorizationManager: authorizationManager
     )
 

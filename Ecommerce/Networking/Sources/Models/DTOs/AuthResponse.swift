@@ -48,6 +48,7 @@ public struct AuthResponse: Codable, Sendable {
 public enum MFAMethod: String, Codable, Sendable {
     case totp = "totp"
     case email = "email"
+    case recoveryCode = "recovery_code"
 }
 
 /// Auth status constants
@@ -59,6 +60,7 @@ extension AuthResponse {
     public static let STATUS_MFA_REQUIRED = "MFA_REQUIRED"  // Generic MFA required
     public static let STATUS_MFA_TOTP_REQUIRED = "MFA_TOTP_REQUIRED"  // TOTP verification needed
     public static let STATUS_MFA_EMAIL_REQUIRED = "MFA_EMAIL_REQUIRED"  // Email verification needed
+    public static let STATUS_MFA_RECOVERY_CODE_REQUIRED = "MFA_RECOVERY_CODE_REQUIRED"  // Recovery code verification needed
     
     // Account verification statuses
     public static let STATUS_VERIFICATION_REQUIRED = "VERIFICATION_REQUIRED"  // Generic verification needed

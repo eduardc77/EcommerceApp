@@ -7,7 +7,7 @@ public protocol EmailVerificationServiceProtocol {
     func resendInitialVerificationEmail(stateToken: String, email: String) async throws -> MessageResponse
     func verifyInitialEmail(code: String, stateToken: String, email: String) async throws -> AuthResponse
     func enableEmailMFA() async throws -> MessageResponse
-    func verifyEmailMFA(code: String, email: String) async throws -> MessageResponse
+    func verifyEmailMFA(code: String, email: String) async throws -> MFAVerifyResponse
     func disableEmailMFA(password: String) async throws -> MessageResponse
     func resendEmailMFACode() async throws -> MessageResponse
 }
@@ -75,15 +75,14 @@ public actor EmailVerificationService: EmailVerificationServiceProtocol {
         )
     }
 
-    public func verifyEmailMFA(code: String, email: String) async throws -> MessageResponse {
-        return try await apiClient.performRequest(
+    public func verifyEmailMFA(code: String, email: String) async throws -> MFAVerifyResponse {
+        try await apiClient.performRequest(
             from: Store.EmailVerification.verifyEmailMFA(code: code, email: email),
             in: environment,
             allowRetry: false,
             requiresAuthorization: true
         )
     }
-    
     
     public func disableEmailMFA(password: String) async throws -> MessageResponse {
         try await apiClient.performRequest(

@@ -13,9 +13,9 @@ public struct TOTPSetupResponse: Codable, Sendable {
 
 /// Response for TOTP status check
 public struct TOTPStatusResponse: Codable, Sendable {
-    public let enabled: Bool
+    public let totpMfaEnabled: Bool
     
-    public init(enabled: Bool) {
-        self.enabled = enabled
+    public init(totpMFAEnabled: Bool) {
+        self.totpMfaEnabled = totpMFAEnabled
     }
 } 

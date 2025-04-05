@@ -5,6 +5,7 @@ import PhotosUI
 struct AccountView: View {
     @Environment(AuthenticationManager.self) private var authManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
+    @Environment(RecoveryCodesManager.self) private var recoveryCodesManager
     @Environment(\.dismiss) private var dismiss
     @State private var isEditing = false
     @State private var editedName = ""
@@ -19,6 +20,7 @@ struct AccountView: View {
     @State private var disableError: Error?
     @State private var showingError = false
     @State private var showDisableAlert = false
+    @State private var onAppearRefreshed = false
 
     private enum DisableAction: Identifiable {
         case totp
@@ -40,23 +42,26 @@ struct AccountView: View {
     }
 
     private enum EnableAction: Identifiable {
-        case totp
-        case emailMFA
         case emailVerification
+        case emailMFA
+        case totp
+        case recoveryCodes
         
         var id: String {
             switch self {
-            case .totp: return "totp"
-            case .emailMFA: return "email-mfa"
             case .emailVerification: return "email-verification"
+            case .emailMFA: return "email-mfa"
+            case .totp: return "totp"
+            case .recoveryCodes: return "recovery-codes"
             }
         }
         
         var title: String {
             switch self {
-            case .totp: return "Enable Authenticator"
-            case .emailMFA: return "Enable Email MFA"
             case .emailVerification: return "Verify Email"
+            case .emailMFA: return "Enable Email MFA"
+            case .totp: return "Enable Authenticator"
+            case .recoveryCodes: return "Manage Recovery Codes"
             }
         }
         
@@ -65,6 +70,7 @@ struct AccountView: View {
             case .totp: return "plus.circle.fill"
             case .emailMFA: return "plus.circle.fill"
             case .emailVerification: return "checkmark.circle.fill"
+            case .recoveryCodes: return "key.fill"
             }
         }
     }
@@ -90,6 +96,9 @@ struct AccountView: View {
             .refreshable {
                 await authManager.refreshProfile()
             }
+            .task {
+                await loadProfileIfNeeded()
+            }
             .sheet(item: $enableAction) { action in
                 switch action {
                 case .emailVerification:
@@ -98,6 +107,8 @@ struct AccountView: View {
                     VerificationView(type: .enableEmailMFA(email: user?.email ?? ""))
                 case .totp:
                     TOTPSetupView()
+                case .recoveryCodes:
+                    RecoveryCodesView()
                 }
             }
             .alert("Disable MFA", isPresented: $showDisableAlert) {
@@ -151,14 +162,6 @@ struct AccountView: View {
             .onChange(of: authManager.currentUser) { oldValue, newValue in
                 updateEditingFields(user: newValue)
             }
-            .task {
-                // Only refresh if we're authenticated
-                if authManager.isAuthenticated {
-                    await authManager.refreshProfile()
-                    try? await emailVerificationManager.getEmailMFAStatus()
-                    try? await authManager.totpManager.getMFAStatus()
-                }
-            }
             .onChange(of: emailVerificationManager.requiresEmailVerification) { _, requiresEmailVerification in
                 if !requiresEmailVerification {
                     enableAction = nil
@@ -166,6 +169,16 @@ struct AccountView: View {
             }
             .onChange(of: selectedItem) { _, item in
                 handleProfilePhotoSelection(item)
+            }
+            .navigationDestination(for: String.self) { route in
+                switch route {
+                case "signup":
+                    SignUpView()
+                case "forgot-password":
+                    Text("")
+                default:
+                    EmptyView()
+                }
             }
         }
     }
@@ -231,18 +244,18 @@ struct AccountView: View {
                         HStack {
                             Image(systemName: "lock.shield.fill")
                                 .font(.title)
-                                .foregroundStyle(authManager.totpManager.isEnabled ? .green : .secondary)
+                                .foregroundStyle(authManager.totpManager.isTOTPMFAEnabled ? .green : .secondary)
 
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Authenticator App")
                                     .font(.headline)
-                                Text(authManager.totpManager.isEnabled ? "Enabled" : "Not enabled")
+                                Text(authManager.totpManager.isTOTPMFAEnabled ? "Enabled" : "Not enabled")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
                         }
 
-                        if !authManager.totpManager.isEnabled {
+                        if !authManager.totpManager.isTOTPMFAEnabled {
                             Text("Use an authenticator app to generate verification codes for additional security.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -272,18 +285,18 @@ struct AccountView: View {
                         HStack {
                             Image(systemName: "shield.righthalf.filled")
                                 .font(.title)
-                                .foregroundStyle(emailVerificationManager.isMFAEnabled ? .green : .secondary)
+                                .foregroundStyle(emailVerificationManager.isEmailMFAEnabled ? .green : .secondary)
 
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Email MFA")
                                     .font(.headline)
-                                Text(emailVerificationManager.isMFAEnabled ? "Enabled" : "Not enabled")
+                                Text(emailVerificationManager.isEmailMFAEnabled ? "Enabled" : "Not enabled")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
                         }
 
-                        if !emailVerificationManager.isMFAEnabled {
+                        if !emailVerificationManager.isEmailMFAEnabled {
                             Text("Receive verification codes by email when signing in for additional security.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -307,6 +320,62 @@ struct AccountView: View {
                         }
                     }
                     .padding(.vertical, 8)
+
+                    // Recovery Codes Cell
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "key.fill")
+                                .font(.title)
+                                .foregroundStyle(recoveryCodesManager.status?.enabled == true 
+                                    ? (recoveryCodesManager.status?.hasValidCodes == true ? .green : .yellow)
+                                    : .secondary)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Recovery Codes")
+                                    .font(.headline)
+                                    if recoveryCodesManager.status?.enabled == true {
+                                        if recoveryCodesManager.status?.hasValidCodes == true {
+                                            Text("Enabled")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.secondary)
+                                        } else {
+                                            Text("Action Required")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.yellow)
+                                        }
+                                    } else {
+                                        Text("Not enabled")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                            }
+                        }
+
+                        if recoveryCodesManager.status?.enabled == true && recoveryCodesManager.status?.hasValidCodes == false {
+                            Text("You need to generate recovery codes to ensure you don't get locked out of your account.")
+                                .font(.caption)
+                                .foregroundStyle(.yellow)
+                        } else {
+                            Text("Backup codes for when you can't access your MFA methods")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button {
+                            enableAction = .recoveryCodes
+                        } label: {
+                            if recoveryCodesManager.status?.enabled == true && recoveryCodesManager.status?.hasValidCodes == false {
+                                Label("Generate Recovery Codes", systemImage: "exclamationmark.triangle.fill")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                Label("Manage Recovery Codes", systemImage: "key.fill")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!authManager.totpManager.isTOTPMFAEnabled && !emailVerificationManager.isEmailMFAEnabled)
+                    }
+                    .padding(.vertical, 8)
                 }
             }
         } header: {
@@ -314,8 +383,8 @@ struct AccountView: View {
         } footer: {
             if let currentUser = authManager.currentUser {
                 if currentUser.emailVerified && 
-                   !authManager.totpManager.isEnabled && 
-                   !emailVerificationManager.isMFAEnabled {
+                   !authManager.totpManager.isTOTPMFAEnabled && 
+                   !emailVerificationManager.isEmailMFAEnabled {
                     Text("We recommend enabling at least one form of two-factor authentication to better protect your account.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -466,6 +535,13 @@ struct AccountView: View {
 
     // MARK: - Helpers
 
+    private func loadProfileIfNeeded() async {
+        if authManager.currentUser == nil || !onAppearRefreshed {
+            await authManager.refreshProfile()
+            onAppearRefreshed = true
+        }
+    }
+    
     private func handleProfilePhotoSelection(_ item: PhotosPickerItem?) {
         Task {
             if let data = try? await item?.loadTransferable(type: Data.self) {
@@ -492,8 +568,12 @@ struct AccountView: View {
                 switch disableAction {
                 case .totp:
                     try await authManager.disableTOTP(password: password)
+                    // Refresh profile after disabling
+                    await authManager.refreshProfile()
                 case .email:
                     try await authManager.disableEmailMFA(password: password)
+                    // Refresh profile after disabling
+                    await authManager.refreshProfile()
                 case .none:
                     break
                 }
@@ -524,12 +604,15 @@ import Networking
     let totpManager = TOTPManager(totpService: totpService)
     let emailVerificationService = PreviewEmailVerificationService()
     let emailVerificationManager = EmailVerificationManager(emailVerificationService:emailVerificationService)
+    let recoeryCodesService = PreviewRecoveryCodesService()
+    let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
 
     let authManager = AuthenticationManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
         totpManager: totpManager,
         emailVerificationManager: emailVerificationManager,
+        recoveryCodesManager: recoveryCodesManager,
         authorizationManager: authorizationManager
     )
 
@@ -538,6 +621,7 @@ import Networking
             .environment(authManager)
             .environment(emailVerificationManager)
             .environment(totpManager)
+            .environment(recoveryCodesManager)
     }
 }
 #endif

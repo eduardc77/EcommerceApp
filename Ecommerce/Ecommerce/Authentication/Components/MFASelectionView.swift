@@ -9,46 +9,6 @@ struct MFASelectionView: View {
     @State private var error: Error?
     @State private var showError = false
     
-    enum MFAOption: Identifiable {
-        case totp
-        case email
-        
-        var id: String {
-            switch self {
-            case .totp: return "totp"
-            case .email: return "email"
-            }
-        }
-        
-        var title: String {
-            switch self {
-            case .totp: return "Authenticator App"
-            case .email: return "Email"
-            }
-        }
-        
-        var subtitle: String {
-            switch self {
-            case .totp: return "Use your authenticator app to generate a code"
-            case .email: return "Receive a verification code via email"
-            }
-        }
-        
-        var icon: String {
-            switch self {
-            case .totp: return "key.fill"
-            case .email: return "envelope.fill"
-            }
-        }
-        
-        var method: MFAMethod {
-            switch self {
-            case .totp: return .totp
-            case .email: return .email
-            }
-        }
-    }
-    
     var body: some View {
         NavigationStack {
             List {
@@ -57,6 +17,7 @@ struct MFASelectionView: View {
                         switch method {
                         case .totp: return MFAOption.totp
                         case .email: return MFAOption.email
+                        case .recoveryCode: return nil // Never show recovery code in main list
                         }
                     }) { option in
                         Button {
@@ -100,6 +61,34 @@ struct MFASelectionView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+                
+                // Recovery option section
+                Section {
+                    Button {
+                        Task {
+                            await selectMethod(.recoveryCode)
+                        }
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Can't Access Your Authenticator?")
+                                    .font(.callout)
+                                    .foregroundStyle(.blue)
+                                Text("Use a recovery code to sign in")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLoading)
+                }
             }
             .navigationTitle("Two-Factor Authentication")
             .navigationBarTitleDisplayMode(.inline)
@@ -133,9 +122,16 @@ struct MFASelectionView: View {
         defer { isLoading = false }
         
         do {
-            try await authManager.selectMFAMethod(method: option.method, stateToken: stateToken)
-            onSelect(option)
-            dismiss()
+            if case .recoveryCode = option {
+                // For recovery codes, skip MFA selection and go straight to verification
+                dismiss()
+                onSelect(option)
+            } else {
+                // For other methods, use the MFA selection endpoint
+                try await authManager.selectMFAMethod(method: option.method, stateToken: stateToken)
+                dismiss()
+                onSelect(option)
+            }
         } catch {
             self.error = error
             showError = true
@@ -159,6 +155,8 @@ import Networking
     let totpManager = TOTPManager(totpService: totpService)
     let emailVerificationService = PreviewEmailVerificationService()
     let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
+    let recoveryCodesService = PreviewRecoveryCodesService()
+    let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoveryCodesService)
 
     let authService = PreviewAuthenticationService(authorizationManager: authorizationManager)
     let authManager = AuthenticationManager(
@@ -166,6 +164,7 @@ import Networking
         userService: PreviewUserService(),
         totpManager: totpManager,
         emailVerificationManager: emailVerificationManager,
+        recoveryCodesManager: recoveryCodesManager,
         authorizationManager: authorizationManager
     )
 

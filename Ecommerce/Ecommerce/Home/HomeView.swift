@@ -37,8 +37,8 @@ struct HomeView: View {
                 )
             }
             .task {
-                await categoryManager.loadCategories()
-                await productManager.loadProducts()
+//                await categoryManager.loadCategories()
+//                await productManager.loadProducts()
             }
         }
     }

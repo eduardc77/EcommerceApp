@@ -22,6 +22,8 @@ struct VerificationView: View {
     @State private var showMFAEnabledAlert = false
     @FocusState private var isCodeFieldFocused: Bool
     @State private var isInitialSend = true
+    @State private var showRecoveryCodesSheet = false
+    @State private var shouldSignOutAfterDismiss = false
 
     var body: some View {
         NavigationStack {
@@ -67,14 +69,21 @@ struct VerificationView: View {
                 Text("You can verify your email later from your account settings.")
             }
             .alert("MFA Enabled Successfully", isPresented: $showMFAEnabledAlert) {
-                Button("OK") {
-                    // Sign out first before dismissing to prevent underlying view's onAppear
-                    authManager.isAuthenticated = false
-                    dismiss()
+                Button("Continue") {
+                    showRecoveryCodesSheet = true
                 }
             } message: {
-                Text("Your account is now more secure. Please sign in again to continue.")
+                Text("Your account is now more secure. Recovery codes have been generated. Store these recovery codes in a safe place - they allow you to access your account if you lose access to your MFA device.")
             }
+        }
+        .sheet(isPresented: $showRecoveryCodesSheet, onDismiss: {
+            if shouldSignOutAfterDismiss {
+                authManager.isAuthenticated = false
+                dismiss()
+            }
+        }) {
+            RecoveryCodesView(shouldLoadCodesOnAppear: false)
+                .interactiveDismissDisabled()
         }
     }
 
@@ -111,9 +120,20 @@ struct VerificationView: View {
 
     private var codeInputSection: some View {
         Section {
-            OneTimeCodeInput(code: $verificationCode, codeLength: 6)
-                .focused($isCodeFieldFocused)
-                .frame(maxWidth: .infinity)
+            if type.isRecoveryCode {
+                TextField("xxxx-xxxx-xxxx-xxxx", text: $verificationCode)
+                    .textContentType(.oneTimeCode)
+                    .font(.system(.body, design: .monospaced))
+                    .multilineTextAlignment(.center)
+                    .focused($isCodeFieldFocused)
+                    .onChange(of: verificationCode) { oldValue, newValue in
+                        verificationCode = formatRecoveryCode(newValue)
+                    }
+            } else {
+                OneTimeCodeInput(code: $verificationCode, codeLength: 6)
+                    .focused($isCodeFieldFocused)
+                    .frame(maxWidth: .infinity)
+            }
         } footer: {
             VStack {
                 if showError {
@@ -154,7 +174,12 @@ struct VerificationView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .disabled(verificationCode.count != 6 || isLoading || (type.isEmail && attemptsRemaining == 0))
+                .disabled(
+                    (type.isRecoveryCode && !isValidRecoveryCode) ||
+                    (!type.isRecoveryCode && verificationCode.count != 6) ||
+                    isLoading ||
+                    (type.isEmail && attemptsRemaining == 0)
+                )
 
                 if type.showsSkipButton {
                     Button {
@@ -222,11 +247,33 @@ struct VerificationView: View {
                 await authManager.refreshProfile()
                 dismiss()
             case .enableEmailMFA(let email):
-                try await emailVerificationManager.verifyEmailMFA(code: verificationCode, email: email)
-                showMFAEnabledAlert = true
+                let codes = try await emailVerificationManager.verifyEmailMFA(code: verificationCode, email: email)
+                authManager.recoveryCodesManager.codes = codes
+                shouldSignOutAfterDismiss = true
+                // Only show recovery codes alert if codes were actually generated
+                if !codes.isEmpty {
+                    showMFAEnabledAlert = true
+                } else {
+                    // Just show a simple success message and sign out
+                    showSuccess = true
+                    successMessage = "Email MFA has been enabled successfully."
+                    // Sign out after a short delay
+                    authManager.isAuthenticated = false
+                }
             case .enableTOTP:
-                try await authManager.totpManager.verifyTOTP(code: verificationCode)
-                showMFAEnabledAlert = true
+                let codes = try await authManager.totpManager.verifyTOTP(code: verificationCode)
+                authManager.recoveryCodesManager.codes = codes
+                shouldSignOutAfterDismiss = true
+                // Only show recovery codes alert if codes were actually generated
+                if !codes.isEmpty {
+                    showMFAEnabledAlert = true
+                } else {
+                    // Just show a simple success message and sign out
+                    showSuccess = true
+                    successMessage = "Authenticator app has been enabled successfully."
+                    // Sign out after a short delay
+                    authManager.isAuthenticated = false
+                }
             default:
                 try await authManager.completeMFAVerification(for: type, code: verificationCode)
                 dismiss()
@@ -306,7 +353,11 @@ struct VerificationView: View {
         }
 
         switch type {
-        case .emailSignIn(let stateToken), .initialEmail(let stateToken, _):
+        case .emailSignIn(let stateToken):
+            if !stateToken.isEmpty {
+                await sendCode()
+            }
+        case .initialEmail(let stateToken, _):
             if !stateToken.isEmpty, !authManager.isAuthenticated {
                 await sendCode()
             }
@@ -415,6 +466,28 @@ struct VerificationView: View {
         showError = true
         errorMessage = "Verification error. Please try again later."
     }
+
+    // Add recovery code formatting logic
+    private var isValidRecoveryCode: Bool {
+        let cleaned = verificationCode.filter { $0.isNumber || $0.isLetter }
+        return cleaned.count == 16
+    }
+
+    private func formatRecoveryCode(_ code: String) -> String {
+        let cleaned = code.filter { $0.isNumber || $0.isLetter }
+        var result = ""
+        var index = 0
+        
+        for char in cleaned {
+            if index > 0 && index % 4 == 0 && index < 16 {
+                result += "-"
+            }
+            result.append(char)
+            index += 1
+        }
+        
+        return String(result.prefix(19)) // 16 chars + 3 hyphens
+    }
 }
 
 #if DEBUG
@@ -433,12 +506,15 @@ import Networking
     let totpManager = TOTPManager(totpService: totpService)
     let emailVerificationService = PreviewEmailVerificationService()
     let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
+    let recoeryCodesService = PreviewRecoveryCodesService()
+    let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
 
     let authManager = AuthenticationManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
         totpManager: totpManager,
         emailVerificationManager: emailVerificationManager,
+        recoveryCodesManager: recoveryCodesManager,
         authorizationManager: authorizationManager
     )
 

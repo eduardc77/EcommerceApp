@@ -32,7 +32,8 @@ public actor ResponseHandler {
         } catch {
             Logger.networking.error("Failed to decode response: \(error)")
             if let errorResponse = try? decoder.decode(ErrorResponse.self, from: data) {
-                throw NetworkError.internalServerError(description: errorResponse.error.message)
+                // Just throw the error message from the response
+                throw NetworkError.decodingError(description: errorResponse.error.message)
             }
             throw NetworkError.decodingError(description: "Failed to decode response: \(error.localizedDescription)")
         }
@@ -42,21 +43,47 @@ public actor ResponseHandler {
         if let errorResponse = try? decoder.decode(ErrorResponse.self, from: data) {
             let message = errorResponse.error.message
             switch statusCode {
-            case 500: return .internalServerError(description: message)
-            case 502: return .badGateway(description: message)
-            case 503: return .serviceUnavailable(description: message)
-            case 504: return .gatewayTimeout(description: message)
-            default: return .unknownError(statusCode: statusCode, description: message)
+            case 400:
+                return .badRequest(description: message)
+            case 401:
+                return .unauthorized(description: message)
+            case 403:
+                return .forbidden(description: message)
+            case 404:
+                return .notFound(description: message)
+            case 500:
+                return .internalServerError(description: message)
+            case 502:
+                return .badGateway(description: message)
+            case 503:
+                return .serviceUnavailable(description: message)
+            case 504:
+                return .gatewayTimeout(description: message)
+            default:
+                return .clientError(statusCode: statusCode, description: message, data: data)
             }
         }
         
         let defaultMessage = HTTPURLResponse.localizedString(forStatusCode: statusCode)
         switch statusCode {
-        case 500: return .internalServerError(description: defaultMessage)
-        case 502: return .badGateway(description: defaultMessage)
-        case 503: return .serviceUnavailable(description: defaultMessage)
-        case 504: return .gatewayTimeout(description: defaultMessage)
-        default: return .unknownError(statusCode: statusCode, description: defaultMessage)
+        case 400:
+            return .badRequest(description: defaultMessage)
+        case 401:
+            return .unauthorized(description: defaultMessage)
+        case 403:
+            return .forbidden(description: defaultMessage)
+        case 404:
+            return .notFound(description: defaultMessage)
+        case 500:
+            return .internalServerError(description: defaultMessage)
+        case 502:
+            return .badGateway(description: defaultMessage)
+        case 503:
+            return .serviceUnavailable(description: defaultMessage)
+        case 504:
+            return .gatewayTimeout(description: defaultMessage)
+        default:
+            return .clientError(statusCode: statusCode, description: defaultMessage)
         }
     }
 }

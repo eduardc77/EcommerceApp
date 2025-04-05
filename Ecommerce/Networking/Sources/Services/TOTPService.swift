@@ -1,7 +1,7 @@
 import Foundation
 
 public protocol TOTPServiceProtocol {
-    func verifyTOTP(code: String) async throws -> MessageResponse
+    func verifyTOTP(code: String) async throws -> MFAVerifyResponse
     func enableTOTP() async throws -> TOTPSetupResponse
     func disableTOTP(password: String) async throws -> MessageResponse
     func getTOTPStatus() async throws -> TOTPStatusResponse
@@ -25,8 +25,7 @@ public actor TOTPService: TOTPServiceProtocol {
         )
     }
 
-
-    public func verifyTOTP(code: String) async throws -> MessageResponse {
+    public func verifyTOTP(code: String) async throws -> MFAVerifyResponse {
         try await apiClient.performRequest(
             from: Store.TOTP.verify(code: code),
             in: environment,

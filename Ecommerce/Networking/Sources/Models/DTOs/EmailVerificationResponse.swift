@@ -2,11 +2,11 @@ import Foundation
 
 /// Response for email verification status
 public struct EmailVerificationStatusResponse: Codable, Sendable {
-    public let enabled: Bool
-    public let verified: Bool
+    public let emailMfaEnabled: Bool
+    public let emailVerified: Bool
     
-    public init(enabled: Bool, verified: Bool) {
-        self.enabled = enabled
-        self.verified = verified
+    public init(emailMFAEnabled: Bool, emailVerified: Bool) {
+        self.emailMfaEnabled = emailMFAEnabled
+        self.emailVerified = emailVerified
     }
 } 

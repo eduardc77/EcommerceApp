@@ -18,6 +18,7 @@ struct EcommerceApp: App {
     @State private var toastManager = ToastManager()
     @State private var totpManager: TOTPManager
     @State private var emailVerificationManager: EmailVerificationManager
+    @State private var recoveryCodesManager: RecoveryCodesManager
     
     init() {
         // Initialize core networking
@@ -43,17 +44,20 @@ struct EcommerceApp: App {
         let emailVerificationService = EmailVerificationService(apiClient: apiClient)
         let productService = ProductService(apiClient: apiClient)
         let categoryService = CategoryService(apiClient: apiClient)
+        let recoveryCodesService = RecoveryCodesService(apiClient: apiClient)
         
         // Create managers that don't have dependencies
         let totpManager = TOTPManager(totpService: totpService)
         let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
-
+        let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoveryCodesService)
+        
         // Create auth manager with all dependencies
         let auth = AuthenticationManager(
             authService: authService,
             userService: userService,
             totpManager: totpManager,
             emailVerificationManager: emailVerificationManager,
+            recoveryCodesManager: recoveryCodesManager,
             authorizationManager: authorizationManager
         )
         
@@ -68,6 +72,7 @@ struct EcommerceApp: App {
         _totpManager = State(initialValue: totpManager)
         _emailVerificationManager = State(initialValue: emailVerificationManager)
         _permissionManager = State(initialValue: PermissionManager(authManager: auth))
+        _recoveryCodesManager = State(initialValue: recoveryCodesManager)
     }
     
     var body: some Scene {
@@ -83,6 +88,7 @@ struct EcommerceApp: App {
                 .environment(toastManager)
                 .environment(totpManager)
                 .environment(emailVerificationManager)
+                .environment(recoveryCodesManager)
                 .overlay {
                     ToastContainer()
                         .environment(toastManager)

@@ -2,8 +2,7 @@ import Foundation
 import Networking
 
 struct PreviewRefreshAPIClient: RefreshAPIClientProtocol {
-    init() {}
-    
+
     func refreshToken(_ refreshToken: String) async throws -> OAuthToken {
         // Return a mock token for preview
         Token(
@@ -120,7 +119,7 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
     }
     
     func getMFAMethods(stateToken: String?) async throws -> MFAMethodsResponse {
-        MFAMethodsResponse(emailEnabled: true, totpEnabled: true)
+        MFAMethodsResponse(emailMFAEnabled: true, totpMFAEnabled: true)
     }
     
     func verifyTOTPSignIn(code: String, stateToken: String) async throws -> AuthResponse {
@@ -492,13 +491,13 @@ extension CategoryResponse {
 
 // MARK: - Email Verification Service
 struct PreviewEmailVerificationService: EmailVerificationServiceProtocol {
-    
+
     func getInitialStatus() async throws -> EmailVerificationStatusResponse {
-        EmailVerificationStatusResponse(enabled: false, verified: true)
+        EmailVerificationStatusResponse(emailMFAEnabled: false, emailVerified: true)
     }
     
     func getEmailMFAStatus() async throws -> EmailVerificationStatusResponse {
-        EmailVerificationStatusResponse(enabled: false, verified: true)
+        EmailVerificationStatusResponse(emailMFAEnabled: false, emailVerified: true)
     }
     
     func sendInitialVerificationEmail(stateToken: String, email: String) async throws -> MessageResponse {
@@ -525,8 +524,8 @@ struct PreviewEmailVerificationService: EmailVerificationServiceProtocol {
         MessageResponse(message: "Email MFA enabled successfully", success: true)
     }
     
-    func verifyEmailMFA(code: String, email: String) async throws -> MessageResponse {
-        MessageResponse(message: "Email MFA verified successfully", success: true)
+    func verifyEmailMFA(code: String, email: String) async throws -> MFAVerifyResponse {
+        MFAVerifyResponse(message: "Email MFA verified successfully", success: true)
     }
     
     func disableEmailMFA(password: String) async throws -> MessageResponse {
@@ -538,7 +537,7 @@ struct PreviewEmailVerificationService: EmailVerificationServiceProtocol {
     }
     
     func getEmailVerificationStatus() async throws -> EmailVerificationStatusResponse {
-        EmailVerificationStatusResponse(enabled: false, verified: true)
+        EmailVerificationStatusResponse(emailMFAEnabled: false, emailVerified: true)
     }
 }
 
@@ -552,8 +551,8 @@ struct PreviewTOTPService: TOTPServiceProtocol {
         )
     }
     
-    func verifyTOTP(code: String) async throws -> MessageResponse {
-        MessageResponse(message: "TOTP MFA enabled successfully", success: true)
+    func verifyTOTP(code: String) async throws -> MFAVerifyResponse {
+        MFAVerifyResponse(message: "TOTP MFA enabled successfully", success: true)
     }
     
     func disableTOTP(password: String) async throws -> MessageResponse {
@@ -561,6 +560,65 @@ struct PreviewTOTPService: TOTPServiceProtocol {
     }
     
     func getTOTPStatus() async throws -> TOTPStatusResponse {
-        TOTPStatusResponse(enabled: true)
+        TOTPStatusResponse(totpMFAEnabled: true)
+    }
+}
+
+// MARK: - Recovery Codes Service
+public struct PreviewRecoveryCodesService: RecoveryCodesServiceProtocol {
+    public init() {}
+    
+    public func generateCodes() async throws -> RecoveryCodesResponse {
+        return RecoveryCodesResponse(
+            codes: ["1234-5678-9012-3456"],
+            message: "Store these recovery codes in a safe place",
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(30 * 24 * 60 * 60))
+        )
+    }
+    
+    public func listCodes() async throws -> RecoveryCodesStatusResponse {
+        return RecoveryCodesStatusResponse(
+            totalCodes: 10,
+            usedCodes: 0,
+            remainingCodes: 10,
+            expiredCodes: 0,
+            validCodes: 10,
+            shouldRegenerate: false,
+            nextExpirationDate: ISO8601DateFormatter().string(from: Date().addingTimeInterval(30 * 24 * 60 * 60))
+        )
+    }
+    
+    public func regenerateCodes(password: String) async throws -> RecoveryCodesResponse {
+        return RecoveryCodesResponse(
+            codes: ["1234-5678-9012-3456"],
+            message: "Store these recovery codes in a safe place",
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(30 * 24 * 60 * 60))
+        )
+    }
+    
+    public func verifyCode(code: String, stateToken: String) async throws -> AuthResponse {
+        return AuthResponse(
+            accessToken: "preview-access-token",
+            refreshToken: "preview-refresh-token",
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            expiresAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600)),
+            user: UserResponse.previewUser,
+            status: AuthResponse.STATUS_SUCCESS
+        )
+    }
+
+    public func getStatus() async throws -> RecoveryMFAStatusResponse {
+        return RecoveryMFAStatusResponse(
+            enabled: true,
+            hasValidCodes: true
+        )
+    }
+    
+    public func getMFAMethods() async throws -> MFAMethodsResponse {
+        return MFAMethodsResponse(
+            emailMFAEnabled: true,
+            totpMFAEnabled: true
+        )
     }
 }
