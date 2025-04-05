@@ -5,6 +5,7 @@
 
 import SwiftUI
 import Networking
+import GoogleSignIn
 
 @main
 struct EcommerceApp: App {
@@ -19,6 +20,7 @@ struct EcommerceApp: App {
     @State private var totpManager: TOTPManager
     @State private var emailVerificationManager: EmailVerificationManager
     @State private var recoveryCodesManager: RecoveryCodesManager
+    @State private var socialAuthManager: SocialAuthManager
     
     init() {
         // Initialize core networking
@@ -61,6 +63,14 @@ struct EcommerceApp: App {
             authorizationManager: authorizationManager
         )
         
+        // Initialize Google Sign-In
+        guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+              let dict = NSDictionary(contentsOfFile: path) as? [String: AnyObject],
+              let clientID = dict["CLIENT_ID"] as? String else {
+            fatalError("Couldn't find GoogleService-Info.plist or CLIENT_ID in it")
+        }
+        GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+        
         // Initialize @State properties
         _authManager = State(initialValue: auth)
         _userManager = State(initialValue: UserManager(userService: userService))
@@ -73,6 +83,7 @@ struct EcommerceApp: App {
         _emailVerificationManager = State(initialValue: emailVerificationManager)
         _permissionManager = State(initialValue: PermissionManager(authManager: auth))
         _recoveryCodesManager = State(initialValue: recoveryCodesManager)
+        _socialAuthManager = State(initialValue: SocialAuthManager(authManager: auth))
     }
     
     var body: some Scene {
@@ -89,9 +100,13 @@ struct EcommerceApp: App {
                 .environment(totpManager)
                 .environment(emailVerificationManager)
                 .environment(recoveryCodesManager)
+                .environment(socialAuthManager)
                 .overlay {
                     ToastContainer()
                         .environment(toastManager)
+                }
+                .onOpenURL { url in
+                    GIDSignIn.sharedInstance.handle(url)
                 }
         }
     }

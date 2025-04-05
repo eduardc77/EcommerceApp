@@ -9,6 +9,7 @@ enum AuthenticationError: Error {
     case networkError(Error)
     case invalidResponse
     case serverError(String)
+    case unknown
 }
 
 @Observable
@@ -184,7 +185,7 @@ public final class AuthenticationManager: ObservableObject {
         }
     }
 
-    public func signInWithGoogle(idToken: String, accessToken: String? = nil) async {
+    public func signInWithGoogle(idToken: String, accessToken: String? = nil) async throws -> AuthResponse {
         isLoading = true
         defer { isLoading = false }
 
@@ -192,13 +193,33 @@ public final class AuthenticationManager: ObservableObject {
         signInError = nil
         isAuthenticated = false
         pendingSignInResponse = nil
+        requiresTOTPVerification = false
+        requiresEmailMFAVerification = false
+        availableMFAMethods = []
 
-        do {
-            let response = try await authService.signInWithGoogle(idToken: idToken, accessToken: accessToken)
-            await completeSignIn(response: response)
-        } catch {
-            await handleSignInError(error)
+        let response = try await authService.signInWithGoogle(idToken: idToken, accessToken: accessToken)
+        
+        // For social sign-ins, we don't need additional MFA verification
+        // The provider (Google) already handles their own 2FA/security
+        isAuthenticated = true
+        currentUser = response.user
+        
+        // Store tokens
+        if let accessToken = response.accessToken,
+           let refreshToken = response.refreshToken,
+           let expiresIn = response.expiresIn,
+           let expiresAt = response.expiresAt {
+            let token = Token(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                tokenType: response.tokenType,
+                expiresIn: expiresIn,
+                expiresAt: expiresAt
+            )
+            await authorizationManager.storeToken(token)
         }
+        
+        return response
     }
 
     public func signInWithApple(
@@ -206,7 +227,7 @@ public final class AuthenticationManager: ObservableObject {
         authorizationCode: String,
         fullName: [String: String?]? = nil,
         email: String? = nil
-    ) async {
+    ) async throws -> AuthResponse {
         isLoading = true
         defer { isLoading = false }
 
@@ -214,18 +235,38 @@ public final class AuthenticationManager: ObservableObject {
         signInError = nil
         isAuthenticated = false
         pendingSignInResponse = nil
+        requiresTOTPVerification = false
+        requiresEmailMFAVerification = false
+        availableMFAMethods = []
 
-        do {
-            let response = try await authService.signInWithApple(
-                identityToken: identityToken,
-                authorizationCode: authorizationCode,
-                fullName: fullName,
-                email: email
+        let response = try await authService.signInWithApple(
+            identityToken: identityToken,
+            authorizationCode: authorizationCode,
+            fullName: fullName,
+            email: email
+        )
+        
+        // For social sign-ins, we don't need additional MFA verification
+        // The provider (Apple) already handles their own 2FA/security
+        isAuthenticated = true
+        currentUser = response.user
+        
+        // Store tokens
+        if let accessToken = response.accessToken,
+           let refreshToken = response.refreshToken,
+           let expiresIn = response.expiresIn,
+           let expiresAt = response.expiresAt {
+            let token = Token(
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                tokenType: response.tokenType,
+                expiresIn: expiresIn,
+                expiresAt: expiresAt
             )
-            await completeSignIn(response: response)
-        } catch {
-            await handleSignInError(error)
+            await authorizationManager.storeToken(token)
         }
+        
+        return response
     }
 
     public func completeSignIn(response: AuthResponse) async {

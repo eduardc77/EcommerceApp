@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		CEDE8AA02D8387B00089D481 /* Networking in Frameworks */ = {isa = PBXBuildFile; productRef = CEDE8A9F2D8387B00089D481 /* Networking */; };
+		CE06F1732DA1AEEB00EC1B5B /* Networking in Frameworks */ = {isa = PBXBuildFile; productRef = CE06F1722DA1AEEB00EC1B5B /* Networking */; };
+		CE06F20A2DA1B06D00EC1B5B /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = CE06F2092DA1B06D00EC1B5B /* GoogleSignIn */; };
+		CE06F20C2DA1B06D00EC1B5B /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = CE06F20B2DA1B06D00EC1B5B /* GoogleSignInSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -34,9 +36,22 @@
 		CE7F980A2D6E983800D738C2 /* Networking */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = Networking; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CEA67A942DA1D93A00D72950 /* Exceptions for "Ecommerce" folder in "Ecommerce" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CE7F97DB2D6E980F00D738C2 /* Ecommerce */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CE7F97DE2D6E980F00D738C2 /* Ecommerce */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CEA67A942DA1D93A00D72950 /* Exceptions for "Ecommerce" folder in "Ecommerce" target */,
+			);
 			path = Ecommerce;
 			sourceTree = "<group>";
 		};
@@ -57,7 +72,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CEDE8AA02D8387B00089D481 /* Networking in Frameworks */,
+				CE06F20C2DA1B06D00EC1B5B /* GoogleSignInSwift in Frameworks */,
+				CE06F1732DA1AEEB00EC1B5B /* Networking in Frameworks */,
+				CE06F20A2DA1B06D00EC1B5B /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -127,7 +144,9 @@
 			);
 			name = Ecommerce;
 			packageProductDependencies = (
-				CEDE8A9F2D8387B00089D481 /* Networking */,
+				CE06F1722DA1AEEB00EC1B5B /* Networking */,
+				CE06F2092DA1B06D00EC1B5B /* GoogleSignIn */,
+				CE06F20B2DA1B06D00EC1B5B /* GoogleSignInSwift */,
 			);
 			productName = Ecommerce;
 			productReference = CE7F97DC2D6E980F00D738C2 /* Ecommerce.app */;
@@ -211,6 +230,9 @@
 			);
 			mainGroup = CE7F97D32D6E980F00D738C2;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				CE06F2082DA1B06D00EC1B5B /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CE7F97DD2D6E980F00D738C2 /* Products */;
 			projectDirPath = "";
@@ -412,6 +434,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Ecommerce/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -427,7 +450,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = teamtreehouse.Ecommerce;
+				PRODUCT_BUNDLE_IDENTIFIER = teameduard.Ecommerce;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
@@ -451,6 +474,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Ecommerce/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -466,7 +490,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = teamtreehouse.Ecommerce;
+				PRODUCT_BUNDLE_IDENTIFIER = teameduard.Ecommerce;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
@@ -608,10 +632,31 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		CE06F2082DA1B06D00EC1B5B /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
-		CEDE8A9F2D8387B00089D481 /* Networking */ = {
+		CE06F1722DA1AEEB00EC1B5B /* Networking */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Networking;
+		};
+		CE06F2092DA1B06D00EC1B5B /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CE06F2082DA1B06D00EC1B5B /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		CE06F20B2DA1B06D00EC1B5B /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CE06F2082DA1B06D00EC1B5B /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

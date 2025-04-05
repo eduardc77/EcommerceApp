@@ -87,9 +87,9 @@ extension Store {
             case .getUserInfo:
                 return "/auth/userinfo"
             case .signInWithGoogle:
-                return "/auth/google/sign-in"
+                return "/auth/social/sign-in/google"
             case .signInWithApple:
-                return "/auth/apple/sign-in"
+                return "/auth/social/sign-in/apple"
             case .socialSignIn:
                 return "/auth/social/authorize"
             case .handleOAuthCallback:
@@ -192,18 +192,18 @@ extension Store {
             case let .revokeSession(sessionId):
                 return ["sessionId": sessionId]
             case let .signInWithGoogle(idToken, accessToken):
-                var body: [String: String] = ["idToken": idToken]
+                var body: [String: String] = ["id_token": idToken]
                 if let accessToken = accessToken {
-                    body["accessToken"] = accessToken
+                    body["access_token"] = accessToken
                 }
                 return body
             case let .signInWithApple(identityToken, authorizationCode, fullName, email):
                 var body: [String: Any] = [
-                    "identityToken": identityToken,
-                    "authorizationCode": authorizationCode
+                    "identity_token": identityToken,
+                    "authorization_code": authorizationCode
                 ]
                 if let fullName = fullName {
-                    body["fullName"] = fullName
+                    body["full_name"] = fullName
                 }
                 if let email = email {
                     body["email"] = email

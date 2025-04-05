@@ -372,7 +372,8 @@ extension UserResponse {
             createdAt: "2025-02-23T21:51:49.000Z",
             updatedAt: "2025-02-23T21:51:49.000Z",
             mfaEnabled: false,
-            lastSignInAt: "2025-02-23T21:51:49.000Z"
+            lastSignInAt: "2025-02-23T21:51:49.000Z",
+            hasPasswordAuth: false
         )
     }
 }

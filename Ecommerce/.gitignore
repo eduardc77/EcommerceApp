@@ -20,11 +20,10 @@ playground.xcworkspace
 
 # Swift Package Manager
 .build/
-Packages/
-Package.pins
-Package.resolved
-*.xcodeproj
-.swiftpm
+# Package.pins  # Commenting out to allow package resolution
+# Package.resolved  # Commenting out to allow package resolution
+.swiftpm/xcode/package.xcworkspace
+.swiftpm/xcode/xcuserdata/
 
 # CocoaPods
 Pods/
@@ -66,14 +65,17 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
-# Swift Package Manager
-DerivedData/
-.swiftpm/xcode/package.xcworkspace
-.swiftpm/xcode/xcuserdata/
-
 # Additional Xcode specific files
 *.xcuserstate
 *.xcbkptlist
 xcschememanagement.plist
 IDEWorkspaceChecks.plist
-WorkspaceSettings.xcsettings 
+WorkspaceSettings.xcsettings
+
+# App Configuration
+Ecommerce/Info.plist
+Info.plist
+
+# Google Service
+GoogleService-Info.plist
+Info.plist 

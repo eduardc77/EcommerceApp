@@ -78,6 +78,13 @@ struct AccountView: View {
     private var user: UserResponse? {
         authManager.currentUser
     }
+    
+    private var isSocialAuthUser: Bool {
+        guard let user = user else { return false }
+        // Social auth users have their email verified by default
+        // and don't have password authentication
+        return user.emailVerified && !user.hasPasswordAuth
+    }
 
     var body: some View {
         NavigationStack {
@@ -85,7 +92,9 @@ struct AccountView: View {
                 if let user = user {
                     profileSection(user)
                     accountInformationSection(user)
-                    twoFactorSection
+                    if !isSocialAuthUser {
+                        twoFactorSection
+                    }
                     signOutSection
                 } else {
                     noProfileView
@@ -237,8 +246,8 @@ struct AccountView: View {
                         .buttonStyle(.bordered)
                     }
                     .padding(.vertical, 8)
-                } else {
-                    // Show TOTP and Email MFA options when email is verified
+                } else if !isSocialAuthUser {
+                    // Show TOTP and Email MFA options only for non-social auth users
                     // TOTP Cell
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -381,14 +390,14 @@ struct AccountView: View {
         } header: {
             Text("Two-Factor Authentication")
         } footer: {
-            if let currentUser = authManager.currentUser {
-                if currentUser.emailVerified && 
-                   !authManager.totpManager.isTOTPMFAEnabled && 
-                   !emailVerificationManager.isEmailMFAEnabled {
-                    Text("We recommend enabling at least one form of two-factor authentication to better protect your account.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            if let currentUser = authManager.currentUser,
+               !isSocialAuthUser && // Only show recommendation for non-social auth users
+               currentUser.emailVerified && 
+               !authManager.totpManager.isTOTPMFAEnabled && 
+               !emailVerificationManager.isEmailMFAEnabled {
+                Text("We recommend enabling at least one form of two-factor authentication to better protect your account.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

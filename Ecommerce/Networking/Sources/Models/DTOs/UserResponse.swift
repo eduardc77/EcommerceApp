@@ -12,6 +12,7 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
     public let updatedAt: String?
     public let mfaEnabled: Bool? // Made optional to handle missing key in response
     public let lastSignInAt: String?
+    public let hasPasswordAuth: Bool // Whether the user has password authentication
     
     public init(
         id: String,
@@ -24,7 +25,8 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
         createdAt: String?,
         updatedAt: String?,
         mfaEnabled: Bool?,
-        lastSignInAt: String?
+        lastSignInAt: String?,
+        hasPasswordAuth: Bool
     ) {
         self.id = id
         self.username = username
@@ -37,6 +39,7 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
         self.updatedAt = updatedAt
         self.mfaEnabled = mfaEnabled
         self.lastSignInAt = lastSignInAt
+        self.hasPasswordAuth = hasPasswordAuth
     }
     
     /// Get creation date from ISO8601 string

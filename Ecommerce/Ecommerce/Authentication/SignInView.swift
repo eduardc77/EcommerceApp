@@ -3,6 +3,7 @@ import SwiftUI
 struct SignInView: View {
     @Environment(AuthenticationManager.self) private var authManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
+    @Environment(SocialAuthManager.self) private var socialAuthManager
     @State private var formState = SignInFormState()
     @FocusState private var focusedField: Field?
     @State private var showError = false
@@ -55,6 +56,11 @@ struct SignInView: View {
 
                 Section {
                     signInButton
+                    
+                    SocialSignInButton(
+                        title: "Sign in with Google",
+                        action: { await socialAuthManager.signInWithGoogle() }
+                    )
                 } footer: {
                     HStack {
                         Button {
@@ -285,10 +291,13 @@ import Networking
         recoveryCodesManager: recoveryCodesManager,
         authorizationManager: authorizationManager
     )
+    
+    let socialAuthManager = SocialAuthManager(authManager: authManager)
 
     SignInView()
         .environment(authManager)
         .environment(emailVerificationManager)
         .environment(totpManager)
+        .environment(socialAuthManager)
 }
 #endif

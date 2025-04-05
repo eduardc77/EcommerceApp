@@ -11,6 +11,7 @@ struct UserResponse: ResponseCodable, Sendable {
     let emailVerified: Bool
     let createdAt: String
     let updatedAt: String
+    let hasPasswordAuth: Bool
 
     init(from user: User) {
         self.id = user.id?.uuidString ?? ""
@@ -22,6 +23,7 @@ struct UserResponse: ResponseCodable, Sendable {
         self.emailVerified = user.emailVerified
         self.createdAt = user.createdAt?.ISO8601Format() ?? ""
         self.updatedAt = user.updatedAt?.ISO8601Format() ?? ""
+        self.hasPasswordAuth = user.passwordHash != nil
     }
 
     enum CodingKeys: String, CodingKey {
@@ -34,6 +36,7 @@ struct UserResponse: ResponseCodable, Sendable {
         case emailVerified = "email_verified"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+        case hasPasswordAuth = "has_password_auth"
     }
 }
 
