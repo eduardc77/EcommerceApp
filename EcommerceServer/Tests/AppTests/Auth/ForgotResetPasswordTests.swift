@@ -5,7 +5,7 @@ import Hummingbird
 import HummingbirdTesting
 
 @Suite("Forgot and Reset Password Tests")
-struct ForgotPasswordResetTests {
+struct ForgotResetPasswordTests {
 
     @Test("Forgot password request with non-existent email returns success")
     func testForgotPasswordWithNonExistentEmail() async throws {
@@ -200,11 +200,11 @@ struct ForgotPasswordResetTests {
             }
             
             // 3. Reset password with valid code
-            let resetRequest = [
-                "email": "resettest3@example.com",
-                "code": "123456", // Mock service always uses this code
-                "newPassword": "NewP@ssw0rd!9K#"
-            ]
+            let resetRequest = ResetPasswordRequest(
+                email: "resettest3@example.com",
+                code: "123456",
+                newPassword: "NewP@ssw0rd!9K#"
+            )
             
             try await client.execute(
                 uri: "/api/v1/auth/password/reset",
@@ -276,11 +276,11 @@ struct ForgotPasswordResetTests {
             }
             
             // 3. Reset password with valid code
-            let resetRequest = [
-                "email": "resettest4@example.com",
-                "code": "123456", // Mock service always uses this code
-                "newPassword": "NewP@ssw0rd!9K#"
-            ]
+            let resetRequest = ResetPasswordRequest(
+                email: "resettest4@example.com",
+                code: "123456",
+                newPassword: "NewP@ssw0rd!9K#"
+            )
             
             try await client.execute(
                 uri: "/api/v1/auth/password/reset",
