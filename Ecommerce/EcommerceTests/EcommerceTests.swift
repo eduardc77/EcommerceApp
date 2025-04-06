@@ -1,10 +1,3 @@
-//
-//  EcommerceTests.swift
-//  EcommerceTests
-//
-//  Created by User on 2/26/25.
-//
-
 import Testing
 
 struct EcommerceTests {

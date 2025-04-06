@@ -1,10 +1,3 @@
-//
-//  EcommerceUITestsLaunchTests.swift
-//  EcommerceUITests
-//
-//  Created by User on 2/26/25.
-//
-
 import XCTest
 
 final class EcommerceUITestsLaunchTests: XCTestCase {

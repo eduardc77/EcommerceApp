@@ -9,7 +9,7 @@ extension Store {
         case me
         case refreshToken(_ refreshToken: String)
         case changePassword(request: ChangePasswordRequest)
-        case forgotPassword(email: String)
+        case forgotPassword(request: ForgotPasswordRequest)
         case resetPassword(request: ResetPasswordRequest)
         case verifyTOTPSignIn(code: String, stateToken: String)
         case verifyEmailMFASignIn(code: String, stateToken: String)
@@ -171,8 +171,8 @@ extension Store {
                 return request
             case .changePassword(let request):
                 return request
-            case .forgotPassword(let email):
-                return ["email": email]
+            case .forgotPassword(let request):
+                return request
             case .resetPassword(let request):
                 return request
             case let .verifyTOTPSignIn(code, stateToken):

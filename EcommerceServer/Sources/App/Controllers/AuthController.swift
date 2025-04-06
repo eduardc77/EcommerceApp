@@ -1503,13 +1503,6 @@ struct AuthController {
         _ request: Request,
         context: Context
     ) async throws -> EditedResponse<MessageResponse> {
-        // Decode the request
-        struct ResetPasswordRequest: Codable {
-            let email: String
-            let code: String
-            let newPassword: String
-        }
-        
         let resetRequest = try await request.decode(as: ResetPasswordRequest.self, context: context)
         
         // Find user by email

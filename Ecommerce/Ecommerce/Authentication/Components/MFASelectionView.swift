@@ -90,7 +90,7 @@ struct MFASelectionView: View {
                     .disabled(isLoading)
                 }
             }
-            .navigationTitle("Two-Factor Authentication")
+            .navigationTitle("Multi-Factor Authentication")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

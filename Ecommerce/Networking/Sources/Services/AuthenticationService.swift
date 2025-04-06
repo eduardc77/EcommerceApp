@@ -79,8 +79,9 @@ public final class AuthenticationService: AuthenticationServiceProtocol {
     }
 
     public func forgotPassword(email: String) async throws -> MessageResponse {
+        let request = ForgotPasswordRequest(email: email)
         let response: MessageResponse = try await apiClient.performRequest(
-            from: Store.Authentication.forgotPassword(email: email),
+            from: Store.Authentication.forgotPassword(request: request),
             in: environment,
             allowRetry: false,
             requiresAuthorization: false

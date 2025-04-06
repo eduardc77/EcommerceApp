@@ -4,44 +4,27 @@ struct SignInView: View {
     @Environment(AuthenticationManager.self) private var authManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
     @Environment(SocialAuthManager.self) private var socialAuthManager
+    @Environment(AuthenticationCoordinator.self) private var coordinator
     @State private var formState = SignInFormState()
     @FocusState private var focusedField: Field?
     @State private var showError = false
     @State private var lockedIdentifier: String?
     @State private var remainingTime: Int?
     @State private var lockoutStartTime: Date?
-    @State private var navigationPath = NavigationPath()
-    @State private var authFlow: AuthFlow?
-    @State private var showingEmailVerification = false
-    @State private var showingMFASelection = false
     @State private var pendingStateToken: String?
-
+    
     private enum Field {
         case identifier
         case password
     }
-
-    private enum AuthFlow: Identifiable {
-        case totpVerification(stateToken: String)
-        case emailVerification(stateToken: String)
-        case mfaSelection(stateToken: String)
-        case recoveryCodeVerification(stateToken: String)
-
-        var id: String {
-            switch self {
-            case .totpVerification: return "totp"
-            case .emailVerification: return "email"
-            case .mfaSelection: return "mfa-selection"
-            case .recoveryCodeVerification: return "recovery-code"
-            }
-        }
-    }
-
+    
     var body: some View {
-        NavigationStack(path: $navigationPath) {
+        @Bindable var bindableCoordinator = coordinator
+        
+        NavigationStack(path: $bindableCoordinator.navigationPath) {
             Form {
                 signInFieldsSection
-
+                
                 if let remainingTime = remainingTime, lockedIdentifier == formState.identifier {
                     Section {
                         HStack {
@@ -53,48 +36,66 @@ struct SignInView: View {
                         .foregroundStyle(.red)
                     }
                 }
-
+                
                 Section {
                     signInButton
-                    
-                    SocialSignInButton(
-                        title: "Sign in with Google",
-                        action: { await socialAuthManager.signInWithGoogle() }
-                    )
                 } footer: {
                     HStack {
                         Button {
-                            navigationPath.append("signup")
+                            coordinator.navigateToSignUp()
                         } label: {
-                            Text("Create Account")
+                            Text("Create Account")   
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
-
+                        
                         Button {
-                            navigationPath.append("forgot-password")
+                            coordinator.navigateToForgotPassword()
                         } label: {
                             Text("Forgot Password?")
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                         }
                     }
+                    .font(.subheadline)
                     .buttonStyle(.plain)
                     .foregroundStyle(.tint)
+                    .padding(.bottom)
+                }
+                .listRowInsets(.init())
+                .listRowBackground(Color.clear)
+                
+                Section {
+                    VStack {
+                        AsyncButton("Sign in with Google") {
+                            await socialAuthManager.signInWithGoogle()
+                        }
+                        
+                        AsyncButton("Sign in with Apple") {
+                            // TODO: Implement Apple Sign In
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                } header: {
+                    VStack {
+                        Divider()
+                        Text("Or")
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
                 }
                 .listRowInsets(.init())
                 .listRowBackground(Color.clear)
             }
             .navigationTitle("Sign In")
-            .navigationDestination(for: String.self) { route in
+            .navigationDestination(for: AuthenticationCoordinator.Route.self) { route in
                 switch route {
-                case "signup":
+                case .signup:
                     SignUpView()
-                case "forgot-password":
-                    Text("")
-                default:
-                    EmptyView()
+                case .forgotPassword:
+                    ForgotPasswordView()
+                case .resetPassword(let email):
+                    ResetPasswordView(email: email)
                 }
             }
-            .sheet(item: $authFlow) { flow in
+            .sheet(item: $bindableCoordinator.authFlow) { flow in
                 switch flow {
                 case .totpVerification(let token):
                     VerificationView(type: .totpSignIn(stateToken: token))
@@ -104,15 +105,17 @@ struct SignInView: View {
                     MFASelectionView(stateToken: token) { option in
                         switch option {
                         case .totp:
-                            authFlow = .totpVerification(stateToken: token)
+                            coordinator.showTOTPVerification(stateToken: token)
                         case .email:
-                            authFlow = .emailVerification(stateToken: token)
+                            coordinator.showEmailVerification(stateToken: token)
                         case .recoveryCode:
-                            authFlow = .recoveryCodeVerification(stateToken: token)
+                            coordinator.showRecoveryCodeVerification(stateToken: token)
                         }
                     }
                 case .recoveryCodeVerification(let token):
                     RecoveryCodeEntryView(stateToken: token)
+                case .resetPassword:
+                    EmptyView() // This is handled by navigationDestination
                 }
             }
             .onChange(of: focusedField) { oldValue, newValue in
@@ -143,33 +146,33 @@ struct SignInView: View {
             .onChange(of: authManager.availableMFAMethods) { _, methods in
                 if !methods.isEmpty, let token = authManager.pendingSignInResponse?.stateToken {
                     if methods.count > 1 {
-                        authFlow = .mfaSelection(stateToken: token)
+                        coordinator.showMFASelection(stateToken: token)
                     } else if methods.contains(.totp) {
-                        authFlow = .totpVerification(stateToken: token)
+                        coordinator.showTOTPVerification(stateToken: token)
                     } else if methods.contains(.email) {
-                        authFlow = .emailVerification(stateToken: token)
+                        coordinator.showEmailVerification(stateToken: token)
                     }
                 }
             }
             .onChange(of: authManager.requiresTOTPVerification) { _, requiresTOTP in
                 if requiresTOTP, let token = authManager.pendingSignInResponse?.stateToken {
                     if authManager.requiresEmailMFAVerification {
-                        authFlow = .mfaSelection(stateToken: token)
+                        coordinator.showMFASelection(stateToken: token)
                     } else {
-                        authFlow = .totpVerification(stateToken: token)
+                        coordinator.showTOTPVerification(stateToken: token)
                     }
                 }
             }
             .onChange(of: authManager.requiresEmailMFAVerification) { _, requiresEmail in
                 if requiresEmail, let token = authManager.pendingSignInResponse?.stateToken {
                     if authManager.requiresTOTPVerification {
-                        authFlow = .mfaSelection(stateToken: token)
+                        coordinator.showMFASelection(stateToken: token)
                     } else {
-                        authFlow = .emailVerification(stateToken: token)
+                        coordinator.showEmailVerification(stateToken: token)
                     }
                 }
             }
-   
+            
             .onDisappear {
                 formState.reset()
                 focusedField = nil
@@ -191,7 +194,7 @@ struct SignInView: View {
             }
         }
     }
-
+    
     private var signInFieldsSection: some View {
         Section {
             ValidatedFormField(
@@ -215,7 +218,7 @@ struct SignInView: View {
             )
         }
     }
-
+    
     private var signInButton: some View {
         AsyncButton("Sign In") {
             formState.validateAll()
@@ -226,22 +229,22 @@ struct SignInView: View {
         .buttonStyle(.bordered)
         .disabled(lockedIdentifier == formState.identifier && remainingTime != nil)
     }
-
+    
     private func signIn() async {
         await authManager.signIn(
             identifier: formState.identifier,
             password: formState.password
         )
     }
-
+    
     private func startTimer() {
         guard let startTime = lockoutStartTime,
               let totalDuration = remainingTime else { return }
-
+        
         // Calculate actual remaining time based on how long it's been since we got the error
         let elapsed = Int(-startTime.timeIntervalSinceNow)
         remainingTime = max(0, totalDuration - elapsed)
-
+        
         Task {
             while remainingTime ?? 0 > 0 {
                 try? await Task.sleep(for: .seconds(1))
@@ -256,7 +259,7 @@ struct SignInView: View {
             }
         }
     }
-
+    
     private func formatTime(_ seconds: Int) -> String {
         let minutes = seconds / 60
         let remainingSeconds = seconds % 60
@@ -282,7 +285,7 @@ import Networking
     let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
     let recoeryCodesService = PreviewRecoveryCodesService()
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
-
+    
     let authManager = AuthenticationManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
@@ -293,7 +296,7 @@ import Networking
     )
     
     let socialAuthManager = SocialAuthManager(authManager: authManager)
-
+    
     SignInView()
         .environment(authManager)
         .environment(emailVerificationManager)

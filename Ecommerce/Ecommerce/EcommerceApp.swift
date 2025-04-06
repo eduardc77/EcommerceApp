@@ -1,8 +1,3 @@
-//
-//  EcommerceApp.swift
-//  Ecommerce
-//
-
 import SwiftUI
 import Networking
 import GoogleSignIn
@@ -21,6 +16,7 @@ struct EcommerceApp: App {
     @State private var emailVerificationManager: EmailVerificationManager
     @State private var recoveryCodesManager: RecoveryCodesManager
     @State private var socialAuthManager: SocialAuthManager
+    @State private var authCoordinator = AuthenticationCoordinator()
     
     init() {
         // Initialize core networking
@@ -101,6 +97,7 @@ struct EcommerceApp: App {
                 .environment(emailVerificationManager)
                 .environment(recoveryCodesManager)
                 .environment(socialAuthManager)
+                .environment(authCoordinator)
                 .overlay {
                     ToastContainer()
                         .environment(toastManager)

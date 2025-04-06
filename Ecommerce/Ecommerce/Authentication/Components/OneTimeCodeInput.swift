@@ -1,10 +1,3 @@
-//
-//  OneTimeCodeInput.swift
-//  Ecommerce
-//
-//  Created by User on 3/17/25.
-//
-
 import SwiftUI
 
 struct OneTimeCodeInput: View {

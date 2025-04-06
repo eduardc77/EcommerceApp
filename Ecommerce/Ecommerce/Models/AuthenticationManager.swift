@@ -534,6 +534,49 @@ public final class AuthenticationManager: ObservableObject {
     public func disableEmailMFA(password: String) async throws {
         try await emailVerificationManager.disableEmailMFA(password: password)
     }
+
+    public func requestPasswordReset(email: String) async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            _ = try await authService.forgotPassword(email: email)
+        } catch {
+            throw error
+        }
+    }
+    
+    public func resetPassword(email: String, code: String, newPassword: String) async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            let request = ResetPasswordRequest(
+                email: email,
+                code: code,
+                newPassword: newPassword
+            )
+            let response = try await authService.resetPassword(request: request)
+            // No need to complete sign in here since we want user to sign in with new password
+        } catch {
+            throw error
+        }
+    }
+    
+    public func changePassword(currentPassword: String, newPassword: String) async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            let request = ChangePasswordRequest(
+                currentPassword: currentPassword,
+                newPassword: newPassword
+            )
+            try await authService.changePassword(request: request)
+        } catch {
+            throw error
+        }
+    }
 }
 
 
