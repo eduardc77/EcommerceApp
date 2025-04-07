@@ -1,50 +1,6 @@
 # EcommerceApp
 
-A full-stack ecommerce application with a Swift server and iOS mobile client, implementing industry-standard security practices.
-
-## Project Structure
-
-```
-EcommerceApp/
-├── Server/                 # Hummingbird Server
-│   ├── Sources/
-│   │   └── App/
-│   │       ├── Controllers/
-│   │       ├── Models/
-│   │       ├── Services/
-│   │       └── main.swift
-│   ├── Tests/
-│   │   └── AppTests/
-│   ├── Package.swift
-│   └── README.md
-│
-├── iOS/                    # iOS Mobile App
-│   ├── Sources/
-│   │   ├── Authentication/
-│   │   │   ├── Views/
-│   │   │   ├── ViewModels/
-│   │   │   └── Models/
-│   │   ├── Common/
-│   │   │   ├── Components/
-│   │   │   ├── Extensions/
-│   │   │   └── Utilities/
-│   │   ├── Networking/
-│   │   │   ├── APIClient/
-│   │   │   ├── Models/
-│   │   │   └── Services/
-│   │   └── App/
-│   │       └── EcommerceApp.swift
-│   ├── Tests/
-│   │   └── EcommerceAppTests/
-│   ├── EcommerceApp.xcodeproj
-│   └── README.md
-│
-└── Documentation/
-    ├── API.md
-    ├── SETUP.md
-    └── CONTRIBUTING.md
-
-```
+A full-stack auth application with a Hummingbird Swift server and iOS mobile client, implementing industry-standard security practices.
 
 ## Components
 
