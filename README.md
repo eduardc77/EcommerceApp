@@ -231,4 +231,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 For support, please open an issue in the GitHub repository or contact the maintainers.
 
 ## Disclaimer
-This application is created for learning purposes to understand and implement industry-standard practices. While it implements security best practices, proper security auditing and testing should be performed before using in a production environment.
+This application is still work in progress and is created for learning purposes to implement industry-standard practices. While it implements security best practices, proper security auditing and testing should be performed before using in a production environment.
