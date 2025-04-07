@@ -17,7 +17,7 @@ struct MFASelectionView: View {
                         switch method {
                         case .totp: return MFAOption.totp
                         case .email: return MFAOption.email
-                        case .recoveryCode: return nil // Never show recovery code in main list
+                        case .recoveryCode: return nil // Don't show recovery code in main list
                         }
                     }) { option in
                         Button {
