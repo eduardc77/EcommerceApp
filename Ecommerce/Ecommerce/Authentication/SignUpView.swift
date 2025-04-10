@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SignUpView: View {
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
     @State private var formState = SignUpFormState()
     @FocusState private var focusedField: Field?
@@ -172,7 +172,7 @@ import Networking
     let recoeryCodesService = PreviewRecoveryCodesService()
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
 
-    let authManager = AuthenticationManager(
+    let authManager = AuthManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
         totpManager: totpManager,

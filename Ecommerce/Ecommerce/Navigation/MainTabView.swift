@@ -4,7 +4,7 @@ import Networking
 struct MainTabView: View {
     @State private var selectedTab: AppTab = .home
     @Environment(CartManager.self) private var cartManager
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(TOTPManager.self) private var totpManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
 
@@ -88,7 +88,7 @@ struct MainTabView: View {
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
 
     // Initialize auth manager with services
-    let authManager = AuthenticationManager(
+    let authManager = AuthManager(
         authService: authService,
         userService: userService,
         totpManager: totpManager,

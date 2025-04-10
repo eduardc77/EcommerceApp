@@ -41,7 +41,7 @@ public enum TOTPError: LocalizedError {
 /// Manages Time-based One-Time Password (TOTP) Multi-Factor Authentication (MFA)
 @Observable
 @MainActor
-public final class TOTPManager {
+public class TOTPManager {
     private let totpService: TOTPServiceProtocol
     
     /// Indicates if a TOTP operation is in progress

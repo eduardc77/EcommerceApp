@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RecoveryCodesView: View {
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(RecoveryCodesManager.self) private var recoveryCodesManager
     @Environment(\.dismiss) private var dismiss
     
@@ -145,7 +145,7 @@ import Networking
     let recoeryCodesService = PreviewRecoveryCodesService()
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
     
-    let authManager = AuthenticationManager(
+    let authManager = AuthManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
         totpManager: totpManager,

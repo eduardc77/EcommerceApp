@@ -3,7 +3,7 @@ import Networking
 import PhotosUI
 
 struct AccountView: View {
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
     @Environment(RecoveryCodesManager.self) private var recoveryCodesManager
     @Environment(\.dismiss) private var dismiss
@@ -504,7 +504,7 @@ struct AccountView: View {
         @Binding var isEditing: Bool
         @Binding var editedName: String
         @Binding var editedEmail: String
-        let authManager: AuthenticationManager
+        let authManager: AuthManager
 
         var body: some ToolbarContent {
             if user != nil {
@@ -616,7 +616,7 @@ import Networking
     let recoeryCodesService = PreviewRecoveryCodesService()
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
 
-    let authManager = AuthenticationManager(
+    let authManager = AuthManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
         totpManager: totpManager,

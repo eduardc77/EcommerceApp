@@ -14,7 +14,7 @@ enum AuthenticationError: Error {
 
 @Observable
 @MainActor
-public final class AuthenticationManager: ObservableObject {
+public final class AuthManager: ObservableObject {
     private let authService: AuthenticationServiceProtocol
     private let userService: UserServiceProtocol
     private let authorizationManager: AuthorizationManagerProtocol
@@ -556,7 +556,7 @@ public final class AuthenticationManager: ObservableObject {
                 code: code,
                 newPassword: newPassword
             )
-            let response = try await authService.resetPassword(request: request)
+            let _ = try await authService.resetPassword(request: request)
             // No need to complete sign in here since we want user to sign in with new password
         } catch {
             throw error

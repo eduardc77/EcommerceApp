@@ -4,7 +4,7 @@ import GoogleSignIn
 
 @main
 struct EcommerceApp: App {
-    @State private var authManager: AuthenticationManager
+    @State private var authManager: AuthManager
     @State private var categoryManager: CategoryManager
     @State private var productManager: ProductManager
     @State private var permissionManager: PermissionManager
@@ -50,7 +50,7 @@ struct EcommerceApp: App {
         let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoveryCodesService)
         
         // Create auth manager with all dependencies
-        let auth = AuthenticationManager(
+        let auth = AuthManager(
             authService: authService,
             userService: userService,
             totpManager: totpManager,

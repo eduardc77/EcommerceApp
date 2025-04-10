@@ -2,7 +2,7 @@ import SwiftUI
 
 struct RecoveryCodeEntryView: View {
     let stateToken: String
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(\.dismiss) private var dismiss
     
     @State private var recoveryCode = ""
@@ -278,7 +278,7 @@ import Networking
     let recoeryCodesService = PreviewRecoveryCodesService()
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
 
-    let authManager = AuthenticationManager(
+    let authManager = AuthManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
         totpManager: totpManager,

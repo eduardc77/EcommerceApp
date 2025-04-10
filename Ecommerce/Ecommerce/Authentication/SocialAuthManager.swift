@@ -5,11 +5,11 @@ import SwiftUI
 @Observable
 @MainActor
 final class SocialAuthManager {
-    private let authManager: AuthenticationManager
+    private let authManager: AuthManager
     public var error: Error?
     public var isLoading = false
     
-    init(authManager: AuthenticationManager) {
+    init(authManager: AuthManager) {
         self.authManager = authManager
     }
     

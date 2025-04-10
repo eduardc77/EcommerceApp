@@ -4,9 +4,9 @@ import Networking
 @Observable
 @MainActor
 public final class PermissionManager {
-    private let authManager: AuthenticationManager
+    private let authManager: AuthManager
     
-    public init(authManager: AuthenticationManager) {
+    public init(authManager: AuthManager) {
         self.authManager = authManager
     }
     

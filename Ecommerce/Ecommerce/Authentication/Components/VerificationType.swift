@@ -1,10 +1,3 @@
-//
-//  VerificationType.swift
-//  Ecommerce
-//
-//  Created by User on 3/20/25.
-//
-
 import SwiftUI
 
 public enum VerificationType {

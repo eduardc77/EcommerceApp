@@ -6,7 +6,7 @@ struct ProductCard: View {
     let namespace: Namespace.ID
 
     @Environment(ProductManager.self) private var productManager
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(CartManager.self) private var cartManager
     @Environment(ToastManager.self) private var toastManager
     @State private var showDeleteConfirmation = false

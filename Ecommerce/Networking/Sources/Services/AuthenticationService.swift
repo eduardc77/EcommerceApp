@@ -315,7 +315,7 @@ public final class AuthenticationService: AuthenticationServiceProtocol {
         state: String,
         scope: String? = nil
     ) async throws -> URL {
-        let response: URLResponse = try await apiClient.performRequest(
+        let response: APIURLResponse = try await apiClient.performRequest(
             from: Store.Authentication.socialSignIn(
                 provider: provider,
                 redirectUri: redirectUri,

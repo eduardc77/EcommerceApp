@@ -37,7 +37,7 @@ public struct RecoveryCode: Identifiable {
 /// Manages recovery codes for MFA
 @Observable
 @MainActor
-public final class RecoveryCodesManager {
+public class RecoveryCodesManager {
     private let recoveryCodesService: RecoveryCodesServiceProtocol
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Ecommerce", category: "RecoveryCodesManager")
     

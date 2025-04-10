@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ForgotPasswordView: View {
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(AuthenticationCoordinator.self) private var coordinator
     @State private var email = ""
     @State private var isLoading = false
