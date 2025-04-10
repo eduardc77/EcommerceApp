@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct VerificationView: View {
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
     @Environment(\.dismiss) private var dismiss
 
@@ -509,7 +509,7 @@ import Networking
     let recoeryCodesService = PreviewRecoveryCodesService()
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
 
-    let authManager = AuthenticationManager(
+    let authManager = AuthManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
         totpManager: totpManager,

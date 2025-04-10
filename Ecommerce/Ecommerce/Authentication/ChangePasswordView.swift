@@ -8,7 +8,7 @@ private struct ErrorResponse: Codable {
 }
 
 struct ChangePasswordView: View {
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @State private var formState = ResetPasswordFormState()
     @FocusState private var focusedField: ResetPasswordField?
     @State private var showSuccess = false

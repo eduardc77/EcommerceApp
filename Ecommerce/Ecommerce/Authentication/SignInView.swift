@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SignInView: View {
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
     @Environment(SocialAuthManager.self) private var socialAuthManager
     @Environment(AuthenticationCoordinator.self) private var coordinator
@@ -286,7 +286,7 @@ import Networking
     let recoeryCodesService = PreviewRecoveryCodesService()
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
     
-    let authManager = AuthenticationManager(
+    let authManager = AuthManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
         totpManager: totpManager,

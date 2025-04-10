@@ -7,7 +7,7 @@ struct ProductDetailView: View {
     
     @Environment(ProductManager.self) private var productManager
     @Environment(PermissionManager.self) private var permissionManager
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(CartManager.self) private var cartManager
     @Environment(ToastManager.self) private var toastManager
     @Environment(\.dismiss) private var dismiss

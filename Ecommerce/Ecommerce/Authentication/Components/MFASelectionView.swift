@@ -3,7 +3,7 @@ import SwiftUI
 struct MFASelectionView: View {
     let stateToken: String
     let onSelect: (MFAOption) -> Void
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(\.dismiss) private var dismiss
     @State private var isLoading = false
     @State private var error: Error?
@@ -159,7 +159,7 @@ import Networking
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoveryCodesService)
 
     let authService = PreviewAuthenticationService(authorizationManager: authorizationManager)
-    let authManager = AuthenticationManager(
+    let authManager = AuthManager(
         authService: authService,
         userService: PreviewUserService(),
         totpManager: totpManager,

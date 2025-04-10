@@ -1,6 +1,6 @@
 import Foundation
 
-public struct URLResponse: Codable, Sendable {
+public struct APIURLResponse: Codable, Sendable {
     public let url: URL
     
     enum CodingKeys: String, CodingKey {

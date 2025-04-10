@@ -2,7 +2,12 @@ import Foundation
 import OSLog
 
 public protocol APIClient: Sendable {
-    func performRequest<T: Decodable & Sendable>(from endpoint: APIEndpoint, in environment: APIEnvironment, allowRetry: Bool, requiresAuthorization: Bool) async throws -> T
+    func performRequest<T: Decodable & Sendable>(
+        from endpoint: APIEndpoint,
+        in environment: APIEnvironment,
+        allowRetry: Bool,
+        requiresAuthorization: Bool
+    ) async throws -> T
 }
 
 public final class DefaultAPIClient: APIClient {

@@ -700,7 +700,7 @@ struct MFARecoveryCodesTests {
             }
             
             // Test MFA selection with TOTP method
-            let totpSelectionResponse = try await client.execute(
+            let _ = try await client.execute(
                 uri: "/api/v1/auth/mfa/select",
                 method: .post,
                 body: JSONEncoder().encodeAsByteBuffer(

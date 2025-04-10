@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
 
     var body: some View {
         Group {

@@ -8,7 +8,7 @@ private struct ErrorResponse: Codable {
 }
 
 struct ResetPasswordView: View {
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(AuthenticationCoordinator.self) private var coordinator
     @State private var formState = ResetPasswordFormState()
     @FocusState private var focusedField: ResetPasswordField?
@@ -249,7 +249,7 @@ struct ResetPasswordView: View {
 #Preview {
     NavigationStack {
         ChangePasswordView()
-            .environment(AuthenticationManager(
+            .environment(AuthManager(
                 authService: PreviewAuthenticationService(),
                 userService: PreviewUserService(),
                 totpManager: TOTPManager(totpService: PreviewTOTPService()),

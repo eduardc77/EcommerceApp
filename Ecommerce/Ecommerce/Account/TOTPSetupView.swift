@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TOTPSetupView: View {
-    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(AuthManager.self) private var authManager
     @Environment(\.dismiss) private var dismiss
     @State private var currentStep = SetupStep.intro
     @State private var qrCode: String?
@@ -167,7 +167,7 @@ import Networking
     let recoeryCodesService = PreviewRecoveryCodesService()
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
     
-    let authManager = AuthenticationManager(
+    let authManager = AuthManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
         totpManager: totpManager,
