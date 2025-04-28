@@ -4,7 +4,7 @@ import SwiftUI
 
 @Observable
 @MainActor
-final class SocialAuthManager {
+public final class SocialAuthManager {
     private let authManager: AuthManager
     public var error: Error?
     public var isLoading = false
@@ -34,7 +34,9 @@ final class SocialAuthManager {
                         continuation.resume(throwing: AuthenticationError.invalidCredentials)
                         return
                     }
-                    continuation.resume(returning: signInResult)
+                    Task { @MainActor in
+                        continuation.resume(returning: signInResult)
+                    }
                 }
             }
 

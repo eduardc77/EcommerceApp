@@ -21,9 +21,9 @@ struct UserDetailView: View {
     }
     
     private var canSave: Bool {
-        !editedDisplayName.isEmpty && 
+        !editedDisplayName.isEmpty &&
         isEmailValid &&
-        !isCheckingEmail && 
+        !isCheckingEmail &&
         emailError == nil &&
         (editedEmail != user.email || editedDisplayName != user.displayName)
     }
@@ -58,7 +58,9 @@ struct UserDetailView: View {
                             .onChange(of: editedEmail) {
                                 emailError = nil
                                 if isEmailValid && editedEmail != user.email {
-                                    checkEmailAvailability()
+                                    Task {
+                                        await checkEmailAvailability()
+                                    }
                                 }
                             }
                         
@@ -138,21 +140,21 @@ struct UserDetailView: View {
     }
     
     @MainActor
-    private func checkEmailAvailability() {
+    private func checkEmailAvailability() async {
         guard editedEmail != user.email else { return }
         
         isCheckingEmail = true
         emailError = nil
         
-        Task {
-            let isAvailable = await userManager.checkEmailAvailability(editedEmail)
-            if !isAvailable {
-                emailError = "Email is already taken"
-            }
-            isCheckingEmail = false
+        let isAvailable = await userManager.checkEmailAvailability(editedEmail)
+        if !isAvailable {
+            emailError = "Email is already taken"
         }
+        
+        isCheckingEmail = false
     }
     
+    @MainActor
     private func updateUser() async {
         await userManager.updateUser(
             id: user.id,
@@ -161,4 +163,4 @@ struct UserDetailView: View {
         isEditing = false
         dismiss()
     }
-} 
+}

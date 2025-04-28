@@ -1,12 +1,12 @@
 import Foundation
 
-public protocol RecoveryCodesServiceProtocol {
-    func generateCodes() async throws -> RecoveryCodesResponse
-    func listCodes() async throws -> RecoveryCodesStatusResponse
-    func regenerateCodes(password: String) async throws -> RecoveryCodesResponse
-    func verifyCode(code: String, stateToken: String) async throws -> AuthResponse
-    func getStatus() async throws -> RecoveryMFAStatusResponse
-    func getMFAMethods() async throws -> MFAMethodsResponse
+public protocol RecoveryCodesServiceProtocol: Actor {
+    @Sendable func generateCodes() async throws -> RecoveryCodesResponse
+    @Sendable func listCodes() async throws -> RecoveryCodesStatusResponse
+    @Sendable func regenerateCodes(password: String) async throws -> RecoveryCodesResponse
+    @Sendable func verifyCode(code: String, stateToken: String) async throws -> AuthResponse
+    @Sendable func getStatus() async throws -> RecoveryMFAStatusResponse
+    @Sendable func getMFAMethods() async throws -> MFAMethodsResponse
 }
 
 public actor RecoveryCodesService: RecoveryCodesServiceProtocol {

@@ -3,6 +3,7 @@ import Networking
 import SwiftUI
 
 @Observable
+@MainActor
 public final class ProductManager {
     private enum FilterKey {
         static let title = "title"

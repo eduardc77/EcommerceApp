@@ -42,25 +42,25 @@ public class RecoveryCodesManager {
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Ecommerce", category: "RecoveryCodesManager")
     
     /// Indicates if a recovery code operation is in progress
-    @MainActor public private(set) var isLoading = false
+    public private(set) var isLoading = false
     
     /// The last error that occurred during recovery code operations
-    @MainActor public private(set) var error: Error?
+    public private(set) var error: Error?
     
     /// List of available recovery codes
-    @MainActor public var codes: [RecoveryCode] = []
+    public var codes: [RecoveryCode] = []
     
     /// Message from the server about the recovery codes
-    @MainActor public private(set) var message: String = ""
+    public private(set) var message: String = ""
     
     /// When the recovery codes expire
-    @MainActor public private(set) var expiresAt: String = ""
+    public private(set) var expiresAt: String = ""
     
     /// Current status of recovery codes
-    @MainActor public private(set) var status: RecoveryMFAStatusResponse?
+    public private(set) var status: RecoveryMFAStatusResponse?
     
     /// Indicates if recovery codes should be regenerated (e.g., due to expiration)
-    @MainActor public private(set) var shouldRegenerate: Bool = false
+    public private(set) var shouldRegenerate: Bool = false
     
     public init(recoveryCodesService: RecoveryCodesServiceProtocol) {
         self.recoveryCodesService = recoveryCodesService

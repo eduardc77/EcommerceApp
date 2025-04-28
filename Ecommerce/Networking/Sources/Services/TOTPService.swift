@@ -1,10 +1,10 @@
 import Foundation
 
-public protocol TOTPServiceProtocol {
-    func verifyTOTP(code: String) async throws -> MFAVerifyResponse
-    func enableTOTP() async throws -> TOTPSetupResponse
-    func disableTOTP(password: String) async throws -> MessageResponse
-    func getTOTPStatus() async throws -> TOTPStatusResponse
+public protocol TOTPServiceProtocol: Actor {
+    @Sendable func verifyTOTP(code: String) async throws -> MFAVerifyResponse
+    @Sendable func enableTOTP() async throws -> TOTPSetupResponse
+    @Sendable func disableTOTP(password: String) async throws -> MessageResponse
+    @Sendable func getTOTPStatus() async throws -> TOTPStatusResponse
 }
 
 public actor TOTPService: TOTPServiceProtocol {

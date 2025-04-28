@@ -1,15 +1,15 @@
 import Foundation
 
-public protocol EmailVerificationServiceProtocol {
-    func getInitialStatus() async throws -> EmailVerificationStatusResponse
-    func getEmailMFAStatus() async throws -> EmailVerificationStatusResponse
-    func sendInitialVerificationEmail(stateToken: String, email: String) async throws -> MessageResponse
-    func resendInitialVerificationEmail(stateToken: String, email: String) async throws -> MessageResponse
-    func verifyInitialEmail(code: String, stateToken: String, email: String) async throws -> AuthResponse
-    func enableEmailMFA() async throws -> MessageResponse
-    func verifyEmailMFA(code: String, email: String) async throws -> MFAVerifyResponse
-    func disableEmailMFA(password: String) async throws -> MessageResponse
-    func resendEmailMFACode() async throws -> MessageResponse
+public protocol EmailVerificationServiceProtocol: Actor {
+    @Sendable func getInitialStatus() async throws -> EmailVerificationStatusResponse
+    @Sendable func getEmailMFAStatus() async throws -> EmailVerificationStatusResponse
+    @Sendable func sendInitialVerificationEmail(stateToken: String, email: String) async throws -> MessageResponse
+    @Sendable func resendInitialVerificationEmail(stateToken: String, email: String) async throws -> MessageResponse
+    @Sendable func verifyInitialEmail(code: String, stateToken: String, email: String) async throws -> AuthResponse
+    @Sendable func enableEmailMFA() async throws -> MessageResponse
+    @Sendable func verifyEmailMFA(code: String, email: String) async throws -> MFAVerifyResponse
+    @Sendable func disableEmailMFA(password: String) async throws -> MessageResponse
+    @Sendable func resendEmailMFACode() async throws -> MessageResponse
 }
 
 public actor EmailVerificationService: EmailVerificationServiceProtocol {

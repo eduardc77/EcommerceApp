@@ -49,6 +49,7 @@ public struct Toast: Identifiable {
 }
 
 @Observable
+@MainActor
 public final class ToastManager {
     public private(set) var toast: Toast?
     private var dismissTask: Task<Void, Never>?
@@ -64,7 +65,7 @@ public final class ToastManager {
         }
         
         // Schedule new dismiss task
-        dismissTask = Task { @MainActor in
+        dismissTask = Task {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             
@@ -101,7 +102,7 @@ struct ToastContainer: View {
 }
 
 private struct BoundsPreferenceKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
+    static let defaultValue: CGRect = .zero
     
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         value = nextValue()

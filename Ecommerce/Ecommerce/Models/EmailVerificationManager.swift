@@ -3,7 +3,7 @@ import Networking
 
 /// Manages the email verification process and state
 @Observable
-@MainActor  // Ensure all state mutations happen on main thread
+@MainActor
 public class EmailVerificationManager {
     private let emailVerificationService: EmailVerificationServiceProtocol
 

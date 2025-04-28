@@ -31,7 +31,7 @@ struct ForgotPasswordView: View {
                     field: Field.email,
                     focusedField: $focusedField,
                     error: fieldError,
-                    validate: { validateEmail() },
+                    validate: validateEmail,
                     contentType: .emailAddress,
                     keyboardType: .emailAddress,
                     capitalization: .never
@@ -42,7 +42,7 @@ struct ForgotPasswordView: View {
                     await sendResetInstructions()
                 }
                 .buttonStyle(.bordered)
-                .disabled(email.isEmpty || isLoading || !isValidEmail(email))
+                .disabled(email.isEmpty || isLoading)
             }
             .listRowInsets(.init())
             .listRowBackground(Color.clear)
@@ -81,35 +81,23 @@ struct ForgotPasswordView: View {
             }
         }
     }
-    
+   
+    @MainActor
     private func sendResetInstructions() async {
-        validateEmail()
-        guard isValidEmail(email) else { return }
-        
         isLoading = true
         defer { isLoading = false }
         
         do {
-            try await authManager.requestPasswordReset(email: email)
+            try await authManager.sendPasswordResetInstructions(email: email)
             showSuccess = true
         } catch {
             errorMessage = error.localizedDescription
         }
     }
     
+    @MainActor
     private func validateEmail() {
-        if email.isEmpty {
-            fieldError = "Email is required"
-        } else if !isValidEmail(email) {
-            fieldError = "Please enter a valid email address"
-        } else {
-            fieldError = nil
-        }
-    }
-    
-    private func isValidEmail(_ email: String) -> Bool {
-        let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
-        let emailPredicate = NSPredicate(format: "SELF MATCHES %@", emailRegex)
-        return emailPredicate.evaluate(with: email)
+        let (_, error) = authManager.validateEmail(email)
+        fieldError = error
     }
 }

@@ -2,7 +2,7 @@ import OSLog
 import Foundation
 
 // Using the protocol defined in AuthenticationServiceProtocol.swift instead of redefining it here
-public final class AuthenticationService: AuthenticationServiceProtocol {
+public actor AuthenticationService: AuthenticationServiceProtocol {
     private let apiClient: APIClient
     private let authorizationManager: AuthorizationManagerProtocol
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Ecommerce", category: "AuthenticationService")

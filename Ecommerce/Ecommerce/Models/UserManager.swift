@@ -2,6 +2,7 @@ import Observation
 import Networking
 
 @Observable
+@MainActor
 public final class UserManager {
     private let userService: UserServiceProtocol
     
@@ -15,13 +16,13 @@ public final class UserManager {
     
     public func loadUsers() async {
         isLoading = true
-        error = nil
+        defer { isLoading = false }
+        
         do {
             users = try await userService.getAllUsers()
         } catch {
             self.error = error
         }
-        isLoading = false
     }
     
     public func getUser(id: String) async -> UserResponse? {

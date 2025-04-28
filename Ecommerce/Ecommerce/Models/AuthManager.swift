@@ -14,7 +14,7 @@ enum AuthenticationError: Error {
 
 @Observable
 @MainActor
-public final class AuthManager: ObservableObject {
+public final class AuthManager {
     private let authService: AuthenticationServiceProtocol
     private let userService: UserServiceProtocol
     private let authorizationManager: AuthorizationManagerProtocol
@@ -53,7 +53,7 @@ public final class AuthManager: ObservableObject {
         self.authorizationManager = authorizationManager
 
         // Check token validity on init
-        Task {
+        Task { @MainActor in
             await validateSession()
         }
     }
@@ -576,6 +576,29 @@ public final class AuthManager: ObservableObject {
         } catch {
             throw error
         }
+    }
+
+    // MARK: - Password Reset & Validation
+    
+    public func validateEmail(_ email: String) -> (isValid: Bool, error: String?) {
+        if email.isEmpty {
+            return (false, "Email is required")
+        }
+        
+        let emailRegex = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+        let emailPredicate = NSPredicate(format: "SELF MATCHES %@", emailRegex)
+        let isValid = emailPredicate.evaluate(with: email)
+        
+        return (isValid, isValid ? nil : "Please enter a valid email address")
+    }
+    
+    public func sendPasswordResetInstructions(email: String) async throws {
+        let (isValid, _) = validateEmail(email)
+        guard isValid else {
+            throw AuthenticationError.invalidCredentials
+        }
+        
+        try await requestPasswordReset(email: email)
     }
 }
 

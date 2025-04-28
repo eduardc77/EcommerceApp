@@ -16,7 +16,7 @@ struct PreviewRefreshAPIClient: RefreshAPIClientProtocol {
 }
 
 // MARK: - Auth Service
-struct PreviewAuthenticationService: AuthenticationServiceProtocol {
+actor PreviewAuthenticationService: AuthenticationServiceProtocol {
     
     private let authorizationManager: AuthorizationManagerProtocol
     
@@ -289,7 +289,7 @@ struct PreviewAuthenticationService: AuthenticationServiceProtocol {
 }
 
 // MARK: - User Service
-struct PreviewUserService: UserServiceProtocol {
+actor PreviewUserService: UserServiceProtocol {
     func getUserPublic(id: String) async throws -> PublicUserResponse {
         PublicUserResponse(
             id: id,
@@ -491,7 +491,7 @@ extension CategoryResponse {
 }
 
 // MARK: - Email Verification Service
-struct PreviewEmailVerificationService: EmailVerificationServiceProtocol {
+actor PreviewEmailVerificationService: EmailVerificationServiceProtocol {
 
     func getInitialStatus() async throws -> EmailVerificationStatusResponse {
         EmailVerificationStatusResponse(emailMFAEnabled: false, emailVerified: true)
@@ -543,7 +543,7 @@ struct PreviewEmailVerificationService: EmailVerificationServiceProtocol {
 }
 
 // MARK: - TOTP Service
-struct PreviewTOTPService: TOTPServiceProtocol {
+actor PreviewTOTPService: TOTPServiceProtocol {
     
     func enableTOTP() async throws -> TOTPSetupResponse {
         TOTPSetupResponse(
@@ -566,7 +566,7 @@ struct PreviewTOTPService: TOTPServiceProtocol {
 }
 
 // MARK: - Recovery Codes Service
-public struct PreviewRecoveryCodesService: RecoveryCodesServiceProtocol {
+public actor PreviewRecoveryCodesService: RecoveryCodesServiceProtocol {
     public init() {}
     
     public func generateCodes() async throws -> RecoveryCodesResponse {

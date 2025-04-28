@@ -1,13 +1,13 @@
-public protocol UserServiceProtocol {
-    func getAllUsers() async throws -> [UserResponse]
-    func getUser(id: String) async throws -> UserResponse
-    func getUserPublic(id: String) async throws -> PublicUserResponse
-    func createUser(_ dto: AdminCreateUserRequest) async throws -> UserResponse
-    func updateProfile(id: String, dto: UpdateUserRequest) async throws -> UserResponse
-    func deleteUser(id: String) async throws -> MessageResponse
-    func checkAvailability(_ type: AvailabilityType) async throws -> AvailabilityResponse
-    func getProfile() async throws -> UserResponse
-    func updateRole(userId: String, request: UpdateRoleRequest) async throws -> UserResponse
+public protocol UserServiceProtocol: Actor {
+    @Sendable func getAllUsers() async throws -> [UserResponse]
+    @Sendable func getUser(id: String) async throws -> UserResponse
+    @Sendable func getUserPublic(id: String) async throws -> PublicUserResponse
+    @Sendable func createUser(_ dto: AdminCreateUserRequest) async throws -> UserResponse
+    @Sendable func updateProfile(id: String, dto: UpdateUserRequest) async throws -> UserResponse
+    @Sendable func deleteUser(id: String) async throws -> MessageResponse
+    @Sendable func checkAvailability(_ type: AvailabilityType) async throws -> AvailabilityResponse
+    @Sendable func getProfile() async throws -> UserResponse
+    @Sendable func updateRole(userId: String, request: UpdateRoleRequest) async throws -> UserResponse
 }
 
 public actor UserService: UserServiceProtocol {
