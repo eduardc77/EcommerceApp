@@ -2,6 +2,22 @@
 
 A full-stack auth application with a Hummingbird Swift server and iOS mobile client, implementing industry-standard security practices.
 
+<!-- BODY -->
+
+## Preview
+
+<p align="left">
+https://github.com/eduardc77/SocialMediaApp/assets/36419167/2fea9472-262f-4b51-bb77-b241eeb5f63e
+https://github.com/eduardc77/SocialMediaApp/assets/36419167/568218f7-8171-42da-b07c-084d9f5059cf
+</p>
+
+<p align="left">
+	<img src="./Preview/enable_email_mfa_flow.gif" width="180" height="400"/>
+	<img src="./Preview/enable_totp_mfa_flow.gif" width="180" height="400"/>
+	<img src="./Preview/google_signin_flow.gif" width="180" height="400"/>
+	<img src="./Preview/signup_flow.gif" width="180" height="400"/>
+</p>
+
 ## Components
 
 ### Server Features
