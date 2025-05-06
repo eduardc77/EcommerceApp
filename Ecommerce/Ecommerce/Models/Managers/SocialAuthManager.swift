@@ -13,7 +13,7 @@ public final class SocialAuthManager {
         self.authManager = authManager
     }
     
-    func signInWithGoogle() async throws {
+    func signInWithGoogle() async {
         isLoading = true
         defer { isLoading = false }
         error = nil
@@ -49,8 +49,7 @@ public final class SocialAuthManager {
             // Get the response from the auth service and let auth manager handle it
             _ = try await authManager.signInWithGoogle(idToken: idToken, accessToken: accessToken)
         } catch {
-            self.error = error
-            throw error
+            self.error = error  
         }
     }
 }
