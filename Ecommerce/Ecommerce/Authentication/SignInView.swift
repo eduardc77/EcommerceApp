@@ -44,7 +44,7 @@ struct SignInView: View {
                         Button {
                             coordinator.navigateToSignUp()
                         } label: {
-                            Text("Create Account")   
+                            Text("Create Account")
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         

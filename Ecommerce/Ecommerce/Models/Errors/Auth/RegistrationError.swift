@@ -1,6 +1,6 @@
 import Foundation
 
-public enum RegistrationError: LocalizedError, Equatable {
+public enum RegistrationError: LocalizedError {
     case weakPassword
     case invalidEmail
     case accountExists
@@ -24,7 +24,9 @@ public enum RegistrationError: LocalizedError, Equatable {
             return message
         }
     }
-    
+}
+
+extension RegistrationError: Equatable {
     public static func == (lhs: RegistrationError, rhs: RegistrationError) -> Bool {
         switch (lhs, rhs) {
         case (.weakPassword, .weakPassword),
@@ -40,4 +42,4 @@ public enum RegistrationError: LocalizedError, Equatable {
             return false
         }
     }
-} 
+}

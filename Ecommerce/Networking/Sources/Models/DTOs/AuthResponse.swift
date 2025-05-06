@@ -44,13 +44,6 @@ public struct AuthResponse: Codable, Sendable {
     }
 }
 
-/// Available MFA methods
-public enum MFAMethod: String, Codable, Sendable {
-    case totp = "totp"
-    case email = "email"
-    case recoveryCode = "recovery_code"
-}
-
 /// Auth status constants
 extension AuthResponse {
     // Base statuses

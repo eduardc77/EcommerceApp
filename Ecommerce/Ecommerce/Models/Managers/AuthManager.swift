@@ -2,19 +2,9 @@ import Foundation
 import Networking
 import OSLog
 
-enum AuthenticationError: Error {
-    case noSignInInProgress
-    case invalidTOTPToken
-    case invalidCredentials
-    case networkError(Error)
-    case invalidResponse
-    case serverError(String)
-    case unknown
-}
-
 @Observable
 @MainActor
-public final class AuthManager {
+public final class AuthManager: AuthManagerProtocol {
     private let authService: AuthenticationServiceProtocol
     private let userService: UserServiceProtocol
     private let authorizationManager: AuthorizationManagerProtocol
@@ -127,6 +117,8 @@ public final class AuthManager {
     private func handleSignInError(_ error: Error) async {
         if let networkError = error as? NetworkError {
             switch networkError {
+            case .unauthorized:
+                signInError = .invalidCredentials
             case let .clientError(statusCode, _, headers, data):
                 switch statusCode {
                 case 423:

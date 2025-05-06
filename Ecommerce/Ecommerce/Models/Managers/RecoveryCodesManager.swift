@@ -28,7 +28,7 @@ public enum RecoveryCodesError: LocalizedError {
 }
 
 /// Represents a recovery code
-public struct RecoveryCode: Identifiable {
+public struct RecoveryCode: Identifiable, Sendable {
     public let id: String
     public let code: String
     public let isUsed: Bool

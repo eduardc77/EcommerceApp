@@ -3,7 +3,7 @@ import Observation
 
 @Observable
 final class SignInFormState {
-    var identifier = "john.appleseed6267@gmail.com"
+    var identifier = "john.appleseed@gmail.com"
     var password = "Str0ng#Pass2@"
 
     var fieldErrors: [String: String] = [:]

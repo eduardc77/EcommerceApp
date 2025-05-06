@@ -5,15 +5,15 @@ import SwiftUI
 @Observable
 @MainActor
 public final class SocialAuthManager {
-    private let authManager: AuthManager
+    private let authManager: AuthManagerProtocol
     public var error: Error?
     public var isLoading = false
     
-    init(authManager: AuthManager) {
+    init(authManager: AuthManagerProtocol) {
         self.authManager = authManager
     }
     
-    func signInWithGoogle() async {
+    func signInWithGoogle() async throws {
         isLoading = true
         defer { isLoading = false }
         error = nil
@@ -39,15 +39,18 @@ public final class SocialAuthManager {
                     }
                 }
             }
-
+            
             guard let idToken = result.user.idToken?.tokenString else {
                 throw AuthenticationError.invalidCredentials
             }
             
+            let accessToken = result.user.accessToken.tokenString
+            
             // Get the response from the auth service and let auth manager handle it
-            _ = try await authManager.signInWithGoogle(idToken: idToken)
+            _ = try await authManager.signInWithGoogle(idToken: idToken, accessToken: accessToken)
         } catch {
             self.error = error
+            throw error
         }
     }
 }

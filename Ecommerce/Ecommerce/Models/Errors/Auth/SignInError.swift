@@ -1,6 +1,6 @@
 import Foundation
 
-public enum SignInError: LocalizedError, Equatable {
+public enum SignInError: LocalizedError {
     case invalidCredentials
     case accountLocked(retryAfter: Int?)
     case unknown(String)
@@ -19,7 +19,9 @@ public enum SignInError: LocalizedError, Equatable {
             return message
         }
     }
-    
+}
+
+extension SignInError: Equatable {
     public static func == (lhs: SignInError, rhs: SignInError) -> Bool {
         switch (lhs, rhs) {
         case (.invalidCredentials, .invalidCredentials):
@@ -32,4 +34,4 @@ public enum SignInError: LocalizedError, Equatable {
             return false
         }
     }
-} 
+}

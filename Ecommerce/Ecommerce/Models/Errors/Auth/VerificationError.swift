@@ -1,6 +1,6 @@
 import Foundation
 
-public enum VerificationError: LocalizedError, Equatable {
+public enum VerificationError: LocalizedError {
     case invalidCode
     case expiredCode
     case tooManyAttempts
@@ -27,15 +27,17 @@ public enum VerificationError: LocalizedError, Equatable {
             return message
         }
     }
-    
+}
+
+extension VerificationError: Equatable {
     public static func == (lhs: VerificationError, rhs: VerificationError) -> Bool {
         switch (lhs, rhs) {
         case (.invalidCode, .invalidCode),
-             (.expiredCode, .expiredCode),
-             (.tooManyAttempts, .tooManyAttempts),
-             (.emailNotFound, .emailNotFound),
-             (.alreadyVerified, .alreadyVerified),
-             (.tooManyRequests, .tooManyRequests):
+            (.expiredCode, .expiredCode),
+            (.tooManyAttempts, .tooManyAttempts),
+            (.emailNotFound, .emailNotFound),
+            (.alreadyVerified, .alreadyVerified),
+            (.tooManyRequests, .tooManyRequests):
             return true
         case (.unknown(let lhsMessage), .unknown(let rhsMessage)):
             return lhsMessage == rhsMessage
@@ -43,4 +45,4 @@ public enum VerificationError: LocalizedError, Equatable {
             return false
         }
     }
-} 
+}
