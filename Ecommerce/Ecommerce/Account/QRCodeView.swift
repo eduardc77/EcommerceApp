@@ -5,8 +5,7 @@ struct QRCodeView: View {
     let url: String
     let size: CGFloat
     
-    private let context = CIContext()
-    private let filter = CIFilter.qrCodeGenerator()
+    private static let context = CIContext()
     
     var body: some View {
         if let qrImage = generateQRCode(from: url) {
@@ -24,6 +23,7 @@ struct QRCodeView: View {
     }
     
     private func generateQRCode(from string: String) -> UIImage? {
+        let filter = CIFilter.qrCodeGenerator()
         filter.message = Data(string.utf8)
         filter.correctionLevel = "H" // High error correction
         
@@ -34,7 +34,7 @@ struct QRCodeView: View {
         let transform = CGAffineTransform(scaleX: scale, y: scale)
         let scaledImage = outputImage.transformed(by: transform)
         
-        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
+        guard let cgImage = Self.context.createCGImage(scaledImage, from: scaledImage.extent) else {
             return nil
         }
         

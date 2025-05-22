@@ -19,7 +19,7 @@ struct MFASelectionView: View {
                         case .email: return MFAOption.email
                         case .recoveryCode: return nil // Don't show recovery code in main list
                         }
-                    }) { option in
+                    }, id: \.self) { option in
                         Button {
                             Task {
                                 await selectMethod(option)
