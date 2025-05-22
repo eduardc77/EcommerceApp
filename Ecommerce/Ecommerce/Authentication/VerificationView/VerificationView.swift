@@ -18,6 +18,7 @@ struct VerificationViewContent: View {
     let type: VerificationType
     let authManager: AuthManager
     let emailVerificationManager: EmailVerificationManager
+    @Environment(AuthenticationCoordinator.self) private var coordinator
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: VerificationViewModel
     @FocusState private var isCodeFieldFocused: Bool
@@ -89,7 +90,6 @@ struct VerificationViewContent: View {
             }
         }) {
             RecoveryCodesView(shouldLoadCodesOnAppear: false)
-                .interactiveDismissDisabled()
         }
     }
 
@@ -195,6 +195,19 @@ struct VerificationViewContent: View {
                         viewModel.showingSkipAlert = true
                     } label: {
                         Text("Skip for now")
+                            .frame(maxWidth: .infinity)
+                            .font(.subheadline)
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                if type.isSignIn && !type.isRecoveryCode {
+                    Button {
+                        dismiss()
+                        coordinator.showRecoveryCodeVerification(stateToken: type.stateToken)
+                    } label: {
+                        Text("Use Recovery Code")
                             .frame(maxWidth: .infinity)
                             .font(.subheadline)
                             .foregroundStyle(.blue)

@@ -54,12 +54,8 @@ struct MFASelectionView: View {
                     }
                 } header: {
                     Text("Choose Verification Method")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
                 } footer: {
                     Text("Select how you'd like to verify your identity")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
                 }
                 
                 // Recovery option section

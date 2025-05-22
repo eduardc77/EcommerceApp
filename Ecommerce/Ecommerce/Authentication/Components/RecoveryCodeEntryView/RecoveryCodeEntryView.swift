@@ -15,7 +15,7 @@ struct RecoveryCodeEntryView: View {
                                 .font(.title2)
                                 .fontWeight(.bold)
                             
-                Text("Please enter one of your recovery codes to continue.")
+                Text("Please enter one of your valid recovery codes to continue.")
                                 .multilineTextAlignment(.center)
                     .foregroundColor(.secondary)
                     
