@@ -6,6 +6,7 @@ struct AccountView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
     @Environment(RecoveryCodesManager.self) private var recoveryCodesManager
+    @Environment(AuthenticationCoordinator.self) private var coordinator
     @Environment(\.dismiss) private var dismiss
     @State private var isEditing = false
     @State private var editedName = ""
@@ -178,16 +179,6 @@ struct AccountView: View {
             }
             .onChange(of: selectedItem) { _, item in
                 handleProfilePhotoSelection(item)
-            }
-            .navigationDestination(for: String.self) { route in
-                switch route {
-                case "signup":
-                    SignUpView()
-                case "forgot-password":
-                    Text("")
-                default:
-                    EmptyView()
-                }
             }
         }
     }
@@ -406,6 +397,7 @@ struct AccountView: View {
         Section {
             AsyncButton(role: .destructive) {
                 Task {
+                    coordinator.popToRoot()
                     await authManager.signOut()
                 }
             } label: {
