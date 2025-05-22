@@ -1,4 +1,5 @@
 import SwiftUI
+import Networking
 
 struct SignUpView: View {
     @Environment(AuthManager.self) private var authManager
@@ -154,7 +155,6 @@ struct SignUpView: View {
 }
 
 #if DEBUG
-import Networking
 
 #Preview {
     // Create shared dependencies
