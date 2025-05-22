@@ -1,12 +1,6 @@
 import SwiftUI
 import Networking
 
-// Add ErrorResponse struct for parsing backend errors
-private struct ErrorResponse: Codable {
-    let message: String
-    let success: Bool
-}
-
 struct ChangePasswordView: View {
     @Environment(AuthManager.self) private var authManager
     @State private var currentPassword = ""

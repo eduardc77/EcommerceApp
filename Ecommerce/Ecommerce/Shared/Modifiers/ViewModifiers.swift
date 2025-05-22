@@ -9,7 +9,6 @@ private struct TransitionSourceModifier: ViewModifier {
             .matchedTransitionSource(id: id, in: namespace) { src in
                 src
                     .clipShape(.rect(cornerRadius: 12))
-
             }
     }
 }
