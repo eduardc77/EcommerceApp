@@ -70,15 +70,6 @@ public enum VerificationType {
         }
     }
 
-    var isRecoveryCode: Bool {
-        switch self {
-        case .recoveryCodeSignIn:
-            return true
-        default:
-            return false
-        }
-    }
-
     var isSignInOrSignUp: Bool {
         switch self {
         case .emailSignIn, .totpSignIn, .recoveryCodeSignIn, .initialEmail:

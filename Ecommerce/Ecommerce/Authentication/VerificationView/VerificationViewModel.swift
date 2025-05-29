@@ -27,6 +27,7 @@ class VerificationViewModel {
     var isInitialSend = true
     var showRecoveryCodesSheet = false
     var shouldSignOutAfterDismiss = false
+    var shouldShowRecoveryCodesSheetAfterAlert = false
     
     // MARK: - Initialization
     init(type: VerificationType, authManager: AuthManager, emailVerificationManager: EmailVerificationManager) {
@@ -53,26 +54,14 @@ class VerificationViewModel {
             case .enableEmailMFA(let email):
                 let codes = try await emailVerificationManager.verifyEmailMFA(code: verificationCode, email: email)
                 authManager.recoveryCodesManager.codes = codes
-                shouldSignOutAfterDismiss = true
-                if !codes.isEmpty {
-                    showMFAEnabledAlert = true
-                } else {
-                    showSuccess = true
-                    successMessage = "Email MFA has been enabled successfully."
-                    authManager.isAuthenticated = false
-                }
+                showMFAEnabledAlert = true
+                shouldShowRecoveryCodesSheetAfterAlert = !codes.isEmpty
                 return true
             case .enableTOTP:
                 let codes = try await authManager.totpManager.verifyTOTP(code: verificationCode)
                 authManager.recoveryCodesManager.codes = codes
-                shouldSignOutAfterDismiss = true
-                if !codes.isEmpty {
-                    showMFAEnabledAlert = true
-                } else {
-                    showSuccess = true
-                    successMessage = "Authenticator app has been enabled successfully."
-                    authManager.isAuthenticated = false
-                }
+                showMFAEnabledAlert = true
+                shouldShowRecoveryCodesSheetAfterAlert = !codes.isEmpty
                 return true
             default:
                 try await authManager.completeMFAVerification(for: type, code: verificationCode)

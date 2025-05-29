@@ -20,6 +20,7 @@ struct SignUpView: View {
         Form {
             signUpFieldsSection
         }
+        .listSectionSpacing(.compact)
         .navigationTitle("Sign Up")
         .sheet(isPresented: .init(
             get: { emailVerificationManager.requiresEmailVerification },

@@ -111,6 +111,15 @@ public final class AuthManager: AuthManagerProtocol {
         requiresPasswordUpdate = false
         requiresEmailVerification = false
         availableMFAMethods = []
+        signInError = nil
+        signUpError = nil
+        error = nil
+        
+        // Reset all verification-related state
+        totpManager.reset()
+        emailVerificationManager.reset()
+        recoveryCodesManager.reset()
+        
         try? await authorizationManager.invalidateToken()
     }
 

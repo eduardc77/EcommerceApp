@@ -20,6 +20,10 @@ public enum RecoveryCodesError: LocalizedError {
         case .verificationFailed:
             return "Failed to verify recovery code. Please try again."
         case .networkError(let error):
+            // If the underlying error is NetworkError, show its description directly
+            if let networkError = error as? NetworkError {
+                return networkError.localizedDescription
+            }
             return "Network error: \(error.localizedDescription)"
         case .unknown(let error):
             return "An unexpected error occurred: \(error.localizedDescription)"

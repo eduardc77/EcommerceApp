@@ -6,7 +6,7 @@ struct ForgotPasswordView: View {
     @State private var email = ""
     @State private var isLoading = false
     @State private var showSuccess = false
-    @State private var errorMessage: String?
+    @State private var networkError: String?
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedField: Field?
     @State private var fieldError: String?
@@ -16,8 +16,6 @@ struct ForgotPasswordView: View {
     }
     
     var body: some View {
-        @Bindable var bindableCoordinator = coordinator
-        
         Form {
             Text("Enter your email address and we'll send you instructions to reset your password.")
                 .foregroundStyle(.secondary)
@@ -39,14 +37,17 @@ struct ForgotPasswordView: View {
             }
             Section {
                 AsyncButton("Send Reset Instructions") {
+                    validateEmail()
+                    guard fieldError == nil else { return }
                     await sendResetInstructions()
                 }
                 .buttonStyle(.bordered)
-                .disabled(email.isEmpty || isLoading)
+                .disabled(email.isEmpty || isLoading || fieldError != nil)
             }
             .listRowInsets(.init())
             .listRowBackground(Color.clear)
         }
+        .listSectionSpacing(.compact)
         .listRowSeparator(.hidden)
         .navigationTitle("Reset Password")
         .alert("Check Your Email", isPresented: $showSuccess) {
@@ -57,15 +58,15 @@ struct ForgotPasswordView: View {
         } message: {
             Text("If an account exists with that email, we've sent you instructions to reset your password.")
         }
-        .alert("Error", isPresented: .init(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
+        .alert("Reset Failed", isPresented: .init(
+            get: { networkError != nil },
+            set: { if !$0 { networkError = nil } }
         )) {
             Button("OK") {
-                errorMessage = nil
+                networkError = nil
             }
         } message: {
-            if let error = errorMessage {
+            if let error = networkError {
                 Text(error)
             }
         }
@@ -91,7 +92,11 @@ struct ForgotPasswordView: View {
             try await authManager.sendPasswordResetInstructions(email: email)
             showSuccess = true
         } catch {
-            errorMessage = error.localizedDescription
+            if let authError = error as? LocalizedError, let desc = authError.errorDescription {
+                networkError = desc
+            } else {
+                networkError = error.localizedDescription
+            }
         }
     }
     
