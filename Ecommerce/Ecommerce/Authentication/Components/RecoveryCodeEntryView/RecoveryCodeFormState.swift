@@ -7,6 +7,7 @@ final class RecoveryCodeFormState {
     var recoveryCode = ""
     var showError = false
     var error: Error?
+    var fieldErrors: [String: String] = [:]
     
     // Format: xxxx-xxxx-xxxx-xxxx
     private let codeLength = 19
@@ -31,8 +32,22 @@ final class RecoveryCodeFormState {
     }
     
     var isValidFormat: Bool {
-        let cleaned = recoveryCode.filter { $0.isNumber || $0.isLetter }
-        return cleaned.count == 16
+        fieldErrors["recoveryCode"] == nil && recoveryCode.isValidRecoveryCodeFormat
+    }
+    
+    /// Sets a validation error string in fieldErrors["recoveryCode"] if the code is invalid
+    func validateCode(ignoreEmpty: Bool = true) {
+        if recoveryCode.isEmpty {
+            if !ignoreEmpty {
+                fieldErrors["recoveryCode"] = "Recovery code is required."
+            } else {
+                fieldErrors.removeValue(forKey: "recoveryCode")
+            }
+        } else if !recoveryCode.isValidRecoveryCodeFormat {
+            fieldErrors["recoveryCode"] = "Format: xxxx-xxxx-xxxx-xxxx"
+        } else {
+            fieldErrors.removeValue(forKey: "recoveryCode")
+        }
     }
     
     // MARK: - Methods
@@ -45,5 +60,13 @@ final class RecoveryCodeFormState {
         recoveryCode = ""
         showError = false
         error = nil
+    }
+}
+
+// String extension for recovery code format validation
+extension String {
+    var isValidRecoveryCodeFormat: Bool {
+        let pattern = "^[0-9a-zA-Z]{4}-[0-9a-zA-Z]{4}-[0-9a-zA-Z]{4}-[0-9a-zA-Z]{4}$"
+        return self.range(of: pattern, options: .regularExpression) != nil
     }
 } 

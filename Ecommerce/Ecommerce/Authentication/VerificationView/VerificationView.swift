@@ -77,17 +77,34 @@ struct VerificationViewContent: View {
             }
             .alert("MFA Enabled Successfully", isPresented: $viewModel.showMFAEnabledAlert) {
                 Button("Continue") {
-                    viewModel.showRecoveryCodesSheet = true
+                    if viewModel.shouldShowRecoveryCodesSheetAfterAlert {
+                        viewModel.showRecoveryCodesSheet = true
+                    } else {
+                        authManager.isAuthenticated = false
+                        dismiss()
+                    }
                 }
             } message: {
-                Text("Your account is now more secure. Recovery codes have been generated. Store these recovery codes in a safe place - they allow you to access your account if you lose access to your MFA device.")
+                if viewModel.shouldShowRecoveryCodesSheetAfterAlert {
+                    Text("Your account is now more secure. Recovery codes have been generated. Store these recovery codes in a safe place - they allow you to access your account if you lose access to your MFA device.")
+                } else {
+                    Text("Your account is now more secure with multiple MFA methods enabled.")
+                }
+            }
+            .alert("Success", isPresented: $viewModel.showSuccess) {
+                Button("OK") {
+                    if type.isSetup {
+                        authManager.isAuthenticated = false
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text(viewModel.successMessage)
             }
         }
         .sheet(isPresented: $viewModel.showRecoveryCodesSheet, onDismiss: {
-            if viewModel.shouldSignOutAfterDismiss {
-                authManager.isAuthenticated = false
-                dismiss()
-            }
+            authManager.isAuthenticated = false
+            dismiss()
         }) {
             RecoveryCodesView(shouldLoadCodesOnAppear: false)
         }
@@ -126,33 +143,20 @@ struct VerificationViewContent: View {
 
     private var codeInputSection: some View {
         Section {
-            if type.isRecoveryCode {
-                TextField("xxxx-xxxx-xxxx-xxxx", text: $viewModel.verificationCode)
-                    .textContentType(.oneTimeCode)
-                    .font(.system(.body, design: .monospaced))
-                    .multilineTextAlignment(.center)
-                    .focused($isCodeFieldFocused)
-                    .onChange(of: viewModel.verificationCode) { oldValue, newValue in
-                        viewModel.verificationCode = viewModel.formatRecoveryCode(newValue)
-                    }
-            } else {
-                OneTimeCodeInput(code: $viewModel.verificationCode, codeLength: 6)
-                    .focused($isCodeFieldFocused)
-                    .frame(maxWidth: .infinity)
-            }
+            OneTimeCodeInput(code: $viewModel.verificationCode, codeLength: 6)
+                .focused($isCodeFieldFocused)
+                .frame(maxWidth: .infinity)
         } footer: {
             VStack {
                 if viewModel.showError {
                     Text(viewModel.errorMessage)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.red)
-                }
-                if viewModel.showSuccess {
+                } else if viewModel.showSuccess && !type.isSetup {
                     Text(viewModel.successMessage)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.green)
-                }
-                if viewModel.attemptsRemaining < 3 && type.isEmail {
+                } else if viewModel.attemptsRemaining < 3 && type.isEmail {
                     Text("\(viewModel.attemptsRemaining) attempts remaining")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -172,11 +176,12 @@ struct VerificationViewContent: View {
                 if type.showsResendButton {
                     resendButton
                 }
-
                 AsyncButton {
                     let success = await viewModel.verify()
                     if success {
-                        dismiss()
+                        if !type.isSetup {
+                            dismiss()
+                        }
                     }
                 } label: {
                     Text(type.buttonTitle)
@@ -184,8 +189,7 @@ struct VerificationViewContent: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(
-                    (type.isRecoveryCode && !viewModel.isValidRecoveryCode) ||
-                    (!type.isRecoveryCode && viewModel.verificationCode.count != 6) ||
+                    viewModel.verificationCode.count != 6 ||
                     viewModel.isLoading ||
                     (type.isEmail && viewModel.attemptsRemaining == 0)
                 )
@@ -202,7 +206,7 @@ struct VerificationViewContent: View {
                     .buttonStyle(.plain)
                 }
                 
-                if type.isSignIn && !type.isRecoveryCode {
+                if type.isSignIn  {
                     Button {
                         dismiss()
                         coordinator.showRecoveryCodeVerification(stateToken: type.stateToken)

@@ -51,7 +51,7 @@ struct MFARecoveryController {
     }
     
     /// Generate new recovery codes for a user
-    /// This invalidates any existing unused recovery codes
+    /// This invalidates any existing recovery codes (used or unused)
     @Sendable func generateRecoveryCodes(
         _ request: Request,
         context: Context
@@ -68,10 +68,9 @@ struct MFARecoveryController {
         let userID = try user.requireID()
         
         do {
-            // Delete any existing unused recovery codes
+            // Delete ALL existing recovery codes (used and unused)
             try await MFARecoveryCode.query(on: fluent.db())
                 .filter(\.$user.$id, .equal, userID)
-                .filter(\.$used, .equal, false)
                 .delete()
             
             // Generate new codes

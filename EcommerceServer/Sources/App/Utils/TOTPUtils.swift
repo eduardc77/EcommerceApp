@@ -1,8 +1,48 @@
 import Foundation
 import HummingbirdOTP
+import CommonCrypto
 
 /// Utility functions for TOTP (Time-based One-Time Password) operations
 enum TOTPUtils {
+    /// Base32 encoding alphabet as per RFC 4648
+    private static let base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+    /// Base32 padding character
+    private static let base32Padding = "="
+
+    /// Base32 encode data to string according to RFC 4648
+    static func base32Encode(_ data: Data, addPadding: Bool = false) -> String {
+        var result = ""
+        var buffer = 0
+        var bitsLeft = 0
+
+        for byte in data {
+            buffer = (buffer << 8) | Int(byte)
+            bitsLeft += 8
+
+            while bitsLeft >= 5 {
+                bitsLeft -= 5
+                let index = (buffer >> bitsLeft) & 0x1F
+                result.append(TOTPUtils.base32Alphabet[TOTPUtils.base32Alphabet.index(TOTPUtils.base32Alphabet.startIndex, offsetBy: index)])
+            }
+        }
+
+        // Handle remaining bits
+        if bitsLeft > 0 {
+            buffer <<= (5 - bitsLeft)
+            let index = buffer & 0x1F
+            result.append(TOTPUtils.base32Alphabet[TOTPUtils.base32Alphabet.index(TOTPUtils.base32Alphabet.startIndex, offsetBy: index)])
+        }
+
+        if addPadding {
+            let paddingLength = (8 - (result.count % 8)) % 8
+            if paddingLength > 0 {
+                result.append(String(repeating: base32Padding, count: paddingLength))
+            }
+        }
+
+        return result
+    }
+
     /// Verify a TOTP code against a secret
     /// - Parameters:
     ///   - code: The code to verify
@@ -28,11 +68,15 @@ enum TOTPUtils {
             return false
         }
         
-        let totp = TOTP(secret: secret)
+        // Use the original secret for verification
+        let totpForVerification = TOTP(secret: secret)
         let now = Date.now
-        let computedTOTP = totp.compute(date: now - 15.0)
-        let computedTOTP2 = totp.compute(date: now + 15.0)
-        return codeInt == computedTOTP || codeInt == computedTOTP2
+        // Compute codes for the current, previous, and next 30-second windows
+        let computedTOTPCurrent = totpForVerification.compute(date: now)
+        let computedTOTPPrevious = totpForVerification.compute(date: now.addingTimeInterval(-30.0))
+        let computedTOTPNext = totpForVerification.compute(date: now.addingTimeInterval(30.0))
+        
+        return codeInt == computedTOTPCurrent || codeInt == computedTOTPPrevious || codeInt == computedTOTPNext
     }
 
     /// Generate a test TOTP code for testing
@@ -48,26 +92,31 @@ enum TOTPUtils {
     }
 
     /// Generate a new TOTP secret
-    /// - Returns: A secure random string to be used as the secret
+    /// - Returns: A secure random string to be used as the secret (Base32 encoded)
     static func generateSecret() -> String {
         // For test environment, use deterministic secret
         if ProcessInfo.processInfo.environment["APP_ENV"] == "testing" {
-            return UUID().uuidString
+            return UUID().uuidString // Note: UUID is not cryptographically secure
         }
         
         // For production/development, use cryptographically secure random bytes
-        var bytes = [UInt8](repeating: 0, count: 32)
+        var bytes = [UInt8](repeating: 0, count: 32) // Use 32 bytes for a 256-bit secret, matching QR code URL length
         let result = bytes.withUnsafeMutableBytes { buffer in
             SecRandomCopyBytes(kSecRandomDefault, buffer.count, buffer.baseAddress!)
         }
         
         guard result == errSecSuccess else {
-            // Fallback to UUID if secure random generation fails
-            print("⚠️ Warning: Secure random generation failed, falling back to UUID")
-            return UUID().uuidString
+            print("⚠️ [generateSecret] Secure random generation failed, falling back to UUID")
+            // Fallback to UUID bytes if secure random generation fails - Encode UUID bytes using Base32
+            let fallbackSecret = base32Encode(Data(UUID().uuidString.utf8))
+            print("✉️ [generateSecret] Generated fallback secret: \(fallbackSecret)")
+            return fallbackSecret
         }
         
-        return Data(bytes).base64URLEncodedString()
+        // Encode the secure random bytes using Base32
+        let generatedSecret = base32Encode(Data(bytes))
+        print("✉️ [generateSecret] Generated secure Base32 secret (32 bytes): \(generatedSecret) (Length: \(generatedSecret.count))")
+        return generatedSecret
     }
     
     /// Generate QR code URL for TOTP setup
@@ -75,9 +124,13 @@ enum TOTPUtils {
     ///   - secret: The TOTP secret
     ///   - label: The label for the authenticator app (usually email or username)
     ///   - issuer: The name of the app/service
-    /// - Returns: URL string for QR code
-    static func generateQRCodeURL(secret: String, label: String, issuer: String) -> String {
+    /// - Returns: A tuple containing the URL string for QR code and the transformed secret for manual entry
+    static func generateQRCodeURL(secret: String, label: String, issuer: String) -> (qrCodeUrl: String, manualEntrySecret: String) {
+        print("✉️ [generateQRCodeURL] Secret passed to TOTP initializer: \(secret) (Length: \(secret.count))")
         let totp = TOTP(secret: secret)
-        return totp.createAuthenticatorURL(label: label, issuer: issuer)
+        let qrCodeUrl = totp.createAuthenticatorURL(label: label, issuer: issuer)
+        // Extract the transformed secret from the URL
+        let transformedSecret = qrCodeUrl.split(separator: "secret=").last?.split(separator: "&").first ?? ""
+        return (qrCodeUrl: qrCodeUrl, manualEntrySecret: String(transformedSecret))
     }
 }

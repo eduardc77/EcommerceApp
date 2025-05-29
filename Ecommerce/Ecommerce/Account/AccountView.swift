@@ -101,6 +101,7 @@ struct AccountView: View {
                     noProfileView
                 }
             }
+            .listSectionSpacing(.compact)
             .navigationTitle("Account")
             .navigationBarTitleDisplayMode(.inline)
             .refreshable {

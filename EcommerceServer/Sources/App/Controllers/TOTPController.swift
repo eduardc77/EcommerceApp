@@ -46,7 +46,7 @@ struct TOTPController {
         try await user.save(on: fluent.db())
         
         // Generate QR code URL using the proper method
-        let qrCodeUrl = TOTPUtils.generateQRCodeURL(
+        let (qrCodeUrl, manualEntrySecret) = TOTPUtils.generateQRCodeURL(
             secret: secret,
             label: user.email,
             issuer: "EcommerceApp"
@@ -55,7 +55,7 @@ struct TOTPController {
         return .init(
             status: .ok,
             response: TOTPEnableResponse(
-                secret: secret,
+                secret: manualEntrySecret,
                 qrCodeUrl: qrCodeUrl
             )
         )
@@ -106,39 +106,6 @@ struct TOTPController {
                 message: "TOTP code verified successfully",
                 success: true,
                 recoveryCodes: recoveryCodes
-            )
-        )
-    }
-    
-    /// Activate TOTP after successful verification
-    @Sendable func activateTOTP(
-        _ request: Request,
-        context: Context
-    ) async throws -> EditedResponse<MessageResponse> {
-        guard let user = context.identity else {
-            throw HTTPError(.unauthorized)
-        }
-        
-        // Verify the current code one last time
-        let enableRequest = try await request.decode(as: TOTPVerifyRequest.self, context: context)
-        
-        guard let secret = user.totpMFASecret else {
-            throw HTTPError(.badRequest, message: "No MFA setup in progress")
-        }
-        
-        if !TOTPUtils.verifyTOTPCode(code: enableRequest.code, secret: secret) {
-            throw HTTPError(.unauthorized, message: "Invalid verification code")
-        }
-        
-        // Enable MFA
-        user.totpMFAEnabled = true
-        try await user.save(on: fluent.db())
-        
-        return .init(
-            status: .ok,
-            response: MessageResponse(
-                message: "Time-based, One-Time Password authentication enabled successfully",
-                success: true
             )
         )
     }

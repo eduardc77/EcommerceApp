@@ -56,6 +56,7 @@ struct RecoveryCodesView: View {
             Form {
                 existingCodesSection
             }
+            .listSectionSpacing(.compact)
             .navigationTitle("Recovery Codes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

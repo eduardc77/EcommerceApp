@@ -39,6 +39,7 @@ struct SignInView: View {
                 
                 Section {
                     signInButton
+                        .padding(.bottom, 10)
                 } footer: {
                     HStack {
                         Button {
@@ -58,7 +59,7 @@ struct SignInView: View {
                     .font(.subheadline)
                     .buttonStyle(.plain)
                     .foregroundStyle(.tint)
-                    .padding(.bottom)
+                    .padding(.bottom, 10)
                 }
                 .listRowInsets(.init())
                 .listRowBackground(Color.clear)
@@ -80,10 +81,12 @@ struct SignInView: View {
                         Text("Or")
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
+                    .padding(.bottom, 10)
                 }
                 .listRowInsets(.init())
                 .listRowBackground(Color.clear)
             }
+            .listSectionSpacing(.compact)
             .navigationTitle("Sign In")
             .navigationDestination(for: AuthenticationCoordinator.Route.self) { route in
                 switch route {

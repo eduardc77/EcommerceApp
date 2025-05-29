@@ -8,49 +8,49 @@ struct RecoveryCodeEntryView: View {
     
     let stateToken: String
     
+    private enum Field {
+        case recoveryCode
+    }
+    @FocusState private var focusedField: Field?
+    
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                            Text("Enter Recovery Code")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                            
+            Form {
                 Text("Please enter one of your valid recovery codes to continue.")
-                                .multilineTextAlignment(.center)
-                    .foregroundColor(.secondary)
-                    
-                TextField("Code", text: $formState.recoveryCode)
-                    .textFieldStyle(.roundedBorder)
-                    .textInputAutocapitalization(.never)
+                    .foregroundStyle(.secondary)
+                    .listRowInsets(.init())
+                    .listRowBackground(Color.clear)
+                
+                Section {
+                    ValidatedFormField(
+                        title: "Recovery Code",
+                        text: $formState.recoveryCode,
+                        field: Field.recoveryCode,
+                        focusedField: $focusedField,
+                        error: recoveryCodeError,
+                        validate: { formState.validateCode() },
+                        capitalization: .never
+                    )
                     .onChange(of: formState.recoveryCode) { _, newValue in
                         formState.recoveryCode = formState.formattedCode
+                        formState.validateCode()
+                        if formState.error != nil {
+                            formState.error = nil
+                            formState.showError = false
                         }
-                
-                if formState.showError {
-                    Text(formState.error?.localizedDescription ?? "An error occurred")
-                        .foregroundColor(.red)
-                        .font(.caption)
-                }
-                
-                Button(action: {
-                        Task {
-                            await verifyCode()
-                        }
-                }) {
-                        if isLoading {
-                            ProgressView()
-                        } else {
-                        Text("Verify")
-                                .frame(maxWidth: .infinity)
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!formState.isValidFormat || isLoading)
                 
-                Spacer()
+                AsyncButton("Verify") {
+                    await verifyCode()
+                }
+                .buttonStyle(.bordered)
+                .disabled(!formState.isValidFormat || isLoading)
+                .listRowInsets(.init())
+                .listRowBackground(Color.clear)
             }
-            .padding()
-            .navigationBarTitleDisplayMode(.inline)
+            .listSectionSpacing(.compact)
+            .navigationTitle("Enter Recovery Code")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
@@ -58,6 +58,18 @@ struct RecoveryCodeEntryView: View {
                     }
                 }
             }
+        }
+    }
+    
+    private var recoveryCodeError: String? {
+        if let validationError = formState.fieldErrors["recoveryCode"] {
+            return validationError
+        } else if let error = formState.error as? LocalizedError, let desc = error.errorDescription {
+            return desc
+        } else if let error = formState.error {
+            return error.localizedDescription
+        } else {
+            return nil
         }
     }
     
@@ -89,14 +101,14 @@ import Networking
         refreshClient: refreshClient,
         tokenStore: tokenStore
     )
-
+    
     let totpService = PreviewTOTPService()
     let totpManager = TOTPManager(totpService: totpService)
     let emailVerificationService = PreviewEmailVerificationService()
     let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
     let recoeryCodesService = PreviewRecoveryCodesService()
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
-
+    
     let authManager = AuthManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
@@ -105,10 +117,17 @@ import Networking
         recoveryCodesManager: recoveryCodesManager,
         authorizationManager: authorizationManager
     )
-
+    
     RecoveryCodeEntryView(stateToken: "preview-token")
         .environment(authManager)
         .environment(emailVerificationManager)
         .environment(totpManager)
 }
 #endif
+
+// String extension for regex matching
+extension String {
+    func matches(_ regex: String) -> Bool {
+        return self.range(of: regex, options: .regularExpression) != nil
+    }
+}
