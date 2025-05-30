@@ -1,7 +1,8 @@
-# EcommerceApp
+# Swift Authentication Reference Implementation
 
-A full-stack auth application with a Hummingbird Swift server and iOS mobile client, implementing industry-standard security practices.
+> A comprehensive, production-ready authentication system showcasing modern Swift development practices across backend and iOS platforms.
 
+<<<<<<< HEAD
 <!-- BODY -->
 
 ## Preview
@@ -16,232 +17,240 @@ A full-stack auth application with a Hummingbird Swift server and iOS mobile cli
 </p>
 
 ## Components
+=======
+## 🎯 **Project Vision**
+>>>>>>> develop
 
-### Server Features
+This project demonstrates **best-in-class authentication architecture** using the latest Swift technologies and industry security standards. While themed as an ecommerce application for context, the core focus for now is building the most robust, secure, and modern authentication system possible with Swift.
 
-#### 🔐 Authentication Methods
-- **Traditional Authentication**
-  - Username/Email and Password sign-in
-  - Secure password validation and hashing
+## 🏗️ **Technical Architecture**
+
+### **🏗️ Modern Swift Architecture**
+- **Backend**: Built with [Hummingbird 2.0](https://github.com/hummingbird-project/hummingbird) - the next-generation Swift server framework
+- **iOS Client**: SwiftUI with modern `@Observable` macro and `@MainActor` isolation
+- **Networking**: Actor-based concurrency with automatic token refresh and race condition prevention
+- **Security**: Keychain storage and JWT token management patterns
+
+### **🔒 Security Features**
+- **Multi-Factor Authentication (MFA)**:
+  - TOTP (Time-based One-Time Passwords) with QR code generation
+  - Email-based MFA with resend capabilities  
+  - Recovery codes system with secure backup
+  - Granular MFA method selection and management
+- **Advanced Session Management**:
+  - JWT tokens with automatic refresh
+  - Actor-isolated token storage preventing race conditions
+  - Account lockout with configurable retry policies
+  - Rate limiting with permit-based system
+- **Social Authentication**:
+  - Google Sign-In integration
+  - Apple Sign In support
+  - Unified response handling across all auth methods
+
+#### 🔐 **Authentication & Authorization**
+- **Core Authentication**:
+  - Email/Username + Password sign-in
+  - Social authentication (Google, Apple)
+  - Multi-factor authentication (TOTP, Email)
+  - Password reset with email verification
+  - Account recovery with backup codes
+  - Role-based access control (planned)
+
+#### 🛡️ **Security Implementation**
+- **Password Security**:
+  - Secure password validation and hashing (bcrypt)
   - Password history tracking
   - Account lockout protection
-  - Forced password change policies
+- **Token Management**:
+  - JWT-based authentication with refresh tokens
+  - Token blacklisting and invalidation
+  - Secure token rotation
+  - Concurrent session management
+- **Protection Mechanisms**:
+  - Rate limiting with exponential backoff
+  - Brute force protection
+  - Account lockout with retry policies
+  - Certificate pinning (planned)
 
-- **Social Authentication**
-  - Google Sign-In
-  - Apple Sign-In
-  - Extensible architecture for additional providers
+#### 📧 **Email Communications**
+- **Verification Flows**:
+  - Email verification during registration
+  - MFA setup notifications
+  - Password reset emails
+  - Security notifications
+- **Integration**:
+  - SendGrid email service integration
+  - Configurable email templates
 
-- **Multi-Factor Authentication (MFA)**
-  - Time-based One-Time Password (TOTP)
-  - Email-based verification codes
-  - Recovery codes for backup access
-  - Multiple MFA methods support
+#### 📱 **iOS Client Features**
+- **Authentication Flow**:
+  - SwiftUI-based sign up/sign in screens
+  - Social authentication integration
+  - MFA support with QR code scanning
+  - Password recovery flow
+  - Secure token storage using Keychain
+  - Biometric authentication (planned)
+- **User Experience**:
+  - Real-time form validation
+  - Intelligent error handling and recovery
+  - Seamless MFA setup with QR codes
+  - Progressive authentication flows
+  - Localization support (planned)
+  - Push notifications (planned)
+  - Offline support (planned)
 
-#### 🎫 Token Management
-- JWT-based authentication
-- Access and refresh token support
-- Token blacklisting
-- Token version control
-- Concurrent session management
-- Secure token rotation
+### **⚡ Technical Features**
+- **Sophisticated Error Handling**: Typed errors with comprehensive HTTP status mapping
+- **Network Resilience**: Exponential backoff, retry logic, and response caching
+- **Security Best Practices**: Keychain storage, bearer token injection, secure password reset flows
+- **Comprehensive Testing**: Full test suite covering auth flows and edge cases
 
-#### 👤 User Management
-- Secure user registration
-- Email verification
-- Profile management
-- Role-based access control (Admin, Staff, Seller, Customer)
-- Account recovery options
+## 🏛️ **Architecture Overview**
 
-#### 🔒 Security Features
-- Industry-standard password policies
-- Brute force protection
-- Rate limiting
-- Session management
-- Secure logging
-- HTTPS enforcement
-- CORS configuration
-- XSS protection
-- CSRF protection
-
-#### 📧 Email Communications
-- Verification emails
-- MFA setup notifications
-- Password reset flows
-- Security notifications
-- SendGrid integration
-
-#### 🛠 API Standards
-- RESTful API design
-- OAuth 2.0 support
-- OpenID Connect support
-- Comprehensive error handling
-- Detailed logging
-- API documentation
-
-### iOS Mobile App Features
-
-#### Authentication Flow
-- Sign Up/Sign In screens
-- Social Authentication integration
-- MFA Support
-- Password Recovery flow
-- Biometric authentication
-- Secure token storage using Keychain
-
-#### User Features
-- Profile Management
-- Session Management
-- Push Notifications
-- Offline Support
-- Dark/Light mode support
-- Localization ready
-
-#### Security Features
-- End-to-end encryption
-- Certificate pinning
-- Jailbreak detection
-- Secure data persistence
-- Automatic session management
-- Biometric authentication
-
-## Technical Stack
-
-### Server
-- **Framework**: [Hummingbird](https://github.com/hummingbird-project/hummingbird)
-- **Database**: PostgreSQL with Fluent ORM
-- **Authentication**: JWT, OAuth 2.0, OpenID Connect
-- **Email Service**: SendGrid
-- **Documentation**: OpenAPI/Swagger
-
-### iOS App
-- **UI Framework**: SwiftUI
-- **Architecture**: MVVM
-- **Networking**: URLSession with async/await
-- **Storage**: CoreData, Keychain
-- **Dependencies**: Swift Package Manager
-
-## Getting Started
-
-### Prerequisites
-- Xcode 15.0+
-- Swift 5.9+
-- macOS 14.0+
-- PostgreSQL 12+
-- SendGrid API Key (for email services)
-- Google OAuth credentials (for Google Sign-In)
-- Apple Sign-In configuration
-
-### Server Setup
-1. Navigate to the Server directory
-```bash
-cd Server
+### **Backend (Swift Server)**
+```
+├── Controllers/
+│   ├── AuthController.swift         # Core authentication
+│   ├── EmailMFAController.swift     # Email-based MFA
+│   ├── TOTPController.swift         # TOTP management
+│   ├── MFARecoveryController.swift  # Recovery codes
+│   ├── OAuthController.swift        # OAuth flows
+│   ├── SocialAuthController.swift   # Social login
+│   └── UserController.swift         # User management
+├── Models/
+│   ├── User/                        # User entities and DTOs
+│   └── Auth/                        # Authentication models
+├── Services/                        # Business logic layer
+├── Middleware/                      # Request/response middleware
+└── Migrations/                      # Database schema
 ```
 
-2. Install dependencies
+### **iOS Client (SwiftUI)**
+```
+├── Authentication/
+│   ├── AuthManager.swift            # Central auth orchestration
+│   ├── TOTPManager.swift            # TOTP MFA management
+│   ├── EmailVerificationManager.swift # Email verification flows
+│   ├── SocialAuthManager.swift      # Social login coordination
+│   └── Views/                       # SwiftUI authentication views
+├── Networking/
+│   ├── NetworkManager.swift         # Actor-based HTTP client
+│   ├── AuthorizationManager.swift   # Token lifecycle management
+│   ├── TokenStore.swift             # Keychain-backed storage
+│   └── RetryHandler.swift           # Network resilience
+└── Models/                          # Shared data models
+```
+
+## 🛠️ **Key Technologies**
+
+### **Backend Stack**
+- [Hummingbird 2.0](https://github.com/hummingbird-project/hummingbird) - Modern async server framework
+- [Hummingbird Auth 2.0](https://github.com/hummingbird-project/hummingbird-auth) - Advanced authentication
+- [JWT Kit 5.0-beta](https://github.com/vapor/jwt-kit) - JSON Web Token implementation
+- [AsyncHTTPClient 1.19](https://github.com/swift-server/async-http-client) - High-performance HTTP
+- [PostgreSQL](https://github.com/vapor/postgres-kit) - Production database with migrations
+
+### **iOS Stack**
+- **SwiftUI** with `@Observable` and `@MainActor` patterns
+- **Swift Concurrency** - Full async/await with actor isolation
+- **Keychain Services** - Secure credential storage
+- **Network Framework** - Modern HTTP client with caching
+
+### **Security & Infrastructure**
+- [Swift Crypto](https://github.com/apple/swift-crypto) - Apple's cryptographic library
+- [TOTP RFC 6238](https://tools.ietf.org/html/rfc6238) - Time-based one-time passwords
+- [OAuth 2.0](https://oauth.net/2/) - Industry standard authorization
+- [JWT RFC 7519](https://tools.ietf.org/html/rfc7519) - Secure token format
+
+## 🚀 **Getting Started**
+
+### **Prerequisites**
+- **Xcode 15.0+** with Swift 5.9+
+- **macOS 14.0+** for development
+- **PostgreSQL 14+** for backend database
+- **Docker** (optional) for containerized development
+
+### **Backend Setup**
 ```bash
+cd EcommerceServer
 swift package resolve
+swift run App serve --port 8080
 ```
 
-3. Set up environment variables
+### **iOS Setup**
 ```bash
-cp .env.example .env
-# Edit .env with your configuration
+cd Ecommerce
+open Ecommerce.xcodeproj
+# Configure your development team and run
 ```
 
-4. Set up the database:
+### **Environment Configuration**
+Copy `.env.example` to `.env` and configure:
 ```bash
-swift run migrate
-```
-
-5. Run the server
-```bash
-swift run
-```
-
-### iOS App Setup
-1. Open EcommerceApp.xcodeproj in Xcode
-2. Configure signing and capabilities
-3. Update API configuration in Config.swift
-4. Build and run the app
-
-### Configuration
-
-The server can be configured through environment variables:
-
-```env
-# Server Configuration
-PORT=8080
-HOST=localhost
-ENV=development
-
-# Database Configuration
-DATABASE_URL=postgresql://localhost:5432/auth_db
-
-# JWT Configuration
+DATABASE_URL=postgresql://localhost:5432/ecommerce
 JWT_SECRET=your-secret-key
-JWT_EXPIRATION=3600
-
-# Email Configuration
 SENDGRID_API_KEY=your-sendgrid-key
-FROM_EMAIL=noreply@yourdomain.com
-
-# OAuth Configuration
 GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-
-# Apple Sign In Configuration
-APPLE_CLIENT_ID=your-apple-client-id
-APPLE_TEAM_ID=your-team-id
-APPLE_KEY_ID=your-key-id
 ```
 
-## Development
+## 📱 **Features Showcase**
 
-### Running Tests
-Server:
+### **Authentication Flows**
+- ✅ Email/Username + Password sign-in
+- ✅ Social authentication (Google, Apple)
+- ✅ Multi-factor authentication (TOTP, Email)
+- ✅ Password reset with email verification
+- ✅ Account recovery with backup codes
+
+### **Security Features**
+- ✅ JWT token-based authentication
+- ✅ Automatic token refresh with race condition prevention
+- ✅ Account lockout after failed attempts
+- ✅ Rate limiting and DDoS protection
+- ✅ Secure password hashing (bcrypt)
+- ✅ CSRF protection and secure headers
+
+### **User Experience**
+- ✅ Seamless MFA setup with QR codes
+- ✅ Progressive authentication flows
+- ✅ Intelligent error handling and recovery
+- ✅ Offline-capable with local caching
+- ✅ Accessibility support (VoiceOver, Dynamic Type)
+
+## 🧪 **Testing**
+
+### **Backend Tests**
 ```bash
-cd Server && swift test
+swift test --parallel
 ```
 
-iOS:
+### **iOS Tests**
 ```bash
-cd iOS && xcodebuild test -scheme EcommerceApp -destination 'platform=iOS Simulator,name=iPhone 15 Pro'
+xcodebuild test -project Ecommerce.xcodeproj -scheme Ecommerce -destination 'platform=iOS Simulator,name=iPhone 15'
 ```
 
-## Security Implementation
+## 📚 **Documentation**
 
-### Server Security
-- Secure password hashing with bcrypt
-- JWT token security
-- Rate limiting and brute force protection
-- Secure session management
-- Input validation and sanitization
-- Comprehensive error handling
-- Secure logging practices
+- [**Setup Guide**](Documentation/SETUP.md) - Detailed installation instructions
+- [**API Reference**](Documentation/API.md) - Complete backend API documentation
+- [**Security Model**](Documentation/SECURITY.md) - Security implementation details
+- [**Architecture Guide**](Documentation/ARCHITECTURE.md) - System design and patterns
 
-### iOS Security
-- End-to-end encryption for sensitive data
-- Secure token storage using Keychain
-- Certificate pinning
-- Jailbreak detection
-- Biometric authentication
-- Automatic session management
-- Secure data persistence
+## 🙏 **Acknowledgments**
 
-## Contributing
-Please read [CONTRIBUTING.md](Documentation/CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+Built with cutting-edge Swift technologies:
+- [Hummingbird 2.0](https://github.com/hummingbird-project/hummingbird) - Next-generation Swift server framework
+- [Hummingbird Auth 2.0](https://github.com/hummingbird-project/hummingbird-auth) - Advanced authentication framework
+- [Hummingbird Fluent 2.0-beta](https://github.com/hummingbird-project/hummingbird-fluent) - Modern ORM integration
+- [JWT Kit 5.0-beta](https://github.com/vapor/jwt-kit) - Latest JSON Web Token implementation
+- [AsyncHTTPClient 1.19](https://github.com/swift-server/async-http-client) - High-performance HTTP client
+- [SendGrid Kit 3.0](https://github.com/vapor-community/sendgrid-kit) - Email service integration
+- [Swift Crypto](https://github.com/apple/swift-crypto) - Apple's cryptographic library
+- [GoogleSignIn](https://github.com/google/GoogleSignIn-iOS) - Google authentication SDK
+- [KeychainSwift](https://github.com/evgenyneu/keychain-swift) - Keychain wrapper library
 
-## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 📄 **License**
 
-## Acknowledgments
-- [Hummingbird](https://github.com/hummingbird-project/hummingbird) - Swift HTTP server framework
-- [JWT](https://github.com/vapor/jwt) - JWT implementation
-- [SendGrid](https://sendgrid.com/) - Email service provider
+This project is open source and available under the [MIT License](LICENSE).
 
-## Support
-For support, please open an issue in the GitHub repository or contact the maintainers.
-
-## Disclaimer
-This application is still work in progress and is created for learning purposes to implement industry-standard practices. While it implements security best practices, proper security auditing and testing should be performed before using in a production environment.
+---
