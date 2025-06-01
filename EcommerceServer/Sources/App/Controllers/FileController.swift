@@ -51,13 +51,7 @@ struct FileController {
     ) async throws -> EditedResponse<MessageResponse> {
         // Ensure user is authenticated
         guard context.identity != nil else {
-            return .init(
-                status: .unauthorized,
-                response: MessageResponse(
-                    message: "Authentication required",
-                    success: false
-                )
-            )
+            throw HTTPError(.unauthorized, message: "Authentication required")
         }
         
         // Create uploads directory if it doesn't exist
@@ -69,13 +63,7 @@ struct FileController {
             )
         } catch {
             context.logger.error("Failed to create upload directory: \(error)")
-            return .init(
-                status: .internalServerError,
-                response: MessageResponse(
-                    message: "Failed to process file upload",
-                    success: false
-                )
-            )
+            throw HTTPError(.internalServerError, message: "Failed to process file upload")
         }
 
         // Check if this is a multipart upload or raw bytes
@@ -95,13 +83,7 @@ struct FileController {
         // Check content length before decoding
         if let contentLength = request.headers[values: .contentLength].first.flatMap(Int.init),
            contentLength > maxFileSize {
-            return .init(
-                status: .badRequest,
-                response: MessageResponse(
-                    message: "File size exceeds maximum allowed size of 5MB",
-                    success: false
-                )
-            )
+            throw HTTPError(.badRequest, message: "File size exceeds maximum allowed size of 5MB")
         }
         
         // Decode the multipart request
@@ -109,35 +91,17 @@ struct FileController {
         do {
             uploadRequest = try await context.multipartDecoder.decode(FileUploadRequest.self, from: request, context: context)
         } catch {
-            return .init(
-                status: .badRequest,
-                response: MessageResponse(
-                    message: "Required file field is missing or invalid multipart form data",
-                    success: false
-                )
-            )
+            throw HTTPError(.badRequest, message: "Required file field is missing or invalid multipart form data")
         }
         
         // Check file content type
         guard allowedFileTypes.contains(uploadRequest.file.contentType) else {
-            return .init(
-                status: .unsupportedMediaType,
-                response: MessageResponse(
-                    message: "File type \(uploadRequest.file.contentType) is not supported. Allowed types: JPEG, PNG, GIF, PDF",
-                    success: false
-                )
-            )
+            throw HTTPError(.unsupportedMediaType, message: "File type \(uploadRequest.file.contentType) is not supported. Allowed types: JPEG, PNG, GIF, PDF")
         }
         
         // Check file size after decoding
         guard uploadRequest.file.data.count <= maxFileSize else {
-            return .init(
-                status: .badRequest,
-                response: MessageResponse(
-                    message: "File size exceeds maximum allowed size of 5MB",
-                    success: false
-                )
-            )
+            throw HTTPError(.badRequest, message: "File size exceeds maximum allowed size of 5MB")
         }
 
         // Get filename and save file
@@ -155,13 +119,7 @@ struct FileController {
             )
         } catch {
             context.logger.error("Failed to save file: \(error)")
-            return .init(
-                status: .internalServerError,
-                response: MessageResponse(
-                    message: "Failed to save uploaded file",
-                    success: false
-                )
-            )
+            throw HTTPError(.internalServerError, message: "Failed to save uploaded file")
         }
     }
 
@@ -189,13 +147,7 @@ struct FileController {
             )
         } catch {
             context.logger.error("Failed to save file: \(error)")
-            return .init(
-                status: .internalServerError,
-                response: MessageResponse(
-                    message: "Failed to save uploaded file",
-                    success: false
-                )
-            )
+            throw HTTPError(.internalServerError, message: "Failed to save uploaded file")
         }
     }
 

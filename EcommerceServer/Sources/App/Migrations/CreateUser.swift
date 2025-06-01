@@ -8,6 +8,8 @@ struct CreateUser: AsyncMigration {
             .field("display_name", .string, .required)
             .field("email", .string, .required)
             .field("profile_picture", .string, .sql(.default("https://api.dicebear.com/7.x/avataaars/png")))
+            .field("date_of_birth", .datetime)
+            .field("gender", .string)
             .field("role", .string, .required)
             .field("password_hash", .string)
             .field("password_updated_at", .datetime)

@@ -1275,13 +1275,7 @@ struct AuthController {
             // Check if password was previously used
             if try await user.isPasswordPreviouslyUsed(changePasswordRequest.newPassword) {
                 context.logger.notice("Password reuse attempt by user \(user.username)")
-                return .init(
-                    status: .badRequest,
-                    response: MessageResponse(
-                        message: "Password has been previously used. Please choose a different password.",
-                        success: false
-                    )
-                )
+                throw HTTPError(.badRequest, message: "Password has been previously used. Please choose a different password.")
             }
             
             // Store current token for invalidation
@@ -1317,6 +1311,9 @@ struct AuthController {
                 
                 try await user.save(on: fluent.db())
                 context.logger.info("Password successfully changed for user \(user.username)")
+            } catch let error as HTTPError {
+                // Re-throw HTTPError to be handled by middleware
+                throw error
             } catch {
                 context.logger.error("Unexpected error updating password for user \(user.username): \(error.localizedDescription)")
                 throw HTTPError(.internalServerError, message: "Failed to update password. Please try again later.")
@@ -1344,25 +1341,10 @@ struct AuthController {
                     success: true
                 )
             )
-        } catch let error as HTTPError {
-            // Format HTTP errors as MessageResponse
-            return .init(
-                status: error.status,
-                response: MessageResponse(
-                    message: error.body ?? "An error occurred",
-                    success: false
-                )
-            )
         } catch {
-            // Handle unexpected errors
+            // Handle all errors consistently
             context.logger.error("Unexpected error during password change: \(error.localizedDescription)")
-            return .init(
-                status: .internalServerError,
-                response: MessageResponse(
-                    message: "An unexpected error occurred. Please try again later.",
-                    success: false
-                )
-            )
+            throw HTTPError(.internalServerError, message: "An unexpected error occurred. Please try again later.")
         }
     }
     
@@ -1556,13 +1538,7 @@ struct AuthController {
         
         // Check if password was previously used
         if try await user.isPasswordPreviouslyUsed(resetRequest.newPassword) {
-            return .init(
-                status: .badRequest,
-                response: MessageResponse(
-                    message: "Password has been previously used. Please choose a different password.",
-                    success: false
-                )
-            )
+            throw HTTPError(.badRequest, message: "Password has been previously used. Please choose a different password.")
         }
         
         // Update the password
@@ -1863,13 +1839,7 @@ struct AuthController {
             )
         } catch let error as JWTError {
             // Handle JWT verification errors
-            return .init(
-                status: .badRequest,
-                response: MessageResponse(
-                    message: "Invalid token: \(error.localizedDescription)",
-                    success: false
-                )
-            )
+            throw HTTPError(.badRequest, message: "Invalid token: \(error.localizedDescription)")
         }
     }
     
