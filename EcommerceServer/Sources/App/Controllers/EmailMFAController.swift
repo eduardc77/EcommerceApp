@@ -168,13 +168,7 @@ struct EmailMFAController {
         
         // Check if already disabled
         if !user.emailMFAEnabled {
-            return .init(
-                status: .badRequest,
-                response: MessageResponse(
-                    message: "Email MFA is not enabled",
-                    success: false
-                )
-            )
+            throw HTTPError(.badRequest, message: "Email MFA is not enabled")
         }
         
         // Get disable request with password

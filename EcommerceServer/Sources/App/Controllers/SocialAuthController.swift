@@ -396,7 +396,7 @@ final class SocialAuthController {
         // First try to find user by external provider ID
         if let externalId = try await ExternalProviderIdentity.query(on: fluent.db())
             .filter(\.$provider == provider)
-            .filter(\.$providerUserId == providerUserId)
+             .filter(\.$providerUserId == providerUserId)
             .first(),
            let user = try await User.find(externalId.$user.id, on: fluent.db()) {
             return user

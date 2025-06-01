@@ -16,7 +16,7 @@ enum MFAOption: Identifiable {
         var title: String {
             switch self {
             case .totp: return "Authenticator App"
-            case .email: return "Email"
+            case .email: return "Email Authentication"
             case .recoveryCode: return "Recovery Code"
             }
         }
@@ -31,8 +31,8 @@ enum MFAOption: Identifiable {
         
         var icon: String {
             switch self {
-            case .totp: return "key.fill"
-            case .email: return "envelope.fill"
+            case .totp: return "lock.shield.fill"
+            case .email: return "envelope.badge.shield.half.filled.fill"
             case .recoveryCode: return "key.horizontal.fill"
             }
         }

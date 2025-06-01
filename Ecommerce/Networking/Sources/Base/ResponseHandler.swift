@@ -40,8 +40,34 @@ public actor ResponseHandler {
     }
     
     public func decodeError(from data: Data, statusCode: Int) -> NetworkError {
+        // Try ErrorResponse format (now the standard format)
         if let errorResponse = try? decoder.decode(ErrorResponse.self, from: data) {
             let message = errorResponse.error.message
+            switch statusCode {
+            case 400:
+                return .badRequest(description: message)
+            case 401:
+                return .unauthorized(description: message)
+            case 403:
+                return .forbidden(description: message)
+            case 404:
+                return .notFound(description: message)
+            case 500:
+                return .internalServerError(description: message)
+            case 502:
+                return .badGateway(description: message)
+            case 503:
+                return .serviceUnavailable(description: message)
+            case 504:
+                return .gatewayTimeout(description: message)
+            default:
+                return .clientError(statusCode: statusCode, description: message, data: data)
+            }
+        }
+        
+        // Try EditedResponse<ErrorResponse> (wrapped format)
+        if let editedResponse = try? decoder.decode(EditedResponse<ErrorResponse>.self, from: data) {
+            let message = editedResponse.response.error.message
             switch statusCode {
             case 400:
                 return .badRequest(description: message)

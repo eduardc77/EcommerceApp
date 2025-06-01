@@ -121,7 +121,7 @@ struct CheckoutView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!isValid || isProcessing)
-                .listRowInsets(EdgeInsets())
+                .listRowInsets(.init(top: 0, leading: 10, bottom: 0, trailing: 10))
                 .listRowBackground(Color.clear)
             }
         }

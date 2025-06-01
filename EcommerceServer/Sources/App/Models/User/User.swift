@@ -26,6 +26,12 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
     @Field(key: "profile_picture")
     var profilePicture: String?
     
+    @OptionalField(key: "date_of_birth")
+    var dateOfBirth: Date?
+    
+    @OptionalField(key: "gender")
+    var gender: String?
+    
     @Enum(key: "role")
     var role: Role
     
@@ -91,6 +97,8 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         displayName: String,
         email: String,
         profilePicture: String? = nil,
+        dateOfBirth: Date? = nil,
+        gender: String? = nil,
         role: Role = .customer,
         passwordHash: String?,
         emailVerified: Bool = false,
@@ -112,6 +120,8 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.displayName = displayName
         self.email = email
         self.profilePicture = profilePicture
+        self.dateOfBirth = dateOfBirth
+        self.gender = gender
         self.role = role
         self.passwordHash = passwordHash
         self.emailVerified = emailVerified
@@ -136,6 +146,8 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.displayName = name
         self.email = Self.createSSOEmail(for: name)
         self.profilePicture = nil
+        self.dateOfBirth = nil
+        self.gender = nil
         self.role = .customer
         self.passwordHash = nil
         self.emailVerified = true
@@ -180,6 +192,8 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.displayName = userRequest.displayName
         self.email = userRequest.email
         self.profilePicture = userRequest.profilePicture ?? "https://api.dicebear.com/7.x/avataaars/png"
+        self.dateOfBirth = nil
+        self.gender = nil
         self.role = .customer  // Default role for public registration
         self.emailVerified = false
         self.failedSignInAttempts = 0
@@ -217,6 +231,8 @@ final class User: Model, PasswordAuthenticatable, @unchecked Sendable {
         self.displayName = adminRequest.displayName
         self.email = adminRequest.email
         self.profilePicture = adminRequest.profilePicture ?? "https://api.dicebear.com/7.x/avataaars/png"
+        self.dateOfBirth = nil
+        self.gender = nil
         self.role = adminRequest.role  // Use specified role for admin creation
         self.emailVerified = false
         self.failedSignInAttempts = 0
@@ -371,6 +387,8 @@ extension User {
         static let displayName: FluentKit.FieldKey = "display_name"
         static let email: FluentKit.FieldKey = "email"
         static let profilePicture: FluentKit.FieldKey = "profile_picture"
+        static let dateOfBirth: FluentKit.FieldKey = "date_of_birth"
+        static let gender: FluentKit.FieldKey = "gender"
         static let role: FluentKit.FieldKey = "role"
         static let passwordHash: FluentKit.FieldKey = "password_hash"
         static let passwordUpdatedAt: FluentKit.FieldKey = "password_updated_at"

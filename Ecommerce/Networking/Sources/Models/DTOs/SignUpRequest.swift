@@ -8,14 +8,6 @@ public struct SignUpRequest: Codable, Sendable {
     public let password: String
     public let profilePicture: String?
     
-    private enum CodingKeys: String, CodingKey {
-        case username
-        case displayName = "display_name"
-        case email
-        case password
-        case profilePicture = "profile_picture"
-    }
-    
     public init(
         username: String,
         displayName: String,

@@ -17,8 +17,7 @@ struct RecoveryCodeEntryView: View {
         NavigationStack {
             Form {
                 Text("Please enter one of your valid recovery codes to continue.")
-                    .foregroundStyle(.secondary)
-                    .listRowInsets(.init())
+                    .listRowInsets(.init(top: 0, leading: 10, bottom: 0, trailing: 10))
                     .listRowBackground(Color.clear)
                 
                 Section {
@@ -45,11 +44,11 @@ struct RecoveryCodeEntryView: View {
                     await verifyCode()
                 }
                 .buttonStyle(.bordered)
-                .disabled(!formState.isValidFormat || isLoading)
-                .listRowInsets(.init())
+                .disabled(isLoading)
+                .listRowInsets(.init(top: 0, leading: 10, bottom: 0, trailing: 10))
                 .listRowBackground(Color.clear)
             }
-            .listSectionSpacing(.compact)
+            .listSectionSpacing(20)
             .navigationTitle("Enter Recovery Code")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

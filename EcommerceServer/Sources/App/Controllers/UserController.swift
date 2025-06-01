@@ -121,7 +121,14 @@ struct UserController {
         
         // Update display name if provided
         if let newDisplayName = updateUser.displayName {
-            user.displayName = newDisplayName
+            let trimmedDisplayName = newDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedDisplayName.isEmpty else {
+                throw HTTPError(.unprocessableContent, message: "Display name cannot be empty or only whitespace")
+            }
+            guard trimmedDisplayName.count <= 100 else {
+                throw HTTPError(.unprocessableContent, message: "Display name must not exceed 100 characters")
+            }
+            user.displayName = trimmedDisplayName
         }
         
         // If updating email, check if it's available and update token version
@@ -162,6 +169,16 @@ struct UserController {
             user.profilePicture = profilePicture
         }
         
+        // Update date of birth if provided
+        if let dateOfBirth = updateUser.dateOfBirth {
+            user.dateOfBirth = dateOfBirth
+        }
+        
+        // Update gender if provided
+        if let gender = updateUser.gender {
+            user.gender = gender
+        }
+        
         try await user.save(on: db)
         return .init(status: .ok, response: UserResponse(from: user))
     }
@@ -195,7 +212,14 @@ struct UserController {
         
         // Apply updates
         if let displayName = updateUser.displayName {
-            user.displayName = displayName
+            let trimmedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedDisplayName.isEmpty else {
+                throw HTTPError(.unprocessableContent, message: "Display name cannot be empty or only whitespace")
+            }
+            guard trimmedDisplayName.count <= 100 else {
+                throw HTTPError(.unprocessableContent, message: "Display name must not exceed 100 characters")
+            }
+            user.displayName = trimmedDisplayName
         }
         
         if let email = updateUser.email {
@@ -216,6 +240,14 @@ struct UserController {
         
         if let profilePicture = updateUser.profilePicture {
             user.profilePicture = profilePicture
+        }
+        
+        if let dateOfBirth = updateUser.dateOfBirth {
+            user.dateOfBirth = dateOfBirth
+        }
+        
+        if let gender = updateUser.gender {
+            user.gender = gender
         }
         
         try await user.save(on: fluent.db())
@@ -378,6 +410,8 @@ struct UpdateUserRequest: Codable, Sendable {
     let email: String?
     let password: String?
     let profilePicture: String?
+    let dateOfBirth: Date?
+    let gender: String?
     let role: Role?
 
     enum CodingKeys: String, CodingKey {
@@ -385,6 +419,8 @@ struct UpdateUserRequest: Codable, Sendable {
         case email
         case password
         case profilePicture = "profile_picture"
+        case dateOfBirth = "date_of_birth"
+        case gender
         case role
     }
 }

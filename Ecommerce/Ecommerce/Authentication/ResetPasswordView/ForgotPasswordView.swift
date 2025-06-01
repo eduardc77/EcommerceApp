@@ -17,9 +17,9 @@ struct ForgotPasswordView: View {
     
     var body: some View {
         Form {
-            Text("Enter your email address and we'll send you instructions to reset your password.")
-                .foregroundStyle(.secondary)
-                .listRowInsets(.init())
+            Text("Enter your email address and we'll send you a verification code.")
+                .listRowInsets(.init(top: 0, leading: 10, bottom: 0, trailing: 10))
+                .multilineTextAlignment(.center)
                 .listRowBackground(Color.clear)
 
             Section {
@@ -35,21 +35,20 @@ struct ForgotPasswordView: View {
                     capitalization: .never
                 )
             }
-            Section {
-                AsyncButton("Send Reset Instructions") {
+        }
+        .listSectionSpacing(20)
+        .listRowSeparator(.hidden)
+        .navigationTitle("Forgot Password")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                AsyncButton("Next") {
                     validateEmail()
                     guard fieldError == nil else { return }
                     await sendResetInstructions()
                 }
-                .buttonStyle(.bordered)
-                .disabled(email.isEmpty || isLoading || fieldError != nil)
+                .disabled(isLoading || email.isEmpty)
             }
-            .listRowInsets(.init())
-            .listRowBackground(Color.clear)
         }
-        .listSectionSpacing(.compact)
-        .listRowSeparator(.hidden)
-        .navigationTitle("Reset Password")
         .alert("Check Your Email", isPresented: $showSuccess) {
             Button("Continue") {
                 showSuccess = false

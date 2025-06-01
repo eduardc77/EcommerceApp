@@ -8,7 +8,7 @@ public enum VerificationType {
     case initialEmailFromAccountSettings(email: String)
     case enableEmailMFA(email: String)
     case enableTOTP
-
+    
     /// Represents the source/context of the verification flow
     enum VerificationSource {
         case registration    // During initial registration
@@ -16,7 +16,7 @@ public enum VerificationType {
         case emailUpdate    // After email update
         case signInMFA      // During sign in with MFA
     }
-
+    
     var source: VerificationSource {
         switch self {
         case .emailSignIn, .totpSignIn, .recoveryCodeSignIn:
@@ -29,11 +29,11 @@ public enum VerificationType {
             return .account
         }
     }
-
+    
     var verificationType: VerificationType {
         return self
     }
-
+    
     var isSignIn: Bool {
         switch self {
         case .totpSignIn, .emailSignIn, .recoveryCodeSignIn:
@@ -42,7 +42,7 @@ public enum VerificationType {
             return false
         }
     }
-
+    
     var isSetup: Bool {
         switch self {
         case .enableTOTP, .enableEmailMFA:
@@ -51,7 +51,7 @@ public enum VerificationType {
             return false
         }
     }
-
+    
     var isEmail: Bool {
         switch self {
         case .emailSignIn, .initialEmail, .initialEmailFromAccountSettings, .enableEmailMFA:
@@ -60,7 +60,7 @@ public enum VerificationType {
             return false
         }
     }
-
+    
     var isTOTP: Bool {
         switch self {
         case .totpSignIn, .enableTOTP:
@@ -69,7 +69,7 @@ public enum VerificationType {
             return false
         }
     }
-
+    
     var isSignInOrSignUp: Bool {
         switch self {
         case .emailSignIn, .totpSignIn, .recoveryCodeSignIn, .initialEmail:
@@ -78,7 +78,7 @@ public enum VerificationType {
             return false
         }
     }
-
+    
     var message: String {
         switch self {
         case .emailSignIn:
@@ -97,26 +97,20 @@ public enum VerificationType {
             return "We've sent a verification code to your email. Please enter it below to verify your email address."
         }
     }
-
+    
     var title: String {
         switch self {
-        case .emailSignIn:
-            return "Verify Email"
-        case .initialEmail:
+        case .emailSignIn, .initialEmail, .initialEmailFromAccountSettings:
             return "Verify Email"
         case .enableEmailMFA:
-            return "Set Up Email MFA"
-        case .enableTOTP:
-            return "Set Up TOTP MFA"
-        case .totpSignIn:
-            return "Verify TOTP"
+            return "Set Up Email Authentication"
+        case .enableTOTP, .totpSignIn:
+            return "Enter Code"
         case .recoveryCodeSignIn:
             return "Enter Recovery Code"
-        case .initialEmailFromAccountSettings:
-            return "Verify Email"
         }
     }
-
+    
     var icon: (name: String, color: Color) {
         switch self {
         case .totpSignIn, .enableTOTP:
@@ -129,7 +123,7 @@ public enum VerificationType {
             return ("envelope.badge.shield.half.filled.fill", .blue)
         }
     }
-
+    
     func descriptionText(email: String?) -> Text {
         let userEmail: String
         if let email = email {
@@ -137,7 +131,7 @@ public enum VerificationType {
         } else {
             userEmail = "your email"
         }
-
+        
         let message: LocalizedStringResource
         switch self {
         case .initialEmail:
@@ -151,28 +145,21 @@ public enum VerificationType {
         case .recoveryCodeSignIn:
             message = "Enter one of your recovery codes to sign in. Each code can only be used once."
         case .enableTOTP:
-            message = "Enter the 6-digit code from your authenticator app to enable two-factor authentication."
+            message = "Enter the 6-digit code from your authenticator app to enable Time-based One-Time Password Authenticator."
         case .initialEmailFromAccountSettings:
-            message = "We've sent a verification code to \(userEmail). Please enter it below to verify your email address."
+            message = "We've sent a verification code to \(userEmail). Please enter it below to verify your email waddress."
         }
         return Text(.init(localized: message))
     }
-
+    
     var buttonTitle: String {
-        switch self {
-        case .emailSignIn, .initialEmail, .initialEmailFromAccountSettings, .enableEmailMFA:
-            return "Verify Code"
-        case .enableTOTP:
-            return "Enable MFA"
-        case .totpSignIn, .recoveryCodeSignIn:
-            return "Verify Code"
-        }
+        "Verify Code"
     }
-
+    
     var showsResendButton: Bool {
         isEmail
     }
-
+    
     var showsSkipButton: Bool {
         switch self {
         case .initialEmail:
@@ -181,7 +168,7 @@ public enum VerificationType {
             return false
         }
     }
-
+    
     var resendButtonTitle: String {
         switch self {
         case .emailSignIn, .initialEmail, .initialEmailFromAccountSettings, .enableEmailMFA:
@@ -190,7 +177,7 @@ public enum VerificationType {
             return ""
         }
     }
-
+    
     var errorMessage: String {
         switch self {
         case .totpSignIn:
@@ -203,7 +190,7 @@ public enum VerificationType {
             return "Invalid authenticator code. Please make sure you entered the correct code from your authenticator app."
         }
     }
-
+    
     var resendMessage: String {
         switch self {
         case .emailSignIn, .initialEmail, .initialEmailFromAccountSettings, .enableEmailMFA:
@@ -212,7 +199,7 @@ public enum VerificationType {
             return "Please check your authenticator app for the latest code."
         }
     }
-
+    
     var stateToken: String {
         switch self {
         case .emailSignIn(let token), .totpSignIn(let token), .recoveryCodeSignIn(let token), .initialEmail(let token, _):
