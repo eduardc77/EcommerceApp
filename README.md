@@ -48,19 +48,19 @@ This project demonstrates **best-in-class authentication architecture** using th
   - JWT-based authentication with refresh tokens
   - Token blacklisting and invalidation
   - Secure token rotation
-  - Concurrent session management
+- Concurrent session management
 - **Protection Mechanisms**:
   - Rate limiting with exponential backoff
-  - Brute force protection
+- Brute force protection
   - Account lockout with retry policies
   - Certificate pinning (planned)
 
 #### 📧 **Email Communications**
 - **Verification Flows**:
   - Email verification during registration
-  - MFA setup notifications
+- MFA setup notifications
   - Password reset emails
-  - Security notifications
+- Security notifications
 - **Integration**:
   - SendGrid email service integration
   - Configurable email templates
@@ -71,7 +71,7 @@ This project demonstrates **best-in-class authentication architecture** using th
   - Social authentication integration
   - MFA support with QR code scanning
   - Password recovery flow
-  - Secure token storage using Keychain
+- Secure token storage using Keychain
   - Biometric authentication (planned)
 - **User Experience**:
   - Real-time form validation
@@ -204,12 +204,18 @@ GOOGLE_CLIENT_ID=your-google-client-id
 
 ### **Backend Tests**
 ```bash
-swift test --parallel
+cd EcommerceServer
+swift test
 ```
 
 ### **iOS Tests**
 ```bash
-xcodebuild test -project Ecommerce.xcodeproj -scheme Ecommerce -destination 'platform=iOS Simulator,name=iPhone 15'
+# Main app tests (Auth, Managers, etc.)
+xcodebuild test -project Ecommerce.xcodeproj -scheme Ecommerce
+
+# Networking layer tests
+cd Ecommerce/Networking
+swift test
 ```
 
 ## 📚 **Documentation**

@@ -2,136 +2,103 @@ import SwiftUI
 
 struct TOTPSetupView: View {
     @Environment(AuthManager.self) private var authManager
-    @Environment(\.dismiss) private var dismiss
-    @State private var currentStep = SetupStep.intro
     @State private var qrCode: String?
     @State private var secret: String?
-    @State private var verificationCode = ""
     @State private var error: Error?
     @State private var isLoading = false
     @State private var showVerification = false
-    
-    private enum SetupStep {
-        case intro
-        case qrCode
-    }
+    @State private var showManualEntry = false
     
     var body: some View {
-        NavigationStack {
-            Form {
-                switch currentStep {
-                case .intro:
-                    introSection
-                case .qrCode:
-                    if let qrCode = qrCode, let secret = secret {
-                        qrCodeSection(qrCode: qrCode, secret: secret)
+        Form {
+            Section {
+                InfoHeaderView(
+                    systemIcon: "qrcode.viewfinder",
+                    title: "Setup Authenticator",
+                    description: Text("Open your authenticator app and scan the QR code below to add your account.")
+                )
+                .padding(.top)
+                
+                if let qrCode = qrCode {
+                    QRCodeView(url: qrCode, size: 180)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            
+            if let secret = secret {
+                Section {
+                    DisclosureGroup("Enter Setup Key Manually", isExpanded: $showManualEntry) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(formatSetupKey(secret))
+                                .font(.system(.footnote, design: .monospaced))
+                                .fontWeight(.semibold)
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(.systemGray6))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .textSelection(.enabled)
+                            
+                            Button {
+                                UIPasteboard.general.string = secret
+                            } label: {
+                                HStack {
+                                    Image(systemName: "doc.on.doc")
+                                    Text("Copy Setup Key")
+                                }
+                                .font(.subheadline)
+                                .foregroundStyle(.blue)
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
+                } footer: {
+                    if showManualEntry {
+                        Text("If you can't scan the QR code, you can manually enter this setup key in your authenticator app.")
                     }
                 }
-            }
-            .navigationTitle("Set Up Two-Factor")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-            }
-            .disabled(isLoading)
-            .overlay {
-                if isLoading {
-                    ProgressView()
-                }
-            }
-            .alert("Setup Failed", isPresented: .init(
-                get: { error != nil },
-                set: { if !$0 { error = nil } }
-            )) {
-                Button("OK") {
-                    error = nil
-                }
-            } message: {
-                if let error {
-                    Text(error.localizedDescription)
-                }
-            }
-            .task {
-                // Only start setup if we're authenticated
-                if currentStep == .intro && authManager.isAuthenticated {
-                    await startSetup()
-                }
-            }
-            .sheet(isPresented: $showVerification) {
-                VerificationView(type: .enableTOTP)
             }
         }
-    }
-    
-    private var introSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Two-factor authentication adds an extra layer of security to your account by requiring both your password and a verification code from an authenticator app.")
-                    .font(.body)
-                
-                Text("You'll need an authenticator app like Google Authenticator, Authy, or 1Password to complete setup.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                
-                Button {
-                    withAnimation {
-                        currentStep = .qrCode
-                    }
-                } label: {
-                    Text("Begin Setup")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding(.vertical, 8)
-        }
-    }
-    
-    private func qrCodeSection(qrCode: String, secret: String) -> some View {
-        Section {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("1. Open your authenticator app")
-                    .font(.headline)
-                
-                Text("2. Scan this QR code or manually enter the setup key")
-                    .font(.headline)
-                
-                QRCodeView(url: qrCode, size: 200)
-                    .padding(.vertical)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                
-                Divider()
-                
-                Text("Setup Key")
-                    .font(.headline)
-                
-                Text(secret)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
-                    .background(Color.secondary.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                
-                Text("3. Tap Continue when you're ready to verify")
-                    .font(.headline)
-                
-                Button {
+        .contentMargins(.top, 16, for: .scrollContent)
+        .listSectionSpacing(20)
+        .navigationTitle("Setup Authenticator")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Next") {
                     showVerification = true
-                } label: {
-                    Text("Continue")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
+                .fontWeight(.medium)
             }
-            .padding(.vertical, 8)
-        } footer: {
-            Text("Keep your setup key in a safe place. You'll need it if you want to set up two-factor authentication on another device.")
         }
+        .disabled(isLoading)
+        .overlay {
+            if isLoading {
+                ProgressView()
+            }
+        }
+        .task {
+            await startSetup()
+        }
+        .alert("Setup Failed", isPresented: .init(
+            get: { error != nil },
+            set: { if !$0 { error = nil } }
+        )) {
+            Button("OK") {
+                error = nil
+            }
+        } message: {
+            if let error {
+                Text(error.localizedDescription)
+            }
+        }
+        .sheet(isPresented: $showVerification) {
+            VerificationView(type: .enableTOTP)
+        }
+    }
+    
+    private func formatSetupKey(_ key: String) -> String {
+        let chunks = key.chunked(into: 4)
+        return chunks.joined(separator: "-")
     }
     
     private func startSetup() async {
@@ -144,6 +111,16 @@ struct TOTPSetupView: View {
         } catch {
             self.error = error
             isLoading = false
+        }
+    }
+}
+
+extension String {
+    func chunked(into size: Int) -> [String] {
+        return stride(from: 0, to: count, by: size).map {
+            let start = index(startIndex, offsetBy: $0)
+            let end = index(start, offsetBy: min(size, count - $0))
+            return String(self[start..<end])
         }
     }
 }

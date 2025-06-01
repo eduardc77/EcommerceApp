@@ -40,7 +40,7 @@ protocol AuthManagerProtocol: Sendable {
     func disableEmailMFA(password: String) async throws
     
     // MARK: - Profile Management
-    func updateProfile(displayName: String, email: String?, profilePicture: String?) async -> String?
+    func updateProfile(displayName: String, email: String?, profilePicture: String?, dateOfBirth: Date?, gender: String?) async -> String?
     func refreshProfile() async
     
     // MARK: - Email Verification

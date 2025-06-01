@@ -1,4 +1,4 @@
-import Observation
+import Foundation
 import Networking
 
 @Observable
@@ -72,11 +72,24 @@ public final class UserManager {
         isLoading = false
     }
     
-    public func updateUser(id: String, displayName: String, email: String? = nil) async {
+    public func updateUser(
+        id: String, 
+        displayName: String, 
+        email: String? = nil, 
+        profilePicture: String? = nil,
+        dateOfBirth: Date? = nil,
+        gender: String? = nil
+    ) async {
         isLoading = true
         error = nil
         do {
-            let dto = UpdateUserRequest(displayName: displayName, email: email)
+            let dto = UpdateUserRequest(
+                displayName: displayName, 
+                email: email, 
+                profilePicture: profilePicture,
+                dateOfBirth: dateOfBirth,
+                gender: gender
+            )
             let updatedUser = try await userService.updateProfile(id: id, dto: dto)
             if let index = users.firstIndex(where: { $0.id == id }) {
                 users[index] = updatedUser

@@ -25,6 +25,7 @@ public struct AsyncButton<Label: View>: View {
                         .font(font)
                 }
             }
+            .padding(.vertical, 4)
             .frame(maxWidth: .infinity)
         }
         .disabled(isRunning)

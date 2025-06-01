@@ -39,7 +39,6 @@ struct SignInView: View {
                 
                 Section {
                     signInButton
-                        .padding(.bottom, 10)
                 } footer: {
                     HStack {
                         Button {
@@ -52,14 +51,14 @@ struct SignInView: View {
                         Button {
                             coordinator.navigateToForgotPassword()
                         } label: {
-                            Text("Forgot Password?")
+                            Text("Forgot Password")
                                 .frame(maxWidth: .infinity, alignment: .trailing)
                         }
                     }
                     .font(.subheadline)
                     .buttonStyle(.plain)
                     .foregroundStyle(.tint)
-                    .padding(.bottom, 10)
+                    .padding(.top)
                 }
                 .listRowInsets(.init())
                 .listRowBackground(Color.clear)
@@ -81,12 +80,12 @@ struct SignInView: View {
                         Text("Or")
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
-                    .padding(.bottom, 10)
+                    .padding(.bottom)
                 }
                 .listRowInsets(.init())
                 .listRowBackground(Color.clear)
             }
-            .listSectionSpacing(.compact)
+            .listSectionSpacing(20)
             .navigationTitle("Sign In")
             .navigationDestination(for: AuthenticationCoordinator.Route.self) { route in
                 switch route {

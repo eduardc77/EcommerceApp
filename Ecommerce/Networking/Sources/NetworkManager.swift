@@ -112,6 +112,17 @@ private extension NetworkManager {
         }
     }
     
+    func handleSuccessResponse(_ request: URLRequest, data: Data, response: HTTPURLResponse) async throws -> (Data, HTTPURLResponse) {
+        if request.httpMethod == HTTPMethod.get.method, let url = request.url {
+            await cacheManager.cacheResponse(data, for: url, response: response)
+        }
+        return (data, response)
+    }
+    
+    func handleServerError(data: Data, httpResponse: HTTPURLResponse, responseDescription: String) async throws -> (Data, HTTPURLResponse) {
+        throw await responseHandler.decodeError(from: data, statusCode: httpResponse.statusCode)
+    }
+    
     func handleClientError(
         _ request: URLRequest,
         data: Data,
@@ -121,12 +132,35 @@ private extension NetworkManager {
     ) async throws -> (Data, HTTPURLResponse) {
         switch response.statusCode {
         case 400:
-            // Try to decode error message first
+            // Try to decode error message - server now consistently uses ErrorResponse format
             if let contentType = response.allHeaderFields["Content-Type"] as? String,
-               contentType.contains("application/json"),
-               let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-                throw NetworkError.badRequest(description: errorResponse.error.message)
+               contentType.contains("application/json") {
+                
+                // Debug: Log the raw response
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    print("🔍 Raw 400 response: \(jsonString)")
+                }
+                
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                
+                // Try ErrorResponse format (now the standard format)
+                if let errorResponse = try? decoder.decode(ErrorResponse.self, from: data) {
+                    print("✅ Successfully decoded ErrorResponse: \(errorResponse.error.message)")
+                    throw NetworkError.badRequest(description: errorResponse.error.message)
+                } else {
+                    print("❌ Failed to decode ErrorResponse")
+                }
+                
+                // Try EditedResponse<ErrorResponse> (wrapped format)
+                if let editedResponse = try? decoder.decode(EditedResponse<ErrorResponse>.self, from: data) {
+                    print("✅ Successfully decoded EditedResponse<ErrorResponse>: \(editedResponse.response.error.message)")
+                    throw NetworkError.badRequest(description: editedResponse.response.error.message)
+                } else {
+                    print("❌ Failed to decode EditedResponse<ErrorResponse>")
+                }
             }
+            print("⚠️ Falling back to default error message")
             throw NetworkError.badRequest(description: "Bad Request: \(description)")
         case 401, 403:
             // Check if this is a TOTP required response or email verification after TOTP
@@ -139,7 +173,7 @@ private extension NetworkManager {
                     return (data, response)
                 }
                 
-                // Try to decode error message
+                // Try to decode error message in multiple formats
                 if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
                     let message = errorResponse.error.message
                     if message.contains("No token found") || message.contains("Invalid credentials") {
@@ -172,20 +206,6 @@ private extension NetworkManager {
         default:
             throw NetworkError.clientError(statusCode: response.statusCode, description: "Client Error: \(description)")
         }
-    }
-}
-
-// MARK: - Response Handling
-private extension NetworkManager {
-    func handleSuccessResponse(_ request: URLRequest, data: Data, response: HTTPURLResponse) async throws -> (Data, HTTPURLResponse) {
-        if request.httpMethod == HTTPMethod.get.method, let url = request.url {
-            await cacheManager.cacheResponse(data, for: url, response: response)
-        }
-        return (data, response)
-    }
-    
-    func handleServerError(data: Data, httpResponse: HTTPURLResponse, responseDescription: String) async throws -> (Data, HTTPURLResponse) {
-        throw await responseHandler.decodeError(from: data, statusCode: httpResponse.statusCode)
     }
 }
 

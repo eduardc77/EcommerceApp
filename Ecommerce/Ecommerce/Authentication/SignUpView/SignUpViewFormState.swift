@@ -14,20 +14,16 @@ final class SignUpFormState {
     var isValid = false
     
     func validateAll() {
-        validateUsername(ignoreEmpty: false)
-        validateDisplayName(ignoreEmpty: false)
-        validateEmail(ignoreEmpty: false)
-        validatePassword(ignoreEmpty: false)
-        validateConfirmPassword(ignoreEmpty: false)
+        validateUsername()
+        validateDisplayName()
+        validateEmail()
+        validatePassword()
+        validateConfirmPassword()
     }
     
-    func validateEmail(ignoreEmpty: Bool = true) {
+    func validateEmail() {
         if email.isEmpty {
-            if !ignoreEmpty {
-                fieldErrors["email"] = "Email is required"
-            } else {
-                fieldErrors.removeValue(forKey: "email")
-            }
+            fieldErrors["email"] = "Email is required"
         } else if !isValidEmail(email) {
             fieldErrors["email"] = "Please enter a valid email"
         } else {
@@ -36,84 +32,14 @@ final class SignUpFormState {
         updateValidState()
     }
     
-    func validatePassword(ignoreEmpty: Bool = true) {
+    func validatePassword() {
         if password.isEmpty {
-            if !ignoreEmpty {
-                fieldErrors["password"] = "Password is required"
-            } else {
-                fieldErrors.removeValue(forKey: "password")
-            }
+            fieldErrors["password"] = "Password is required"
         } else {
-            // Length check
-            if password.count < 12 {
-                fieldErrors["password"] = "Password must be at least 12 characters long"
-            } else if password.count > 64 {
-                fieldErrors["password"] = "Password must not exceed 64 characters"
-            }
-            // Complexity checks
-            else {
-                let hasUppercase = password.contains(where: { $0.isUppercase })
-                let hasLowercase = password.contains(where: { $0.isLowercase })
-                let hasNumber = password.contains(where: { $0.isNumber })
-                let hasSpecialChar = password.contains(where: { "!@#$%^&*()_+-=[]{}|;:,.<>?".contains($0) })
-                
-                var requirements: [String] = []
-                if !hasUppercase { requirements.append("uppercase letter") }
-                if !hasLowercase { requirements.append("lowercase letter") }
-                if !hasNumber { requirements.append("number") }
-                if !hasSpecialChar { requirements.append("special character") }
-                
-                if !requirements.isEmpty {
-                    let missing = requirements.joined(separator: ", ")
-                    fieldErrors["password"] = "Password is missing a required \(missing)"
-                    return
-                }
-                
-                // Check for keyboard patterns using the same regex as backend
-                let keyboardPattern = """
-                    (?:qwerty|asdfgh|zxcvbn|dvorak|qwertz|azerty|
-                    1qaz|2wsx|3edc|4rfv|5tgb|6yhn|7ujm|8ik|9ol|0p|
-                    zaq1|xsw2|cde3|vfr4|bgt5|nhy6|mju7|ki8|lo9|p0|
-                    qayz|wsxc|edcv|rfvb|tgbn|yhnm|ujm|ikol|polp)
-                    """
-                
-                if let regex = try? NSRegularExpression(pattern: keyboardPattern, options: [.allowCommentsAndWhitespace]),
-                   let _ = regex.firstMatch(in: password.lowercased(), options: [], range: NSRange(location: 0, length: password.utf8.count)) {
-                    fieldErrors["password"] = "Password contains a keyboard pattern (like 'qwerty' or 'asdfgh')"
-                    return
-                }
-                
-                // Check for sequential patterns
-                let sequentialPatterns = [
-                    Array("abcdefghijklmnopqrstuvwxyz"),
-                    Array("0123456789"),
-                    Array("qwertyuiop"),
-                    Array("asdfghjkl"),
-                    Array("zxcvbnm")
-                ]
-                
-                let lowercasePassword = password.lowercased()
-                for pattern in sequentialPatterns {
-                    let patternLength = 3 // Minimum length to consider as a pattern
-                    for i in 0...(pattern.count - patternLength) {
-                        let slice = pattern[i..<(i + patternLength)]
-                        let forward = String(slice)
-                        let backward = String(slice.reversed())
-                        
-                        if lowercasePassword.contains(forward) || lowercasePassword.contains(backward) {
-                            fieldErrors["password"] = "Password contains a sequential pattern ('\(forward)')"
-                            return
-                        }
-                    }
-                }
-                
-                // Check for repeated characters
-                let groups = Dictionary(grouping: password, by: { $0 })
-                if let (char, _) = groups.first(where: { $0.value.count >= 3 }) {
-                    fieldErrors["password"] = "Password contains too many repeated characters ('\(char)')"
-                    return
-                }
-                
+            // Use shared password validator
+            if let errorMessage = PasswordValidator.validateWithMessage(password) {
+                fieldErrors["password"] = errorMessage
+            } else {
                 fieldErrors.removeValue(forKey: "password")
             }
         }
@@ -121,13 +47,9 @@ final class SignUpFormState {
         updateValidState()
     }
     
-    func validateConfirmPassword(ignoreEmpty: Bool = true) {
+    func validateConfirmPassword() {
         if confirmPassword.isEmpty {
-            if !ignoreEmpty {
-                fieldErrors["confirmPassword"] = "Please confirm your password"
-            } else {
-                fieldErrors.removeValue(forKey: "confirmPassword")
-            }
+            fieldErrors["confirmPassword"] = "Please confirm your password"
         } else if confirmPassword != password {
             fieldErrors["confirmPassword"] = "Passwords do not match"
         } else {
@@ -136,13 +58,9 @@ final class SignUpFormState {
         updateValidState()
     }
     
-    func validateUsername(ignoreEmpty: Bool = true) {
+    func validateUsername() {
         if username.isEmpty {
-            if !ignoreEmpty {
-                fieldErrors["username"] = "Username is required"
-            } else {
-                fieldErrors.removeValue(forKey: "username")
-            }
+            fieldErrors["username"] = "Username is required"
         } else {
             // Username can only contain letters, numbers, hyphens and underscores
             let usernameRegex = "^[a-zA-Z0-9_-]+$"
@@ -155,14 +73,10 @@ final class SignUpFormState {
         updateValidState()
     }
     
-    func validateDisplayName(ignoreEmpty: Bool = true) {
+    func validateDisplayName() {
         let trimmedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         if displayName.isEmpty {
-            if !ignoreEmpty {
-                fieldErrors["displayName"] = "Display name is required"
-            } else {
-                fieldErrors.removeValue(forKey: "displayName")
-            }
+            fieldErrors["displayName"] = "Display name is required"
         } else if trimmedDisplayName.isEmpty {
             fieldErrors["displayName"] = "Display name cannot be empty or only whitespace"
         } else if displayName.count > 100 {

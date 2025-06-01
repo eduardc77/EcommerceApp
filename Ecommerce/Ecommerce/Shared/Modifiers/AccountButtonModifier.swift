@@ -10,7 +10,7 @@ struct AccountButtonModifier: ViewModifier {
                     Button {
                         showAccount = true
                     } label: {
-                        Image(systemName: "person.circle")
+                        Image(systemName: "person.crop.circle.fill")
                     }
                 }
             }

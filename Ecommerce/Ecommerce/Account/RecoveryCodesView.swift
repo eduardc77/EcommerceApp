@@ -46,8 +46,6 @@ struct RecoveryCodesView: View {
             }
         } footer: {
             Text("Each code can only be used once. Keep these codes in a safe place.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
     
@@ -56,7 +54,7 @@ struct RecoveryCodesView: View {
             Form {
                 existingCodesSection
             }
-            .listSectionSpacing(.compact)
+            .listSectionSpacing(20)
             .navigationTitle("Recovery Codes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

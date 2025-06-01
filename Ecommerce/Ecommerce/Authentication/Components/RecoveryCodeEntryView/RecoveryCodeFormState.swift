@@ -36,13 +36,9 @@ final class RecoveryCodeFormState {
     }
     
     /// Sets a validation error string in fieldErrors["recoveryCode"] if the code is invalid
-    func validateCode(ignoreEmpty: Bool = true) {
+    func validateCode() {
         if recoveryCode.isEmpty {
-            if !ignoreEmpty {
-                fieldErrors["recoveryCode"] = "Recovery code is required."
-            } else {
-                fieldErrors.removeValue(forKey: "recoveryCode")
-            }
+            fieldErrors["recoveryCode"] = "Recovery code is required."
         } else if !recoveryCode.isValidRecoveryCodeFormat {
             fieldErrors["recoveryCode"] = "Format: xxxx-xxxx-xxxx-xxxx"
         } else {

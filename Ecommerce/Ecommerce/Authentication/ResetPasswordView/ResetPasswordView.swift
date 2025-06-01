@@ -30,8 +30,8 @@ struct ResetPasswordView: View {
     var body: some View {
         Form {
             Text("Enter the verification code sent to your email and choose a new password.")
-                .foregroundStyle(.secondary)
-                .listRowInsets(.init())
+                .listRowInsets(.init(top: 0, leading: 10, bottom: 0, trailing: 10))
+                .multilineTextAlignment(.center)
                 .listRowBackground(Color.clear)
             
             Section {
@@ -61,7 +61,7 @@ struct ResetPasswordView: View {
                 )
                 
                 ValidatedFormField(
-                    title: "Confirm Password",
+                    title: "Retype Password",
                     text: $formState.confirmPassword,
                     field: ResetPasswordField.confirmPassword,
                     focusedField: $focusedField,
@@ -70,9 +70,7 @@ struct ResetPasswordView: View {
                     secureField: true
                 )
             } footer: {
-                Text("Your password must be at least 8 characters long, include a number, an uppercase letter, a lowercase letter, and a special character.")
-                    .foregroundStyle(.secondary)
-                    .font(.footnote)
+                PasswordRequirementsFooter(password: formState.newPassword)
             }
             
             Section {
@@ -80,11 +78,12 @@ struct ResetPasswordView: View {
                     await resetPassword()
                 }
                 .buttonStyle(.bordered)
-                .disabled(!formState.isValid || isLoading)
+                .disabled(isLoading)
             }
             .listRowInsets(.init())
             .listRowBackground(Color.clear)
         }
+        .listSectionSpacing(20)
         .navigationTitle("Reset Password")
         .onChange(of: focusedField) { oldValue, newValue in
             if let oldValue = oldValue {
@@ -136,69 +135,46 @@ struct ResetPasswordView: View {
             )
             coordinator.popToRoot()
         } catch let error as NetworkError {
-            switch error {
-            case .badRequest(let description):
-                // For bad request, we get the error in the description
-                self.error = NSError(
-                    domain: "ResetPasswordError",
-                    code: 400,
-                    userInfo: [NSLocalizedDescriptionKey: description]
-                )
-            default:
-                self.error = interpretNetworkError(error)
-            }
+            self.error = handleNetworkError(error)
             showError = true
         } catch {
-            if let nsError = error as NSError? {
-                self.error = NSError(
-                    domain: "ResetPasswordError",
-                    code: nsError.code,
-                    userInfo: [NSLocalizedDescriptionKey: nsError.localizedDescription]
-                )
-            } else {
-                self.error = NSError(
-                    domain: "ResetPasswordError",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "An unexpected error occurred. Please try again."]
-                )
-            }
+            self.error = NSError(
+                domain: "ResetPasswordError",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "An unexpected error occurred. Please try again."]
+            )
             showError = true
         }
     }
     
-    private func interpretNetworkError(_ error: NetworkError) -> Error {
+    private func handleNetworkError(_ error: NetworkError) -> Error {
         switch error {
+        case .badRequest(let description):
+            // Server already provides user-friendly messages, use them directly
+            return NSError(
+                domain: "ResetPasswordError",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: description.isEmpty ? "Invalid request. Please check your input and try again." : description]
+            )
         case .clientError(let statusCode, _, _, let data):
             if let data = data,
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let message = json["message"] as? String {
+                // Use server's message directly - it's already user-friendly
                 return NSError(
                     domain: "ResetPasswordError",
                     code: statusCode,
                     userInfo: [NSLocalizedDescriptionKey: message]
                 )
             }
-            
-            // Fallback error messages based on status code
-            if statusCode == 400 {
-                return NSError(
-                    domain: "ResetPasswordError",
-                    code: statusCode,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid request. Please check your input and try again."]
-                )
-            } else if statusCode == 401 {
-                return NSError(
-                    domain: "ResetPasswordError",
-                    code: statusCode,
-                    userInfo: [NSLocalizedDescriptionKey: "Your session has expired. Please try again."]
-                )
-            }
-            return NSError(
-                domain: "ResetPasswordError",
-                code: statusCode,
-                userInfo: [NSLocalizedDescriptionKey: "An error occurred while resetting your password. Please try again."]
-            )
-            
+            return interpretNetworkError(error)
+        default:
+            return interpretNetworkError(error)
+        }
+    }
+    
+    private func interpretNetworkError(_ error: NetworkError) -> Error {
+        switch error {
         case .networkConnectionLost:
             return NSError(
                 domain: "ResetPasswordError",

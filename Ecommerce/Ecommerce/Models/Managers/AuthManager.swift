@@ -466,7 +466,13 @@ public final class AuthManager: AuthManagerProtocol {
 
     // MARK: - Profile Management
     
-    public func updateProfile(displayName: String, email: String? = nil, profilePicture: String? = nil) async -> String? {
+    public func updateProfile(
+        displayName: String, 
+        email: String? = nil, 
+        profilePicture: String? = nil,
+        dateOfBirth: Date? = nil,
+        gender: String? = nil
+    ) async -> String? {
         guard let id = currentUser?.id else { return nil }
         isLoading = true
         defer { isLoading = false }
@@ -476,7 +482,9 @@ public final class AuthManager: AuthManagerProtocol {
             let dto = UpdateUserRequest(
                 displayName: displayName,
                 email: email,
-                profilePicture: profilePicture
+                profilePicture: profilePicture,
+                dateOfBirth: dateOfBirth,
+                gender: gender
             )
             currentUser = try await userService.updateProfile(id: id, dto: dto)
             
@@ -504,13 +512,20 @@ public final class AuthManager: AuthManagerProtocol {
         do {
             let response = try await authService.me()
             currentUser = response
-            // Refresh all MFA statuses
+        } catch {
+            logger.error("Error refreshing profile: \(error)")
+            // Don't sign out on profile refresh failure
+        }
+    }
+
+    /// Refreshes the statuses of all MFA methods for the current user
+    public func refreshMFAStatuses() async {
+        do {
             try await emailVerificationManager.getEmailMFAStatus()
             try await totpManager.getMFAStatus()
             try await recoveryCodesManager.getStatus()
         } catch {
-            logger.error("Error refreshing profile: \(error)")
-            // Don't sign out on profile refresh failure
+            logger.error("Error refreshing MFA statuses: \(error)")
         }
     }
 

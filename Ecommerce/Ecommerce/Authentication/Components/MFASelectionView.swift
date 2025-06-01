@@ -13,6 +13,13 @@ struct MFASelectionView: View {
         NavigationStack {
             List {
                 Section {
+                    InfoHeaderView(
+                        systemIcon: "lock.square.stack.fill",
+                        title: "Select Verification Method",
+                        description: Text("How would you like to verify your identity?")
+                    )
+                    .padding(.vertical)
+                    
                     ForEach(authManager.availableMFAMethods.compactMap { method in
                         switch method {
                         case .totp: return MFAOption.totp
@@ -40,22 +47,12 @@ struct MFASelectionView: View {
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                 }
-                                
-                                Spacer()
-                                
-                                Image(systemName: "chevron.right")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
                             }
                             .padding(.vertical, 4)
                         }
                         .buttonStyle(.plain)
                         .disabled(isLoading)
                     }
-                } header: {
-                    Text("Choose Verification Method")
-                } footer: {
-                    Text("Select how you'd like to verify your identity")
                 }
                 
                 // Recovery option section
@@ -74,19 +71,15 @@ struct MFASelectionView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
                         }
                     }
                     .buttonStyle(.plain)
                     .disabled(isLoading)
                 }
             }
-            .navigationTitle("Multi-Factor Authentication")
+            .contentMargins(.top, 16, for: .scrollContent)
+            .listSectionSpacing(20)
+            .navigationTitle("Verification Method")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

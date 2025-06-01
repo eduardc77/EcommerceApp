@@ -4,6 +4,7 @@ struct RequestBuilder {
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
+        encoder.dateEncodingStrategy = .iso8601
         return encoder
     }()
 

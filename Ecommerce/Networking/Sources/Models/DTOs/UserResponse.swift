@@ -6,6 +6,8 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
     public let displayName: String
     public let email: String
     public let profilePicture: String?  // Optional since server might not have it
+    public let dateOfBirth: String?
+    public let gender: String?
     public let role: Role
     public let emailVerified: Bool
     public let createdAt: String?
@@ -20,6 +22,8 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
         displayName: String,
         email: String,
         profilePicture: String? = nil,
+        dateOfBirth: String? = nil,
+        gender: String? = nil,
         role: Role,
         emailVerified: Bool,
         createdAt: String?,
@@ -33,6 +37,8 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
         self.displayName = displayName
         self.email = email
         self.profilePicture = profilePicture
+        self.dateOfBirth = dateOfBirth
+        self.gender = gender
         self.role = role
         self.emailVerified = emailVerified
         self.createdAt = createdAt
@@ -50,6 +56,12 @@ public struct UserResponse: Codable, Identifiable, Sendable, Equatable, Hashable
     /// Get last update date from ISO8601 string
     public var updateDate: Date? {
         ISO8601DateFormatter.date(from: updatedAt ?? "")
+    }
+    
+    /// Get date of birth as Date object
+    public var dateOfBirthDate: Date? {
+        guard let dateOfBirth = dateOfBirth else { return nil }
+        return ISO8601DateFormatter().date(from: dateOfBirth)
     }
 }
 

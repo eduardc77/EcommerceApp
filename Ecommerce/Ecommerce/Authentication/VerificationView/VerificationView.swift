@@ -4,7 +4,7 @@ struct VerificationView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(EmailVerificationManager.self) private var emailVerificationManager
     let type: VerificationType
-
+    
     var body: some View {
         VerificationViewContent(
             type: type,
@@ -22,7 +22,7 @@ struct VerificationViewContent: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: VerificationViewModel
     @FocusState private var isCodeFieldFocused: Bool
-
+    
     init(type: VerificationType, authManager: AuthManager, emailVerificationManager: EmailVerificationManager) {
         self.type = type
         self.authManager = authManager
@@ -33,7 +33,7 @@ struct VerificationViewContent: View {
             emailVerificationManager: emailVerificationManager
         ))
     }
-
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -41,7 +41,7 @@ struct VerificationViewContent: View {
                 codeInputSection
                 actionButtonsSection
             }
-            .navigationTitle(type.title)
+            .contentMargins(.top, 16, for: .scrollContent)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -109,38 +109,26 @@ struct VerificationViewContent: View {
             RecoveryCodesView(shouldLoadCodesOnAppear: false)
         }
     }
-
+    
     private var headerSection: some View {
         Section {
-            VStack(spacing: 16) {
-                Image(systemName: type.icon.name)
-                    .font(.system(size: 60))
-                    .foregroundStyle(type.icon.color)
-
-                VStack(spacing: 10) {
-                    Text(type.title)
-                        .font(.title2)
-                        .fontWeight(.bold)
-
-                    type.descriptionText(email: authManager.currentUser?.email)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-            }
+            InfoHeaderView(
+                systemIcon: type.icon.name,
+                title: type.title,
+                description: type.descriptionText(email: authManager.currentUser?.email),
+                iconSize: 70
+            )
         } footer: {
             if viewModel.isExpirationTimerRunning {
                 Text("Code expires in \(viewModel.formatTime(viewModel.expirationTimer))")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity)
-        .listRowInsets(.init())
+        .listRowInsets(.init(top: 0, leading: 10, bottom: 0, trailing: 10))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
-
+    
     private var codeInputSection: some View {
         Section {
             OneTimeCodeInput(code: $viewModel.verificationCode, codeLength: 6)
@@ -165,11 +153,11 @@ struct VerificationViewContent: View {
             .padding(.top)
         }
         .frame(maxWidth: .infinity)
-        .listRowInsets(.init())
+        .listRowInsets(.init(top: 0, leading: 10, bottom: 0, trailing: 10))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
-
+    
     private var actionButtonsSection: some View {
         Section {
             VStack(spacing: 10) {
@@ -193,7 +181,7 @@ struct VerificationViewContent: View {
                     viewModel.isLoading ||
                     (type.isEmail && viewModel.attemptsRemaining == 0)
                 )
-
+                
                 if type.showsSkipButton {
                     Button {
                         viewModel.showingSkipAlert = true
@@ -221,11 +209,11 @@ struct VerificationViewContent: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .listRowInsets(.init())
+        .listRowInsets(.init(top: 0, leading: 10, bottom: 0, trailing: 10))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
-
+    
     private var resendButton: some View {
         Group {
             if viewModel.resendCooldown > 0 {
@@ -256,14 +244,14 @@ import Networking
         refreshClient: refreshClient,
         tokenStore: tokenStore
     )
-
+    
     let totpService = PreviewTOTPService()
     let totpManager = TOTPManager(totpService: totpService)
     let emailVerificationService = PreviewEmailVerificationService()
     let emailVerificationManager = EmailVerificationManager(emailVerificationService: emailVerificationService)
     let recoeryCodesService = PreviewRecoveryCodesService()
     let recoveryCodesManager = RecoveryCodesManager(recoveryCodesService: recoeryCodesService)
-
+    
     let authManager = AuthManager(
         authService: PreviewAuthenticationService(),
         userService: PreviewUserService(),
@@ -272,7 +260,7 @@ import Networking
         recoveryCodesManager: recoveryCodesManager,
         authorizationManager: authorizationManager
     )
-
+    
     VerificationView(type: .totpSignIn(stateToken: "preview-token"))
         .environment(authManager)
         .environment(emailVerificationManager)
